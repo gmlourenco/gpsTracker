@@ -1,3 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">PrivateGPSTracker</string>
+    <string name="app_name">Segurança Rural</string>
+    <string name="tracking_notification_title">GPS Rastreio Ativo</string>
+    <string name="tracking_notification_text">A recolher localização em segundo plano</string>
+    <string name="sos_notification_title">🚨 EMERGÊNCIA ATIVA</string>
+    <string name="sos_notification_text">SOS em transmissão contínua</string>
 </resources>

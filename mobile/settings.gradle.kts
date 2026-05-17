@@ -16,8 +16,11 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // MapLibre Android SDK
+        maven { url = uri("https://api.mapbox.com/downloads/v2/releases/maven") }
     }
 }
 
-rootProject.name = "PrivateGPSTracker"
+rootProject.name = "SegurancaRural"
 include(":app")
+include(":shared")
