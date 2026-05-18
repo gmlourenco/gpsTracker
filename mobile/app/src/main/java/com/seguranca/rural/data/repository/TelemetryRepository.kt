@@ -7,9 +7,9 @@ import com.seguranca.rural.data.db.createAppDatabase
 import com.seguranca.rural.data.model.TelemetryRecord
 import com.seguranca.rural.data.network.ApiClient
 import com.seguranca.rural.sync.toLocationJson
-import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
@@ -31,12 +31,15 @@ class TelemetryRepository(context: Context) {
                 setBody(payload)
             }
 
+            // Consume the body to release the HTTP connection back to the pool.
+            // Not doing this causes "A resource failed to call close" warnings.
+            val responseBody = response.bodyAsText()
+
             if (response.status == HttpStatusCode.OK) {
-                Log.i("TelemetryRepository", "✅ Location sent immediately! Status: 200 OK")
-                // Success: write to DB marked as synced (so we have a local history but SyncWorker ignores it)
+                Log.i("TelemetryRepository", "✅ Location sent! Status: 200 OK — $responseBody")
                 dao.insert(record.copy(synced = true))
             } else {
-                Log.e("TelemetryRepository", "❌ Network push failed: ${response.status}. Queueing for offline sync.")
+                Log.e("TelemetryRepository", "❌ Network push failed: ${response.status} — $responseBody. Queueing for offline sync.")
                 dao.insert(record.copy(synced = false))
             }
         } catch (e: Exception) {

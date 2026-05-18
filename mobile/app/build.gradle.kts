@@ -103,6 +103,8 @@ dependencies {
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.ktor.client.logging)
+    // SLF4J no-op binding — silences "No SLF4J providers found" warnings from Ktor's logging
+    implementation("org.slf4j:slf4j-simple:2.0.13")
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.core)
