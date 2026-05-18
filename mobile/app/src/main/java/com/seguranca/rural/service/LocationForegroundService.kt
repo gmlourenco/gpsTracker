@@ -35,9 +35,12 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import android.provider.Settings
+import com.seguranca.rural.data.db.createAppDatabase
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 private const val TAG = "LocationFgService"
 private const val NOTIFICATION_CHANNEL_ID = "gps_tracking_channel"
@@ -75,19 +78,21 @@ class LocationForegroundService : Service() {
         private const val ACCURACY_REPLACE_WINDOW_MS = 10_000L
     }
 
-    // ── Sampling intervals (milliseconds) ─────────────────────────────────
+    // ── Sampling intervals — read from SharedPreferences with sensible defaults ──
+
+    private fun prefs() = getSharedPreferences("tracking_prefs", MODE_PRIVATE)
 
     /** EMERGENCY: 15-second pure GPS, maximum precision */
     private val SOS_INTERVAL_MS = 15_000L
 
-    /** MOVING: 15-minute balanced FusedLocation */
-    private val MOVING_INTERVAL_MS = 15 * 60 * 1000L
-
-    /** STATIC: Not used actively as we rely on distance threshold */
-    private val STATIC_INTERVAL_MS = 45 * 60 * 1000L
+    /** MOVING: configurable, default 15 minutes */
+    private val movingIntervalMs get() = prefs().getLong("tracking_interval_ms", 15 * 60 * 1000L)
 
     /** HEARTBEAT: 30 minutes static force packet */
     private val HEARTBEAT_INTERVAL_MS = 30 * 60 * 1000L
+
+    /** Distance threshold: configurable, default 200 metres */
+    private val distanceThresholdM get() = prefs().getFloat("tracking_distance_m", 200f)
 
     // ── State ──────────────────────────────────────────────────────────────
 
@@ -103,7 +108,33 @@ class LocationForegroundService : Service() {
         super.onCreate()
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         createNotificationChannel()
+        ensureDeviceIdentity()
+        purgeStaleRecords()
         Log.i(TAG, "Service created")
+    }
+
+    /**
+     * Generates a stable, deterministic UUID from the device's ANDROID_ID.
+     * This UUID is unique per device+app, survives updates, but resets on factory reset.
+     */
+    private fun ensureDeviceIdentity() {
+        val prefs = getSharedPreferences("tracking_prefs", MODE_PRIVATE)
+        val existing = prefs.getString("device_id", null)
+        if (existing == null || existing == "unknown-device-id") {
+            val androidId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
+            val deterministicUuid = UUID.nameUUIDFromBytes(androidId.toByteArray()).toString()
+            prefs.edit().putString("device_id", deterministicUuid).apply()
+            Log.i(TAG, "Device identity established: $deterministicUuid (from ANDROID_ID)")
+        }
+    }
+
+    /** Purges unsynced records saved with placeholder deviceId — runs once per process start. */
+    private fun purgeStaleRecords() {
+        val dao = createAppDatabase(applicationContext).telemetryDao()
+        serviceScope.launch {
+            val deleted = dao.deleteUnsyncedByDeviceId("unknown-device-id")
+            if (deleted > 0) Log.w(TAG, "Purged $deleted stale records with 'unknown-device-id'")
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -268,7 +299,7 @@ class LocationForegroundService : Service() {
 
         val intervalMs = when {
             isSos -> SOS_INTERVAL_MS
-            else -> MOVING_INTERVAL_MS
+            else -> movingIntervalMs
         }
 
         val requestBuilder = LocationRequest.Builder(priority, intervalMs)
@@ -276,9 +307,8 @@ class LocationForegroundService : Service() {
             .setMaxUpdateDelayMillis(intervalMs * 2)
 
         if (!isSos) {
-            // Do not wake up CPU unless user moves 200 meters. 
-            // This pushes the geofencing logic down to the ultra-low-power modem chip!
-            requestBuilder.setMinUpdateDistanceMeters(200f)
+            requestBuilder.setMinUpdateDistanceMeters(distanceThresholdM)
+            Log.d(TAG, "Location request: interval=${intervalMs/60000}min, distance=${distanceThresholdM}m")
         }
 
         val request = requestBuilder.build()
@@ -351,11 +381,10 @@ class LocationForegroundService : Service() {
             } ?: "NONE"
 
         val prefs = getSharedPreferences("tracking_prefs", MODE_PRIVATE)
-        var deviceId = prefs.getString("device_id", null)
-        if (deviceId == null || deviceId == "unknown-device-id") {
-            deviceId = java.util.UUID.randomUUID().toString()
-            prefs.edit().putString("device_id", deviceId).apply()
-        }
+        val deviceId = prefs.getString("device_id", null)
+            ?: UUID.nameUUIDFromBytes(
+                Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID).toByteArray()
+            ).toString()
         val deviceLabel = prefs.getString("device_label", "Dispositivo") ?: "Dispositivo"
 
         return TelemetryRecord(

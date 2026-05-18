@@ -107,4 +107,14 @@ interface TelemetryDao {
      */
     @Query("SELECT * FROM telemetry_queue WHERE createdAtEpochMs >= :sinceMs ORDER BY createdAtEpochMs ASC")
     fun observeRouteHistory(sinceMs: Long): Flow<List<TelemetryRecord>>
+
+    // ── Cleanup ───────────────────────────────────────────────────────────
+
+    /**
+     * Deletes all records for a given deviceId that have not yet been synced.
+     * Used on startup to purge stale records saved with a placeholder deviceId
+     * (e.g., "unknown-device-id") before the real identity was established.
+     */
+    @Query("DELETE FROM telemetry_queue WHERE deviceId = :deviceId AND synced = 0")
+    suspend fun deleteUnsyncedByDeviceId(deviceId: String): Int
 }

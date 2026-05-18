@@ -1,5 +1,7 @@
 package com.seguranca.rural.ui.screens
 
+import android.content.Context
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -24,21 +26,27 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 
 private val SurfaceDark = Color(0xFF1A1A2E)
 private val CardDark = Color(0xFF16213E)
@@ -46,26 +54,45 @@ private val TextPrimary = Color(0xFFF1F5F9)
 private val TextSecondary = Color(0xFF94A3B8)
 private val AccentGreen = Color(0xFF16A34A)
 
+private const val PREFS_NAME = "tracking_prefs"
+
 /**
- * ConfigScreen — tracking parameter settings and emergency contact.
- *
- * Settings (persisted via SharedPreferences in a real implementation):
- *   - Tracking interval selector: 5min / 15min / 30min / Adaptive
- *   - Sync on mobile data toggle
- *   - Pause when static toggle
- *   - Emergency contact phone number input
+ * ConfigScreen — persists tracking parameters and device identity to SharedPreferences.
+ * The LocationForegroundService reads these values on every location fix.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConfigScreen() {
-    val intervals = listOf("5 minutos", "15 minutos", "30 minutos", "Modo Adaptativo")
-    var selectedInterval by remember { mutableStateOf(intervals[3]) }
-    var dropdownExpanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
 
-    var syncOnMobileData by remember { mutableStateOf(true) }
-    var pauseWhenStatic by remember { mutableStateOf(true) }
+    // ── State ─────────────────────────────────────────────────────────────
+    var deviceLabel by remember { mutableStateOf("") }
     var emergencyContact by remember { mutableStateOf("") }
     var contactError by remember { mutableStateOf<String?>(null) }
+    var syncOnMobileData by remember { mutableStateOf(true) }
+    var pauseWhenStatic by remember { mutableStateOf(true) }
+
+    // Interval: stored as Long millis, shown as minutes
+    val intervalOptions = listOf(5L, 10L, 15L, 30L)
+    val intervalLabels = listOf("5 minutos", "10 minutos", "15 minutos", "30 minutos")
+    var selectedIntervalIdx by remember { mutableStateOf(2) } // default 15min
+
+    // Distance threshold in metres
+    var distanceThresholdM by remember { mutableFloatStateOf(200f) }
+
+    // ── Load from SharedPreferences on first composition ──────────────────
+    LaunchedEffect(Unit) {
+        deviceLabel = prefs.getString("device_label", "Dispositivo") ?: "Dispositivo"
+        emergencyContact = prefs.getString("emergency_contact", "") ?: ""
+        syncOnMobileData = prefs.getBoolean("sync_on_mobile_data", true)
+        pauseWhenStatic = prefs.getBoolean("pause_when_static", true)
+        distanceThresholdM = prefs.getFloat("tracking_distance_m", 200f)
+        val savedIntervalMs = prefs.getLong("tracking_interval_ms", 15 * 60 * 1000L)
+        val savedMinutes = savedIntervalMs / 60_000L
+        selectedIntervalIdx = intervalOptions.indexOfFirst { it == savedMinutes }.coerceAtLeast(0)
+        Log.d("ConfigScreen", "Settings loaded: label=$deviceLabel, interval=${savedMinutes}min, distance=${distanceThresholdM}m")
+    }
 
     Column(
         modifier = Modifier
@@ -82,14 +109,39 @@ fun ConfigScreen() {
             fontWeight = FontWeight.Bold
         )
 
+        // ── Device identity ────────────────────────────────────────────────
+        ConfigCard(title = "Identidade do Dispositivo") {
+            OutlinedTextField(
+                value = deviceLabel,
+                onValueChange = { deviceLabel = it },
+                label = { Text("Nome do dispositivo", color = TextSecondary) },
+                placeholder = { Text("Ex: Trator do João", color = TextSecondary.copy(0.5f)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedBorderColor = AccentGreen,
+                    unfocusedBorderColor = TextSecondary,
+                )
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Nome visível no mapa da dashboard",
+                color = TextSecondary,
+                fontSize = 11.sp
+            )
+        }
+
         // ── Tracking interval ──────────────────────────────────────────────
         ConfigCard(title = "Intervalo de Rastreio") {
+            var dropdownExpanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(
                 expanded = dropdownExpanded,
                 onExpandedChange = { dropdownExpanded = it }
             ) {
                 OutlinedTextField(
-                    value = selectedInterval,
+                    value = intervalLabels[selectedIntervalIdx],
                     onValueChange = {},
                     readOnly = true,
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dropdownExpanded) },
@@ -108,11 +160,11 @@ fun ConfigScreen() {
                     onDismissRequest = { dropdownExpanded = false },
                     modifier = Modifier.background(CardDark)
                 ) {
-                    intervals.forEach { option ->
+                    intervalLabels.forEachIndexed { index, label ->
                         DropdownMenuItem(
-                            text = { Text(option, color = TextPrimary) },
+                            text = { Text(label, color = TextPrimary) },
                             onClick = {
-                                selectedInterval = option
+                                selectedIntervalIdx = index
                                 dropdownExpanded = false
                             }
                         )
@@ -121,7 +173,40 @@ fun ConfigScreen() {
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Modo Adaptativo ajusta automaticamente com base no movimento",
+                text = "Tempo máximo entre atualizações de posição",
+                color = TextSecondary,
+                fontSize = 11.sp
+            )
+        }
+
+        // ── Distance threshold ─────────────────────────────────────────────
+        ConfigCard(title = "Distância Mínima de Movimento") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Limiar", color = TextSecondary, fontSize = 13.sp)
+                Text(
+                    "${distanceThresholdM.roundToInt()} m",
+                    color = AccentGreen,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+            }
+            Slider(
+                value = distanceThresholdM,
+                onValueChange = { distanceThresholdM = it },
+                valueRange = 50f..500f,
+                steps = 8, // 50m steps
+                colors = SliderDefaults.colors(
+                    thumbColor = AccentGreen,
+                    activeTrackColor = AccentGreen,
+                    inactiveTrackColor = TextSecondary.copy(alpha = 0.3f)
+                )
+            )
+            Text(
+                text = "O GPS só acorda o CPU após mover esta distância",
                 color = TextSecondary,
                 fontSize = 11.sp
             )
@@ -176,7 +261,18 @@ fun ConfigScreen() {
 
         // ── Save button ────────────────────────────────────────────────────
         Button(
-            onClick = { /* TODO: Persist to SharedPreferences */ },
+            onClick = {
+                val intervalMs = intervalOptions[selectedIntervalIdx] * 60_000L
+                prefs.edit()
+                    .putString("device_label", deviceLabel.trim().ifEmpty { "Dispositivo" })
+                    .putString("emergency_contact", emergencyContact)
+                    .putBoolean("sync_on_mobile_data", syncOnMobileData)
+                    .putBoolean("pause_when_static", pauseWhenStatic)
+                    .putLong("tracking_interval_ms", intervalMs)
+                    .putFloat("tracking_distance_m", distanceThresholdM)
+                    .apply()
+                Log.i("ConfigScreen", "✅ Settings saved: label=${deviceLabel}, interval=${intervalOptions[selectedIntervalIdx]}min, distance=${distanceThresholdM.roundToInt()}m")
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
