@@ -29,6 +29,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import android.util.Log
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -48,7 +49,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.seguranca.rural.LocationForegroundService
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.seguranca.rural.ui.viewmodel.HomeViewModel
 import com.seguranca.rural.data.db.TelemetryDao
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -84,10 +86,11 @@ fun HomeScreen(
     batteryLevel: Int = -1,
     lastAccuracy: Float? = null,
     isOnline: Boolean = true,
+    viewModel: HomeViewModel = viewModel()
 ) {
-    val isTracking by LocationForegroundService.isRunning.collectAsState()
-    val isSosActive by LocationForegroundService.isSosActive.collectAsState()
-    val gpsAccuracy by LocationForegroundService.lastAccuracy.collectAsState()
+    val isTracking by viewModel.isTracking.collectAsState()
+    val isSosActive by viewModel.isSosActive.collectAsState()
+    val gpsAccuracy by viewModel.lastAccuracy.collectAsState()
 
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -165,6 +168,7 @@ fun HomeScreen(
                 Switch(
                     checked = isTracking,
                     onCheckedChange = { checked ->
+                        Log.i("HomeScreen", "👇 User toggled tracking switch to: $checked")
                         if (checked) onStartService() else onStopService()
                     },
                     colors = SwitchDefaults.colors(
@@ -216,6 +220,7 @@ fun HomeScreen(
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         }
                                         // 2 seconds elapsed — activate SOS
+                                        Log.w("HomeScreen", "🚨 User activated SOS mode via long press!")
                                         onSosActivate()
                                         sosProgress = 0f
                                         haptic.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -231,6 +236,7 @@ fun HomeScreen(
                                     // Already active: single tap deactivates
                                     val released = tryAwaitRelease()
                                     if (released) {
+                                        Log.i("HomeScreen", "🟢 User deactivated SOS mode via tap")
                                         onSosDeactivate()
                                     }
                                 }

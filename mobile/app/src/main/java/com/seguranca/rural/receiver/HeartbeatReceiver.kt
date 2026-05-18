@@ -1,5 +1,6 @@
-package com.seguranca.rural
+package com.seguranca.rural.receiver
 
+import com.seguranca.rural.service.LocationForegroundService
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent

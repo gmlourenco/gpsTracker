@@ -1,5 +1,7 @@
-package com.seguranca.rural
+package com.seguranca.rural.receiver
 
+import com.seguranca.rural.service.LocationForegroundService
+import com.seguranca.rural.worker.SyncWorker
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -24,13 +26,16 @@ private const val TAG = "BootReceiver"
 class BootReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action != Intent.ACTION_BOOT_COMPLETED &&
-            intent.action != Intent.ACTION_LOCKED_BOOT_COMPLETED
-        ) {
+        // We intentionally only handle BOOT_COMPLETED (not LOCKED_BOOT_COMPLETED).
+        // LOCKED_BOOT_COMPLETED fires before credential-encrypted storage is unlocked,
+        // so SharedPreferences ("tracking_active") would always return false anyway.
+        // This also prevents the duplicate service start we saw in Logcat.
+        if (intent.action != Intent.ACTION_BOOT_COMPLETED) {
+            Log.d(TAG, "Ignoring boot action: ${intent.action}")
             return
         }
 
-        Log.i(TAG, "Boot received (action=${intent.action}) — checking tracking preference")
+        Log.i(TAG, "Boot received — checking tracking preference")
 
         val prefs = context.getSharedPreferences("tracking_prefs", Context.MODE_PRIVATE)
         val isTrackingEnabled = prefs.getBoolean("tracking_active", false)

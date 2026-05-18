@@ -1,5 +1,8 @@
-package com.seguranca.rural
+package com.seguranca.rural.service
 
+import com.seguranca.rural.BuildConfig
+import com.seguranca.rural.receiver.HeartbeatReceiver
+import com.seguranca.rural.ui.activities.MainActivity
 import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -20,7 +23,9 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
-import com.seguranca.rural.data.db.createAppDatabase
+import com.seguranca.rural.data.repository.TelemetryRepository
+import com.seguranca.rural.data.repository.TrackingStateRepository
+import com.seguranca.rural.domain.usecase.SubmitLocationUseCase
 import com.seguranca.rural.data.model.TelemetryRecord
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -63,18 +68,10 @@ class LocationForegroundService : Service() {
         const val ACTION_SOS_DEACTIVATE = "com.seguranca.rural.action.SOS_DEACTIVATE"
         const val ACTION_HEARTBEAT = "com.seguranca.rural.action.HEARTBEAT"
 
-        // Shared StateFlows observed by Compose UI
-        private val _isRunning = MutableStateFlow(false)
-        val isRunning: StateFlow<Boolean> = _isRunning
 
-        private val _isSosActive = MutableStateFlow(false)
-        val isSosActive: StateFlow<Boolean> = _isSosActive
-
-        private val _lastAccuracy = MutableStateFlow<Float?>(null)
-        val lastAccuracy: StateFlow<Float?> = _lastAccuracy
 
         // Accuracy filter: discard fixes worse than this unless no better fix arrives
-        private const val ACCURACY_THRESHOLD_METERS = 80f
+        private const val ACCURACY_THRESHOLD_METERS = 250f
         private const val ACCURACY_REPLACE_WINDOW_MS = 10_000L
     }
 
@@ -116,14 +113,14 @@ class LocationForegroundService : Service() {
                 return START_NOT_STICKY
             }
             ACTION_SOS_ACTIVATE -> {
-                _isSosActive.value = true
+                TrackingStateRepository.setSosActive(true)
                 restartLocationUpdates()
                 updateNotification()
                 Log.w(TAG, "SOS mode ACTIVATED")
                 return START_STICKY
             }
             ACTION_SOS_DEACTIVATE -> {
-                _isSosActive.value = false
+                TrackingStateRepository.setSosActive(false)
                 restartLocationUpdates()
                 updateNotification()
                 Log.i(TAG, "SOS mode deactivated")
@@ -143,7 +140,7 @@ class LocationForegroundService : Service() {
     // ── Tracking lifecycle ─────────────────────────────────────────────────
 
     private fun startTracking() {
-        _isRunning.value = true
+        TrackingStateRepository.setTracking(true)
 
         // Start as foreground service with sticky notification
         val notification = buildNotification()
@@ -155,6 +152,23 @@ class LocationForegroundService : Service() {
 
         registerLocationCallback()
         requestLocationUpdates()
+        
+        try {
+            Log.d(TAG, "Requesting immediate forced location fix...")
+            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                .addOnSuccessListener { location: android.location.Location? ->
+                    if (location != null) {
+                        Log.i(TAG, "✅ Forced immediate location fix received (${location.accuracy}m)")
+                        TrackingStateRepository.setLastAccuracy(location.accuracy)
+                        processLocationFix(location)
+                    } else {
+                        Log.w(TAG, "⚠️ Forced immediate location fix returned null")
+                    }
+                }
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Location permission not granted for immediate fix: ${e.message}")
+        }
+
         scheduleNextHeartbeatAlarm()
         Log.i(TAG, "GPS tracking started")
     }
@@ -215,8 +229,8 @@ class LocationForegroundService : Service() {
     }
 
     private fun stopTracking() {
-        _isRunning.value = false
-        _isSosActive.value = false
+        TrackingStateRepository.setTracking(false)
+        TrackingStateRepository.setSosActive(false)
         fusedLocationClient.removeLocationUpdates(locationCallback)
         cancelHeartbeatAlarm()
         serviceScope.cancel()
@@ -236,7 +250,7 @@ class LocationForegroundService : Service() {
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(result: LocationResult) {
                 for (location in result.locations) {
-                    _lastAccuracy.value = location.accuracy
+                    TrackingStateRepository.setLastAccuracy(location.accuracy)
                     processLocationFix(location)
                 }
             }
@@ -244,7 +258,7 @@ class LocationForegroundService : Service() {
     }
 
     private fun requestLocationUpdates() {
-        val isSos = _isSosActive.value
+        val isSos = TrackingStateRepository.isSosActive.value
 
         val priority = if (isSos) {
             Priority.PRIORITY_HIGH_ACCURACY        // Pure GPS in SOS
@@ -289,7 +303,7 @@ class LocationForegroundService : Service() {
         // Accuracy filter: if we have a recent low-accuracy record and this fix
         // is better, replace it. Otherwise discard the low-accuracy fix.
         if (isLowAccuracy) {
-            if (!_isSosActive.value) {
+            if (!TrackingStateRepository.isSosActive.value) {
                 lastLowAccuracyRecord = buildTelemetryRecord(location)
                 lastLowAccuracyTime = now
                 Log.d(TAG, "Low accuracy fix (${location.accuracy}m) — holding for ${ACCURACY_REPLACE_WINDOW_MS / 1000}s")
@@ -337,7 +351,11 @@ class LocationForegroundService : Service() {
             } ?: "NONE"
 
         val prefs = getSharedPreferences("tracking_prefs", MODE_PRIVATE)
-        val deviceId = prefs.getString("device_id", "unknown-device-id") ?: "unknown-device-id"
+        var deviceId = prefs.getString("device_id", null)
+        if (deviceId == null || deviceId == "unknown-device-id") {
+            deviceId = java.util.UUID.randomUUID().toString()
+            prefs.edit().putString("device_id", deviceId).apply()
+        }
         val deviceLabel = prefs.getString("device_label", "Dispositivo") ?: "Dispositivo"
 
         return TelemetryRecord(
@@ -351,7 +369,7 @@ class LocationForegroundService : Service() {
             accuracy = location.accuracy,
             speed = if (location.hasSpeed()) location.speed * 3.6f else 0f, // m/s → km/h
             heading = if (location.hasBearing()) location.bearing else 0f,
-            emergencyState = _isSosActive.value,
+            emergencyState = TrackingStateRepository.isSosActive.value,
             trackingEnabled = true,
             networkType = networkType,
             appVersion = BuildConfig.VERSION_NAME,
@@ -360,10 +378,11 @@ class LocationForegroundService : Service() {
     }
 
     private fun storeRecord(record: TelemetryRecord) {
-        val db = createAppDatabase(applicationContext)
+        val repository = TelemetryRepository(applicationContext)
+        val submitLocationUseCase = SubmitLocationUseCase(repository)
         serviceScope.launch {
-            val id = db.telemetryDao().insert(record)
-            Log.d(TAG, "Stored record id=$id (emergency=${record.emergencyState}, accuracy=${record.accuracy}m)")
+            submitLocationUseCase(record)
+            Log.d(TAG, "Submitted record (emergency=${record.emergencyState}, accuracy=${record.accuracy}m)")
         }
     }
 
@@ -389,8 +408,8 @@ class LocationForegroundService : Service() {
             PendingIntent.FLAG_IMMUTABLE
         )
 
-        val title = if (_isSosActive.value) "🚨 EMERGÊNCIA ATIVA" else "📍 Rastreio GPS Ativo"
-        val text = if (_isSosActive.value) "SOS em transmissão contínua" else "A recolher localização em segundo plano"
+        val title = if (TrackingStateRepository.isSosActive.value) "🚨 EMERGÊNCIA ATIVA" else "📍 Rastreio GPS Ativo"
+        val text = if (TrackingStateRepository.isSosActive.value) "SOS em transmissão contínua" else "A recolher localização em segundo plano"
 
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setContentTitle(title)
@@ -411,7 +430,7 @@ class LocationForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        _isRunning.value = false
+        TrackingStateRepository.setTracking(false)
         serviceScope.cancel()
         Log.i(TAG, "Service destroyed")
     }

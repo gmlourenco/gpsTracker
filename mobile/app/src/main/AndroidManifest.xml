@@ -45,7 +45,7 @@
 
         <!-- ── Main Activity ─────────────────────────────────────────────── -->
         <activity
-            android:name=".MainActivity"
+            android:name=".ui.activities.MainActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.SegurancaRural"
@@ -59,13 +59,13 @@
         <!-- ── Location Foreground Service ───────────────────────────────── -->
         <!-- foregroundServiceType="location" required on Android 10+ -->
         <service
-            android:name=".LocationForegroundService"
+            android:name=".service.LocationForegroundService"
             android:exported="false"
             android:foregroundServiceType="location" />
 
         <!-- ── Boot Receiver ─────────────────────────────────────────────── -->
         <receiver
-            android:name=".BootReceiver"
+            android:name=".receiver.BootReceiver"
             android:exported="true"
             android:enabled="true">
             <intent-filter>
@@ -76,7 +76,7 @@
 
         <!-- ── Heartbeat Receiver ────────────────────────────────────────── -->
         <receiver
-            android:name=".HeartbeatReceiver"
+            android:name=".receiver.HeartbeatReceiver"
             android:exported="false"
             android:enabled="true" />
 

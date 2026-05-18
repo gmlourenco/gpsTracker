@@ -1,5 +1,6 @@
-package com.seguranca.rural
+package com.seguranca.rural.worker
 
+import com.seguranca.rural.BuildConfig
 import android.content.Context
 import android.util.Log
 import androidx.work.BackoffPolicy
@@ -12,14 +13,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.seguranca.rural.data.db.createAppDatabase
 import com.seguranca.rural.sync.SyncEngine
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.android.Android
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.client.plugins.logging.LogLevel
-import io.ktor.client.plugins.logging.Logger
-import io.ktor.client.plugins.logging.Logging
-import io.ktor.serialization.kotlinx.json.json
-import kotlinx.serialization.json.Json
+import com.seguranca.rural.data.network.ApiClient
 import java.util.concurrent.TimeUnit
 
 private const val TAG = "SyncWorker"
@@ -57,7 +51,7 @@ class SyncWorker(
 
         Log.i(TAG, "Syncing $unsyncedCount records")
 
-        val httpClient = buildHttpClient()
+        val httpClient = ApiClient.httpClient
 
         return try {
             val engine = SyncEngine(
@@ -79,27 +73,6 @@ class SyncWorker(
         } catch (e: Exception) {
             Log.e(TAG, "Sync worker exception: ${e.message}", e)
             Result.retry()
-        } finally {
-            httpClient.close()
-        }
-    }
-
-    private fun buildHttpClient(): HttpClient = HttpClient(Android) {
-        engine {
-            connectTimeout = 10_000  // 10s timeout for rural mobile connections
-            socketTimeout = 15_000
-        }
-        install(ContentNegotiation) {
-            json(Json {
-                ignoreUnknownKeys = true
-                isLenient = true
-            })
-        }
-        install(Logging) {
-            logger = object : Logger {
-                override fun log(message: String): Unit = Log.d("Ktor", message).let {}
-            }
-            level = LogLevel.HEADERS
         }
     }
 

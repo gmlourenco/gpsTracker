@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -18,14 +20,20 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Backend URL injected at build time — override in local.properties or CI
-        val backendUrl = project.findProperty("backend.base.url")
+        val localProps = Properties()
+        val localPropsFile = rootProject.file("local.properties")
+        if (localPropsFile.exists()) {
+            localProps.load(localPropsFile.inputStream())
+        }
+
+        val backendUrl = localProps.getProperty("backend.base.url") 
+            ?: project.findProperty("backend.base.url")?.toString() 
             ?: "https://nextgpstracking.vercel.app"
         buildConfigField("String", "BACKEND_BASE_URL", "\"$backendUrl\"")
 
-        // Device API secret — NEVER hardcode a real secret here
-        // Set via: local.properties → device.api.secret=xxx
-        val deviceSecret = project.findProperty("device.api.secret") ?: "change-me-in-local-properties"
+        val deviceSecret = localProps.getProperty("device.api.secret") 
+            ?: project.findProperty("device.api.secret")?.toString() 
+            ?: "change-me-in-local-properties"
         buildConfigField("String", "DEVICE_API_SECRET", "\"$deviceSecret\"")
     }
 

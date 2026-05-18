@@ -1,5 +1,7 @@
-package com.seguranca.rural
+package com.seguranca.rural.ui.activities
 
+import com.seguranca.rural.service.LocationForegroundService
+import com.seguranca.rural.worker.SyncWorker
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
