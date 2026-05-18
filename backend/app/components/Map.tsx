@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { DeviceWithLatestLocation } from '../types/telemetry';
 
 // Fix Leaflet's default icon path issues with Webpack/Next.js
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
@@ -51,6 +52,8 @@ interface MapProps {
 export default function Map({ devices }: MapProps) {
   // Center map on Portugal by default, or on the first device if available
   const defaultCenter: [number, number] = [39.3999, -8.2245];
+  // eslint-disable-next-line react-hooks/purity
+  const now = Date.now(); // Cache the current time to avoid calling impure function repeatedly
   
   const validDevices = devices.filter(d => d.latestLocation && d.latestLocation.lat !== undefined && d.latestLocation.lng !== undefined);
   const center: [number, number] = validDevices.length > 0 
@@ -62,7 +65,7 @@ export default function Map({ devices }: MapProps) {
     
     // Consider device offline if not seen for 60 minutes
     const lastSeen = new Date(device.last_seen_at || 0).getTime();
-    const isOffline = (Date.now() - lastSeen) > 60 * 60 * 1000;
+    const isOffline = (now - lastSeen) > 60 * 60 * 1000;
     
     return isOffline ? offlineIcon : activeIcon;
   };

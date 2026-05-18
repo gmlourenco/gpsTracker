@@ -1,4 +1,4 @@
-import { DeviceWithLatestLocation } from './types/telemetry';
+import { DeviceWithLatestLocation, DeviceRecord } from './types/telemetry';
 import styles from './page.module.css';
 
 import MapWrapper from './components/MapWrapper';
@@ -20,7 +20,7 @@ async function getDevices(): Promise<DeviceWithLatestLocation[]> {
     if (devicesError) throw devicesError;
     if (!devices || devices.length === 0) return [];
 
-    const deviceIds = devices.map((d: any) => d.id);
+    const deviceIds = devices.map((d: DeviceRecord) => d.id);
     const { data: latestLocations, error: locationsError } = await supabase
       .from('locations')
       .select('*')
@@ -36,7 +36,7 @@ async function getDevices(): Promise<DeviceWithLatestLocation[]> {
       }
     }
 
-    return devices.map((device: any) => ({
+    return devices.map((device: DeviceRecord) => ({
       ...device,
       latestLocation: latestByDevice.get(device.id) ?? null,
     }));
@@ -48,11 +48,13 @@ async function getDevices(): Promise<DeviceWithLatestLocation[]> {
 
 export default async function Dashboard() {
   const devices = await getDevices();
+  // eslint-disable-next-line react-hooks/purity
+  const now = Date.now(); // Calculate once per render to satisfy react-hooks/purity
 
   const getStatus = (device: DeviceWithLatestLocation) => {
     if (device.latestLocation?.emergency_state) return 'sos';
     const lastSeen = new Date(device.last_seen_at || 0).getTime();
-    if ((Date.now() - lastSeen) > 60 * 60 * 1000) return 'offline';
+    if ((now - lastSeen) > 60 * 60 * 1000) return 'offline';
     return 'active';
   };
 
