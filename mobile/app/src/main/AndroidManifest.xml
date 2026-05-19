@@ -13,6 +13,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <!-- Android 14 (API 34) requires declaring the foreground service type -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    
+    <!-- WakeLock: keeps CPU awake for background GPS tracking and transmissions -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <!-- ── Boot & Alarm Receivers ────────────────────────────────────────── -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />

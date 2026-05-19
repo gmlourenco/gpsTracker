@@ -13,7 +13,11 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../lib/supabase';
-import { validateTelemetryPayload, ApiResponse } from '../../types/telemetry';
+import {
+  getTelemetryValidationErrors,
+  validateTelemetryPayload,
+  ApiResponse,
+} from '../../types/telemetry';
 
 // Accuracy threshold: locations worse than this are stored but flagged (via accuracy field)
 const MAX_ACCEPTED_ACCURACY_METERS = 500;
@@ -42,11 +46,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
   }
 
   if (!validateTelemetryPayload(body)) {
+    const validationErrors = getTelemetryValidationErrors(body);
     return NextResponse.json(
       {
         success: false,
         error: 'Payload validation failed',
-        details: 'Required fields: deviceId (UUID), deviceLabel, timestamp (ISO8601), batteryLevel (0-100), batteryCharging, gps {lat,lng,accuracy,speed,heading}, emergencyState, trackingEnabled, networkType, appVersion',
+        details: validationErrors.join('; '),
       },
       { status: 400 }
     );

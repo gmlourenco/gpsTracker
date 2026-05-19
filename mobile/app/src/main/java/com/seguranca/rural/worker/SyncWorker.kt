@@ -14,6 +14,7 @@ import androidx.work.WorkerParameters
 import com.seguranca.rural.data.db.createAppDatabase
 import com.seguranca.rural.sync.SyncEngine
 import com.seguranca.rural.data.network.ApiClient
+import com.seguranca.rural.util.shouldUploadOverCurrentNetwork
 import java.util.concurrent.TimeUnit
 
 private const val TAG = "SyncWorker"
@@ -41,15 +42,20 @@ class SyncWorker(
     override suspend fun doWork(): Result {
         Log.d(TAG, "Sync work started")
 
+        if (!shouldUploadOverCurrentNetwork(context)) {
+            Log.d(TAG, "Mobile data sync disabled — deferring flush until Wi‑Fi")
+            return Result.success()
+        }
+
         val db = createAppDatabase(context)
-        val unsyncedCount = db.telemetryDao().getTotalCount()
+        val unsyncedCount = db.telemetryDao().getUnsyncedCount()
 
         if (unsyncedCount == 0) {
             Log.d(TAG, "Queue is empty — nothing to sync")
             return Result.success()
         }
 
-        Log.i(TAG, "Syncing $unsyncedCount records")
+        Log.i(TAG, "Syncing $unsyncedCount unsynced records")
 
         val httpClient = ApiClient.httpClient
 

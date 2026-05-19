@@ -56,5 +56,7 @@ class BootReceiver : BroadcastReceiver() {
         } else {
             context.startService(serviceIntent)
         }
+
+        SyncWorker.schedule(context)
     }
 }

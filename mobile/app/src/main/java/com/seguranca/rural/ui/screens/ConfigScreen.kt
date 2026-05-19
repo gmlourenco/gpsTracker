@@ -1,7 +1,9 @@
 package com.seguranca.rural.ui.screens
 
 import android.content.Context
+import android.content.Intent
 import android.util.Log
+import com.seguranca.rural.service.LocationForegroundService
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -73,10 +75,10 @@ fun ConfigScreen() {
     var syncOnMobileData by remember { mutableStateOf(true) }
     var pauseWhenStatic by remember { mutableStateOf(true) }
 
-    // Interval: stored as Long millis, shown as minutes
-    val intervalOptions = listOf(5L, 10L, 15L, 30L)
-    val intervalLabels = listOf("5 minutos", "10 minutos", "15 minutos", "30 minutos")
-    var selectedIntervalIdx by remember { mutableStateOf(2) } // default 15min
+    // Interval: stored as Long minutes, shown as minutes
+    val intervalOptions = listOf(1L, 5L, 10L, 15L, 30L, 60L)
+    val intervalLabels = listOf("1 minuto", "5 minutos", "10 minutos", "15 minutos", "30 minutos", "60 minutos")
+    var selectedIntervalIdx by remember { mutableStateOf(0) } // default 1min
 
     // Distance threshold in metres
     var distanceThresholdM by remember { mutableFloatStateOf(200f) }
@@ -88,7 +90,7 @@ fun ConfigScreen() {
         syncOnMobileData = prefs.getBoolean("sync_on_mobile_data", true)
         pauseWhenStatic = prefs.getBoolean("pause_when_static", true)
         distanceThresholdM = prefs.getFloat("tracking_distance_m", 200f)
-        val savedIntervalMs = prefs.getLong("tracking_interval_ms", 15 * 60 * 1000L)
+        val savedIntervalMs = prefs.getLong("tracking_interval_ms", 1 * 60 * 1000L)
         val savedMinutes = savedIntervalMs / 60_000L
         selectedIntervalIdx = intervalOptions.indexOfFirst { it == savedMinutes }.coerceAtLeast(0)
         Log.d("ConfigScreen", "Settings loaded: label=$deviceLabel, interval=${savedMinutes}min, distance=${distanceThresholdM}m")
@@ -272,6 +274,11 @@ fun ConfigScreen() {
                     .putFloat("tracking_distance_m", distanceThresholdM)
                     .apply()
                 Log.i("ConfigScreen", "✅ Settings saved: label=${deviceLabel}, interval=${intervalOptions[selectedIntervalIdx]}min, distance=${distanceThresholdM.roundToInt()}m")
+                context.startService(
+                    Intent(context, LocationForegroundService::class.java).apply {
+                        action = LocationForegroundService.ACTION_RELOAD_CONFIG
+                    }
+                )
             },
             modifier = Modifier
                 .fillMaxWidth()

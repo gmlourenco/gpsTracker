@@ -91,6 +91,10 @@ interface TelemetryDao {
     @Query("SELECT COUNT(*) FROM telemetry_queue WHERE synced = 0")
     fun observeUnsyncedCount(): Flow<Int>
 
+    /** Number of records still waiting to be uploaded. */
+    @Query("SELECT COUNT(*) FROM telemetry_queue WHERE synced = 0")
+    suspend fun getUnsyncedCount(): Int
+
     /** Total number of records in the queue (synced + unsynced). */
     @Query("SELECT COUNT(*) FROM telemetry_queue")
     suspend fun getTotalCount(): Int

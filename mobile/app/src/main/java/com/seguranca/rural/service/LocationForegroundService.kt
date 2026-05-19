@@ -15,6 +15,7 @@ import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -37,9 +38,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import android.provider.Settings
 import com.seguranca.rural.data.db.createAppDatabase
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.time.Instant
 import java.util.UUID
 
 private const val TAG = "LocationFgService"
@@ -70,12 +69,17 @@ class LocationForegroundService : Service() {
         const val ACTION_SOS_ACTIVATE = "com.seguranca.rural.action.SOS_ACTIVATE"
         const val ACTION_SOS_DEACTIVATE = "com.seguranca.rural.action.SOS_DEACTIVATE"
         const val ACTION_HEARTBEAT = "com.seguranca.rural.action.HEARTBEAT"
+        const val ACTION_RELOAD_CONFIG = "com.seguranca.rural.action.RELOAD_CONFIG"
 
 
 
         // Accuracy filter: discard fixes worse than this unless no better fix arrives
         private const val ACCURACY_THRESHOLD_METERS = 250f
         private const val ACCURACY_REPLACE_WINDOW_MS = 10_000L
+
+        /** Suppress duplicate submissions when getCurrentLocation and the callback fire together. */
+        private const val DUPLICATE_FIX_DEBOUNCE_MS = 3_000L
+        private const val DUPLICATE_FIX_DISTANCE_M = 20f
     }
 
     // ── Sampling intervals — read from SharedPreferences with sensible defaults ──
@@ -85,8 +89,8 @@ class LocationForegroundService : Service() {
     /** EMERGENCY: 15-second pure GPS, maximum precision */
     private val SOS_INTERVAL_MS = 15_000L
 
-    /** MOVING: configurable, default 15 minutes */
-    private val movingIntervalMs get() = prefs().getLong("tracking_interval_ms", 15 * 60 * 1000L)
+    /** MOVING: configurable, default 1 minute */
+    private val movingIntervalMs get() = prefs().getLong("tracking_interval_ms", 1 * 60 * 1000L)
 
     /** HEARTBEAT: 30 minutes static force packet */
     private val HEARTBEAT_INTERVAL_MS = 30 * 60 * 1000L
@@ -94,8 +98,12 @@ class LocationForegroundService : Service() {
     /** Distance threshold: configurable, default 200 metres */
     private val distanceThresholdM get() = prefs().getFloat("tracking_distance_m", 200f)
 
+    /** Pause when static: if true, we apply the distance threshold. If false, we ignore distance threshold. */
+    private val pauseWhenStatic get() = prefs().getBoolean("pause_when_static", true)
+
     // ── State ──────────────────────────────────────────────────────────────
 
+    private var wakeLock: PowerManager.WakeLock? = null
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var locationCallback: LocationCallback
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -161,6 +169,13 @@ class LocationForegroundService : Service() {
                 handleHeartbeatTrigger()
                 return START_STICKY
             }
+            ACTION_RELOAD_CONFIG -> {
+                if (TrackingStateRepository.isTracking.value) {
+                    restartLocationUpdates()
+                    Log.i(TAG, "Tracking config reloaded from SharedPreferences")
+                }
+                return START_STICKY
+            }
         }
 
         // Default: start tracking
@@ -172,6 +187,17 @@ class LocationForegroundService : Service() {
 
     private fun startTracking() {
         TrackingStateRepository.setTracking(true)
+
+        // Acquire wake lock to keep CPU awake while tracking is active
+        try {
+            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
+            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SegurancaRural::TrackingWakeLock").apply {
+                acquire()
+            }
+            Log.i(TAG, "WakeLock acquired successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to acquire WakeLock: ${e.message}")
+        }
 
         // Start as foreground service with sticky notification
         val notification = buildNotification()
@@ -254,7 +280,23 @@ class LocationForegroundService : Service() {
             storeRecord(record)
             lastRecordTime = now
         } else {
-            Log.w(TAG, "Cannot store heartbeat: lastKnownLocation is null")
+            Log.w(TAG, "Cannot store heartbeat: lastKnownLocation is null, requesting immediate fix")
+            try {
+                fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                    .addOnSuccessListener { location: android.location.Location? ->
+                        if (location != null) {
+                            Log.i(TAG, "✅ Heartbeat immediate location fix received (${location.accuracy}m)")
+                            lastKnownLocation = location
+                            val record = buildTelemetryRecord(location)
+                            storeRecord(record)
+                            lastRecordTime = System.currentTimeMillis()
+                        } else {
+                            Log.w(TAG, "⚠️ Heartbeat immediate location fix returned null")
+                        }
+                    }
+            } catch (e: SecurityException) {
+                Log.e(TAG, "Location permission not granted for heartbeat immediate fix: ${e.message}")
+            }
         }
         scheduleNextHeartbeatAlarm()
     }
@@ -265,6 +307,14 @@ class LocationForegroundService : Service() {
         fusedLocationClient.removeLocationUpdates(locationCallback)
         cancelHeartbeatAlarm()
         serviceScope.cancel()
+
+        // Release WakeLock
+        if (wakeLock?.isHeld == true) {
+            wakeLock?.release()
+            wakeLock = null
+            Log.i(TAG, "WakeLock released")
+        }
+
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
         Log.i(TAG, "GPS tracking stopped")
@@ -291,11 +341,8 @@ class LocationForegroundService : Service() {
     private fun requestLocationUpdates() {
         val isSos = TrackingStateRepository.isSosActive.value
 
-        val priority = if (isSos) {
-            Priority.PRIORITY_HIGH_ACCURACY        // Pure GPS in SOS
-        } else {
-            Priority.PRIORITY_BALANCED_POWER_ACCURACY // Cell + GPS balanced
-        }
+        // Always use high accuracy (pure GPS) for rural safety reliability to guarantee 15m or better precision
+        val priority = Priority.PRIORITY_HIGH_ACCURACY
 
         val intervalMs = when {
             isSos -> SOS_INTERVAL_MS
@@ -306,9 +353,11 @@ class LocationForegroundService : Service() {
             .setMinUpdateIntervalMillis(intervalMs / 2)
             .setMaxUpdateDelayMillis(intervalMs * 2)
 
-        if (!isSos) {
+        if (!isSos && pauseWhenStatic) {
             requestBuilder.setMinUpdateDistanceMeters(distanceThresholdM)
             Log.d(TAG, "Location request: interval=${intervalMs/60000}min, distance=${distanceThresholdM}m")
+        } else {
+            Log.d(TAG, "Location request: interval=${intervalMs/60000}min (distance threshold bypassed/disabled)")
         }
 
         val request = requestBuilder.build()
@@ -328,6 +377,17 @@ class LocationForegroundService : Service() {
 
     private fun processLocationFix(location: android.location.Location) {
         val now = System.currentTimeMillis()
+
+        val previous = lastKnownLocation
+        if (previous != null &&
+            now - lastRecordTime < DUPLICATE_FIX_DEBOUNCE_MS &&
+            location.distanceTo(previous) < DUPLICATE_FIX_DISTANCE_M
+        ) {
+            Log.d(TAG, "Skipping near-duplicate fix (${now - lastRecordTime}ms, ${location.distanceTo(previous)}m)")
+            lastKnownLocation = location
+            return
+        }
+
         val isLowAccuracy = location.accuracy > ACCURACY_THRESHOLD_METERS
 
         // Accuracy filter: if we have a recent low-accuracy record and this fix
@@ -360,8 +420,10 @@ class LocationForegroundService : Service() {
     }
 
     private fun buildTelemetryRecord(location: android.location.Location): TelemetryRecord {
-        val isoTimestamp = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
-            .format(Date(location.time))
+        // Use current system time as record timestamp so that each telemetry heartbeat
+        // packet (even with stationary coordinates) registers as a fresh live signal on the server.
+        val now = System.currentTimeMillis()
+        val isoTimestamp = Instant.ofEpochMilli(now).toString()
 
         val batteryManager = getSystemService(BATTERY_SERVICE) as? android.os.BatteryManager
         val batteryLevel = batteryManager
@@ -402,7 +464,7 @@ class LocationForegroundService : Service() {
             trackingEnabled = true,
             networkType = networkType,
             appVersion = BuildConfig.VERSION_NAME,
-            createdAtEpochMs = location.time
+            createdAtEpochMs = now
         )
     }
 
@@ -461,6 +523,14 @@ class LocationForegroundService : Service() {
         super.onDestroy()
         TrackingStateRepository.setTracking(false)
         serviceScope.cancel()
+
+        // Safely release WakeLock if still held
+        if (wakeLock?.isHeld == true) {
+            wakeLock?.release()
+            wakeLock = null
+            Log.i(TAG, "WakeLock released in onDestroy")
+        }
+
         Log.i(TAG, "Service destroyed")
     }
 }
