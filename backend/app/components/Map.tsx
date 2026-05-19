@@ -94,7 +94,7 @@ export default function Map({ devices }: MapProps) {
         >
           <Popup className="custom-popup">
             <div style={{ padding: '4px' }}>
-              <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: 'bold' }}>
+              <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: 'bold', color: device.marker_color || '#16A34A' }}>
                 {device.label}
               </h3>
               <p style={{ margin: '4px 0', fontSize: '14px' }}>

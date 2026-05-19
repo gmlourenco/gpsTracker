@@ -28,10 +28,17 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import com.seguranca.rural.BuildConfig
+import com.seguranca.rural.update.AppUpdateChecker
+import com.seguranca.rural.update.AppUpdateOffer
+import com.seguranca.rural.update.ApkUpdateInstaller
+import com.seguranca.rural.ui.components.AppUpdateDialog
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.seguranca.rural.ui.screens.ConfigScreen
@@ -96,6 +103,26 @@ class MainActivity : ComponentActivity() {
         setContent {
             SegurancaRuralTheme {
                 var currentScreen by rememberSaveable { mutableStateOf(AppScreen.HOME) }
+                var updateOffer by remember { mutableStateOf<AppUpdateOffer?>(null) }
+
+                LaunchedEffect(Unit) {
+                    updateOffer = AppUpdateChecker.checkForUpdate(BuildConfig.VERSION_NAME)
+                }
+
+                updateOffer?.let { offer ->
+                    AppUpdateDialog(
+                        offer = offer,
+                        onDismiss = { updateOffer = null },
+                        onConfirmUpdate = {
+                            ApkUpdateInstaller.startDownload(
+                                this@MainActivity,
+                                offer.downloadUrl,
+                                offer.latestVersion,
+                            )
+                            if (!offer.forceUpdate) updateOffer = null
+                        },
+                    )
+                }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),

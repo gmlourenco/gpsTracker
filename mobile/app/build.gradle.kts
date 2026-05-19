@@ -15,8 +15,8 @@ android {
         applicationId = "com.seguranca.rural"
         minSdk = 26           // Android 8.0 — minimum for reliable ForegroundService + FusedLocation
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0-alpha"
+        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
+        versionName = project.findProperty("versionName")?.toString() ?: "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

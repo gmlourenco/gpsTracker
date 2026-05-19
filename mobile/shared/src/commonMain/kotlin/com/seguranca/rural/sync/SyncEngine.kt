@@ -180,7 +180,7 @@ class SyncEngine(
 /**
  * Converts a TelemetryRecord to the JSON format expected by POST /api/location.
  */
-fun TelemetryRecord.toLocationJson(): String = buildJsonObject {
+fun TelemetryRecord.toLocationJson(markerColorHex: String? = null): String = buildJsonObject {
     put("deviceId", deviceId)
     put("deviceLabel", deviceLabel)
     put("timestamp", timestamp)
@@ -197,6 +197,7 @@ fun TelemetryRecord.toLocationJson(): String = buildJsonObject {
     put("trackingEnabled", trackingEnabled)
     put("networkType", networkType)
     put("appVersion", appVersion)
+    markerColorHex?.let { put("markerColor", it) }
 }.let { Json.encodeToString(it) }
 
 /**
