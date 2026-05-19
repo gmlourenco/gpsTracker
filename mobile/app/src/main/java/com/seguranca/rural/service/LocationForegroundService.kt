@@ -49,11 +49,11 @@ private const val NOTIFICATION_ID = 1001
  * LocationForegroundService — persistent GPS tracking service.
  *
  * Runs as a Foreground Service to survive Android's low-memory killer.
- * Uses [FusedLocationProviderClient] with adaptive sampling intervals:
+ * Uses [FusedLocationProviderClient] with time-based polling and app-level submit rules:
  *
- *   STATIC mode:    45–60 min intervals (device not moving, speed < 1 km/h)
- *   MOVING mode:    5–15 min intervals  (speed > 3 km/h)
- *   EMERGENCY mode: 15s continuous pure GPS (SOS activated)
+ *   Normal:    submit every [interval] OR when moved [distance threshold] (whichever first)
+ *   EMERGENCY: 15s continuous pure GPS (SOS activated)
+ *   Heartbeat: 30 min AlarmManager fallback (Doze safety net)
  *
  * Every GPS fix is stored in the local Room database (offline queue).
  * The [SyncWorker] is responsible for flushing the queue when online.
@@ -95,11 +95,8 @@ class LocationForegroundService : Service() {
     /** HEARTBEAT: 30 minutes static force packet */
     private val HEARTBEAT_INTERVAL_MS = 30 * 60 * 1000L
 
-    /** Distance threshold: configurable, default 200 metres */
+    /** Distance threshold: also submit when moved at least this far (even before the interval). */
     private val distanceThresholdM get() = prefs().getFloat("tracking_distance_m", 200f)
-
-    /** Pause when static: if true, we apply the distance threshold. If false, we ignore distance threshold. */
-    private val pauseWhenStatic get() = prefs().getBoolean("pause_when_static", true)
 
     // ── State ──────────────────────────────────────────────────────────────
 
@@ -109,8 +106,11 @@ class LocationForegroundService : Service() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var lastLowAccuracyRecord: TelemetryRecord? = null
     private var lastLowAccuracyTime: Long = 0L
+    /** Last fix used for heartbeat fallback. */
     private var lastKnownLocation: android.location.Location? = null
-    private var lastRecordTime: Long = 0L
+    /** Last fix actually sent to the server — used for interval / distance OR policy. */
+    private var lastSubmittedLocation: android.location.Location? = null
+    private var lastSubmittedTimeMs: Long = 0L
 
     override fun onCreate() {
         super.onCreate()
@@ -278,7 +278,8 @@ class LocationForegroundService : Service() {
             Log.d(TAG, "Storing heartbeat record")
             val record = buildTelemetryRecord(lastKnownLocation!!)
             storeRecord(record)
-            lastRecordTime = now
+            lastSubmittedTimeMs = now
+            lastSubmittedLocation = lastKnownLocation
         } else {
             Log.w(TAG, "Cannot store heartbeat: lastKnownLocation is null, requesting immediate fix")
             try {
@@ -289,7 +290,8 @@ class LocationForegroundService : Service() {
                             lastKnownLocation = location
                             val record = buildTelemetryRecord(location)
                             storeRecord(record)
-                            lastRecordTime = System.currentTimeMillis()
+                            lastSubmittedTimeMs = System.currentTimeMillis()
+                            lastSubmittedLocation = location
                         } else {
                             Log.w(TAG, "⚠️ Heartbeat immediate location fix returned null")
                         }
@@ -349,16 +351,15 @@ class LocationForegroundService : Service() {
             else -> movingIntervalMs
         }
 
+        // Time-based polling only — submit policy (interval OR distance) is applied in processLocationFix.
         val requestBuilder = LocationRequest.Builder(priority, intervalMs)
-            .setMinUpdateIntervalMillis(intervalMs / 2)
-            .setMaxUpdateDelayMillis(intervalMs * 2)
+            .setMinUpdateIntervalMillis(maxOf(intervalMs / 2, 10_000L))
+            .setMaxUpdateDelayMillis(intervalMs)
 
-        if (!isSos && pauseWhenStatic) {
-            requestBuilder.setMinUpdateDistanceMeters(distanceThresholdM)
-            Log.d(TAG, "Location request: interval=${intervalMs/60000}min, distance=${distanceThresholdM}m")
-        } else {
-            Log.d(TAG, "Location request: interval=${intervalMs/60000}min (distance threshold bypassed/disabled)")
-        }
+        Log.d(
+            TAG,
+            "Location request: submit every ${intervalMs / 60_000}min OR ${distanceThresholdM}m movement"
+        )
 
         val request = requestBuilder.build()
 
@@ -380,10 +381,10 @@ class LocationForegroundService : Service() {
 
         val previous = lastKnownLocation
         if (previous != null &&
-            now - lastRecordTime < DUPLICATE_FIX_DEBOUNCE_MS &&
+            now - lastSubmittedTimeMs < DUPLICATE_FIX_DEBOUNCE_MS &&
             location.distanceTo(previous) < DUPLICATE_FIX_DISTANCE_M
         ) {
-            Log.d(TAG, "Skipping near-duplicate fix (${now - lastRecordTime}ms, ${location.distanceTo(previous)}m)")
+            Log.d(TAG, "Skipping near-duplicate fix (${now - lastSubmittedTimeMs}ms, ${location.distanceTo(previous)}m)")
             lastKnownLocation = location
             return
         }
@@ -410,13 +411,37 @@ class LocationForegroundService : Service() {
             }
         }
 
+        if (!TrackingStateRepository.isSosActive.value && !shouldSubmitNow(location, now)) {
+            val sinceMs = now - lastSubmittedTimeMs
+            val movedM = lastSubmittedLocation?.distanceTo(location) ?: 0f
+            Log.d(
+                TAG,
+                "Holding fix: ${sinceMs}ms since last submit (need ${movingIntervalMs}ms), " +
+                    "${movedM}m moved (need ${distanceThresholdM}m)"
+            )
+            lastKnownLocation = location
+            return
+        }
+
         val record = buildTelemetryRecord(location)
         storeRecord(record)
-        lastRecordTime = now
+        lastSubmittedTimeMs = now
+        lastSubmittedLocation = location
         lastKnownLocation = location
 
         // We received a valid location fix. Reset the 30-minute heartbeat clock.
         scheduleNextHeartbeatAlarm()
+    }
+
+    /**
+     * Submit when the configured interval has elapsed OR the device moved beyond the distance threshold.
+     * SOS mode bypasses this (handled before this check is reached).
+     */
+    private fun shouldSubmitNow(location: android.location.Location, now: Long): Boolean {
+        if (lastSubmittedTimeMs == 0L) return true
+        if (now - lastSubmittedTimeMs >= movingIntervalMs) return true
+        val last = lastSubmittedLocation ?: return true
+        return location.distanceTo(last) >= distanceThresholdM
     }
 
     private fun buildTelemetryRecord(location: android.location.Location): TelemetryRecord {

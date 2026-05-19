@@ -73,7 +73,6 @@ fun ConfigScreen() {
     var emergencyContact by remember { mutableStateOf("") }
     var contactError by remember { mutableStateOf<String?>(null) }
     var syncOnMobileData by remember { mutableStateOf(true) }
-    var pauseWhenStatic by remember { mutableStateOf(true) }
 
     // Interval: stored as Long minutes, shown as minutes
     val intervalOptions = listOf(1L, 5L, 10L, 15L, 30L, 60L)
@@ -88,7 +87,6 @@ fun ConfigScreen() {
         deviceLabel = prefs.getString("device_label", "Dispositivo") ?: "Dispositivo"
         emergencyContact = prefs.getString("emergency_contact", "") ?: ""
         syncOnMobileData = prefs.getBoolean("sync_on_mobile_data", true)
-        pauseWhenStatic = prefs.getBoolean("pause_when_static", true)
         distanceThresholdM = prefs.getFloat("tracking_distance_m", 200f)
         val savedIntervalMs = prefs.getLong("tracking_interval_ms", 1 * 60 * 1000L)
         val savedMinutes = savedIntervalMs / 60_000L
@@ -175,7 +173,7 @@ fun ConfigScreen() {
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Tempo máximo entre atualizações de posição",
+                text = "Envia posição pelo menos a cada este intervalo (mesmo parado)",
                 color = TextSecondary,
                 fontSize = 11.sp
             )
@@ -208,7 +206,7 @@ fun ConfigScreen() {
                 )
             )
             Text(
-                text = "O GPS só acorda o CPU após mover esta distância",
+                text = "Envia atualização extra ao mover esta distância (antes do intervalo)",
                 color = TextSecondary,
                 fontSize = 11.sp
             )
@@ -221,13 +219,6 @@ fun ConfigScreen() {
                 description = "Envia localizações mesmo sem Wi-Fi",
                 checked = syncOnMobileData,
                 onCheckedChange = { syncOnMobileData = it }
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            SettingToggleRow(
-                label = "Pausar quando parado",
-                description = "Reduz frequência GPS se imóvel",
-                checked = pauseWhenStatic,
-                onCheckedChange = { pauseWhenStatic = it }
             )
         }
 
@@ -269,7 +260,6 @@ fun ConfigScreen() {
                     .putString("device_label", deviceLabel.trim().ifEmpty { "Dispositivo" })
                     .putString("emergency_contact", emergencyContact)
                     .putBoolean("sync_on_mobile_data", syncOnMobileData)
-                    .putBoolean("pause_when_static", pauseWhenStatic)
                     .putLong("tracking_interval_ms", intervalMs)
                     .putFloat("tracking_distance_m", distanceThresholdM)
                     .apply()
