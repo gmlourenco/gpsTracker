@@ -1,6 +1,6 @@
 {
-  "latestVersion": "0.1.0",
-  "minVersion": "0.1.0",
-  "downloadUrl": "",
-  "releaseNotes": "Versão inicial do rastreador Segurança Rural."
+  "latestVersion": "0.2.0",
+  "minVersion": "0.2.0",
+  "downloadUrl": "https://github.com/gmlourenco/gpsTracker/releases/download/v0.2.0/seguranca-rural-0.2.0.apk",
+  "releaseNotes": "Atualização para a versão 0.2.0 com notificações de emergência FCM."
 }

@@ -84,6 +84,17 @@
             android:exported="false"
             android:enabled="true" />
 
+        <!-- ── Firebase Cloud Messaging Service ──────────────────────────── -->
+        <!-- Receives push notifications from the backend (SOS alerts etc.)  -->
+        <!-- Works even when the app is killed — FCM wakes it up via system. -->
+        <service
+            android:name=".service.FcmService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"
