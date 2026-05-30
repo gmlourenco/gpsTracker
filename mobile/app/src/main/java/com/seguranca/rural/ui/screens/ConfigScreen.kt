@@ -11,6 +11,8 @@ import com.seguranca.rural.BuildConfig
 import com.seguranca.rural.data.repository.DeviceProfileRepository
 import com.seguranca.rural.service.LocationForegroundService
 import androidx.compose.runtime.rememberCoroutineScope
+import android.widget.Toast
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import kotlinx.coroutines.launch
 import com.seguranca.rural.util.AppLog
@@ -110,18 +112,48 @@ fun ConfigScreen() {
 
     var selectedMarkerColorArgb by remember { mutableIntStateOf(DEFAULT_MARKER_COLOR_ARGB) }
 
+    // Saved state baselines for comparing changes
+    var savedDeviceLabel by remember { mutableStateOf("") }
+    var savedEmergencyContact by remember { mutableStateOf("") }
+    var savedSyncOnMobileData by remember { mutableStateOf(true) }
+    var savedIntervalIdx by remember { mutableStateOf(0) }
+    var savedDistanceThresholdM by remember { mutableFloatStateOf(200f) }
+    var savedMarkerColorArgb by remember { mutableIntStateOf(DEFAULT_MARKER_COLOR_ARGB) }
+
     // ── Load from SharedPreferences on first composition ──────────────────
     LaunchedEffect(Unit) {
-        deviceLabel = prefs.getString("device_label", "Dispositivo") ?: "Dispositivo"
-        emergencyContact = prefs.getString("emergency_contact", "") ?: ""
-        syncOnMobileData = prefs.getBoolean("sync_on_mobile_data", true)
-        distanceThresholdM = prefs.getFloat("tracking_distance_m", 200f)
-        selectedMarkerColorArgb = prefs.getInt(PREF_DEVICE_MARKER_COLOR, DEFAULT_MARKER_COLOR_ARGB)
+        val label = prefs.getString("device_label", "Dispositivo") ?: "Dispositivo"
+        val contact = prefs.getString("emergency_contact", "") ?: ""
+        val sync = prefs.getBoolean("sync_on_mobile_data", true)
+        val distance = prefs.getFloat("tracking_distance_m", 200f)
+        val color = prefs.getInt(PREF_DEVICE_MARKER_COLOR, DEFAULT_MARKER_COLOR_ARGB)
         val savedIntervalMs = prefs.getLong("tracking_interval_ms", 1 * 60 * 1000L)
         val savedMinutes = savedIntervalMs / 60_000L
-        selectedIntervalIdx = intervalOptions.indexOfFirst { it == savedMinutes }.coerceAtLeast(0)
+        val intervalIdx = intervalOptions.indexOfFirst { it == savedMinutes }.coerceAtLeast(0)
+
+        deviceLabel = label
+        emergencyContact = contact
+        syncOnMobileData = sync
+        distanceThresholdM = distance
+        selectedMarkerColorArgb = color
+        selectedIntervalIdx = intervalIdx
+
+        savedDeviceLabel = label
+        savedEmergencyContact = contact
+        savedSyncOnMobileData = sync
+        savedDistanceThresholdM = distance
+        savedMarkerColorArgb = color
+        savedIntervalIdx = intervalIdx
+
         AppLog.d("ConfigScreen", "Settings loaded: label=$deviceLabel, interval=${savedMinutes}min")
     }
+
+    val hasChanges = deviceLabel.trim().ifEmpty { "Dispositivo" } != savedDeviceLabel ||
+            emergencyContact.trim() != savedEmergencyContact.trim() ||
+            syncOnMobileData != savedSyncOnMobileData ||
+            distanceThresholdM != savedDistanceThresholdM ||
+            selectedMarkerColorArgb != savedMarkerColorArgb ||
+            selectedIntervalIdx != savedIntervalIdx
 
     Column(
         modifier = Modifier
@@ -322,18 +354,30 @@ fun ConfigScreen() {
         Button(
             onClick = {
                 val intervalMs = intervalOptions[selectedIntervalIdx] * 60_000L
+                val trimmedLabel = deviceLabel.trim().ifEmpty { "Dispositivo" }
                 prefs.edit()
-                    .putString("device_label", deviceLabel.trim().ifEmpty { "Dispositivo" })
+                    .putString("device_label", trimmedLabel)
                     .putInt(PREF_DEVICE_MARKER_COLOR, selectedMarkerColorArgb)
                     .putString("emergency_contact", emergencyContact)
                     .putBoolean("sync_on_mobile_data", syncOnMobileData)
                     .putLong("tracking_interval_ms", intervalMs)
                     .putFloat("tracking_distance_m", distanceThresholdM)
                     .apply()
-                AppLog.i("ConfigScreen", "Settings saved: label=$deviceLabel")
+                
+                // Update baseline so button gets disabled again until next change
+                savedDeviceLabel = trimmedLabel
+                savedEmergencyContact = emergencyContact
+                savedSyncOnMobileData = syncOnMobileData
+                savedDistanceThresholdM = distanceThresholdM
+                savedMarkerColorArgb = selectedMarkerColorArgb
+                savedIntervalIdx = selectedIntervalIdx
+
+                Toast.makeText(context, "Configurações guardadas com sucesso", Toast.LENGTH_SHORT).show()
+                AppLog.i("ConfigScreen", "Settings saved: label=$trimmedLabel")
+
                 scope.launch {
                     profileRepository.syncProfile(
-                        deviceLabel = deviceLabel.trim().ifEmpty { "Dispositivo" },
+                        deviceLabel = trimmedLabel,
                         markerColorArgb = selectedMarkerColorArgb,
                     )
                 }
@@ -346,8 +390,11 @@ fun ConfigScreen() {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
-            enabled = contactError == null,
-            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
+            enabled = contactError == null && hasChanges,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AccentGreen,
+                disabledContainerColor = AccentGreen.copy(alpha = 0.5f)
+            ),
             shape = RoundedCornerShape(12.dp)
         ) {
             Text("Guardar Configurações", fontWeight = FontWeight.Bold, fontSize = 16.sp)

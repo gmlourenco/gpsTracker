@@ -10,8 +10,25 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,12 +37,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
+import org.maplibre.android.style.expressions.Expression
 import com.google.gson.JsonObject
 import com.seguranca.rural.data.model.TelemetryRecord
 import org.maplibre.android.MapLibre
@@ -64,14 +85,39 @@ private const val LAYER_SOS = "sos-layer"
 
 @Composable
 fun MapScreen(viewModel: MapViewModel = viewModel()) {
-    val selectedFilter by viewModel.timeFilter.collectAsState()
+    val displayData by viewModel.mapDisplay.collectAsState()
+    val findFamilyEnabled by viewModel.findFamilyEnabled.collectAsState()
+    val refreshStatus by viewModel.familyRefreshStatus.collectAsState()
     val selectedPointLimit by viewModel.pointLimit.collectAsState()
-    val routeHistory by viewModel.routeHistory.collectAsState()
     val mapStyle by viewModel.mapStyle.collectAsState()
 
     LaunchedEffect(Unit) {
         viewModel.refreshDeviceStyle()
     }
+
+    // Refresh icon spinning animation
+    val rotationTransition = rememberInfiniteTransition(label = "refresh_rotation")
+    val rotationAngle by rotationTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+
+    // Dynamic color depending on refresh status
+    val refreshButtonColor by animateColorAsState(
+        targetValue = when (refreshStatus) {
+            FamilyRefreshStatus.Loading -> AccentBlue
+            FamilyRefreshStatus.Success -> Color(0xFF16A34A) // Green (for 1s)
+            FamilyRefreshStatus.Error -> Color(0xFFDC2626)   // Red (for 5s)
+            FamilyRefreshStatus.Idle -> CardDark.copy(alpha = 0.9f)
+        },
+        animationSpec = tween(300),
+        label = "refresh_color"
+    )
 
     Box(
         modifier = Modifier
@@ -104,7 +150,12 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                             style.addSource(GeoJsonSource(SOURCE_MARKER))
                             style.addLayer(
                                 CircleLayer(LAYER_MARKER_CIRCLE, SOURCE_MARKER).withProperties(
-                                    PropertyFactory.circleColor(mapStyle.markerColorHex),
+                                    PropertyFactory.circleColor(
+                                        Expression.coalesce(
+                                            Expression.get("color"),
+                                            Expression.literal(mapStyle.markerColorHex)
+                                        )
+                                    ),
                                     PropertyFactory.circleRadius(16f),
                                     PropertyFactory.circleStrokeColor("#FFFFFF"),
                                     PropertyFactory.circleStrokeWidth(2.5f),
@@ -112,7 +163,7 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                             )
                             style.addLayer(
                                 SymbolLayer(LAYER_MARKER_LABEL, SOURCE_MARKER).withProperties(
-                                    PropertyFactory.textField("{label}"), // from GeoJSON properties
+                                    PropertyFactory.textField("{label}"),
                                     PropertyFactory.textSize(14f),
                                     PropertyFactory.textColor("#FFFFFF"),
                                     PropertyFactory.textAllowOverlap(true),
@@ -140,69 +191,134 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
             update = { mapView ->
                 mapView.getMapAsync { map ->
                     map.getStyle { style ->
-                        updateMapLayers(style, routeHistory, mapStyle)
-                        fitCameraToRoute(map, routeHistory)
+                        updateMapLayers(style, displayData, mapStyle)
+                        fitCameraToRoute(map, displayData)
                     }
                 }
             }
         )
 
-        Column(
+        // Sleek top control panel for FindFamily toggle and Refresh button
+        Card(
+            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.92f)),
+            shape = RoundedCornerShape(24.dp),
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .align(Alignment.TopCenter)
+                .padding(top = 16.dp)
+                .padding(horizontal = 16.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            MapChipRow {
-                MapPointLimit.entries.forEach { limit ->
-                    FilterChip(
-                        selected = selectedPointLimit == limit,
-                        onClick = { viewModel.pointLimit.value = limit },
-                        label = {
-                            Text(
-                                text = limit.label,
-                                fontSize = 12.sp,
-                                color = if (selectedPointLimit == limit) Color.White else TextSecondary
-                            )
-                        },
-                        modifier = Modifier.padding(horizontal = 3.dp),
-                        colors = chipColors(),
-                        border = null,
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "🔎 Localizar Família",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Switch(
+                        checked = findFamilyEnabled,
+                        onCheckedChange = { viewModel.setFindFamilyEnabled(it) },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color.White,
+                            checkedTrackColor = AccentBlue,
+                            uncheckedThumbColor = TextSecondary,
+                            uncheckedTrackColor = SurfaceDark.copy(alpha = 0.6f)
+                        ),
+                        modifier = Modifier.scale(0.85f)
                     )
                 }
-            }
-            MapChipRow {
-                MapTimeFilter.entries.forEach { filter ->
-                    FilterChip(
-                        selected = selectedFilter == filter,
-                        onClick = { viewModel.timeFilter.value = filter },
-                        label = {
-                            Text(
-                                text = filter.label,
-                                fontSize = 13.sp,
-                                color = if (selectedFilter == filter) Color.White else TextSecondary
-                            )
-                        },
-                        modifier = Modifier.padding(horizontal = 4.dp),
-                        colors = chipColors(),
-                        border = null,
-                    )
+
+                if (findFamilyEnabled) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(refreshButtonColor)
+                            .clickable(enabled = refreshStatus != FamilyRefreshStatus.Loading) {
+                                viewModel.refreshFamilyPositions()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Atualizar",
+                            tint = Color.White,
+                            modifier = Modifier
+                                .size(20.dp)
+                                .rotate(if (refreshStatus == FamilyRefreshStatus.Loading) rotationAngle else 0f)
+                        )
+                    }
                 }
             }
         }
 
-        if (routeHistory.isEmpty()) {
-            Text(
-                text = "Sem histórico local — inicia o rastreio para ver a rota",
-                color = TextSecondary,
-                fontSize = 13.sp,
+        // Bottom point limit filters row (only displayed in personal route mode)
+        if (!findFamilyEnabled) {
+            Column(
                 modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 16.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(CardDark.copy(alpha = 0.9f))
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-            )
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                MapChipRow {
+                    MapPointLimit.entries.forEach { limit ->
+                        FilterChip(
+                            selected = selectedPointLimit == limit,
+                            onClick = { viewModel.pointLimit.value = limit },
+                            label = {
+                                Text(
+                                    text = limit.label,
+                                    fontSize = 12.sp,
+                                    color = if (selectedPointLimit == limit) Color.White else TextSecondary
+                                )
+                            },
+                            modifier = Modifier.padding(horizontal = 3.dp),
+                            colors = chipColors(),
+                            border = null,
+                        )
+                    }
+                }
+            }
+        }
+
+        // Dynamic empty state text displays
+        if (findFamilyEnabled) {
+            if (displayData.familyMarkers.isEmpty()) {
+                Text(
+                    text = "A carregar localizações da família...",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 80.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(CardDark.copy(alpha = 0.9f))
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
+        } else {
+            if (displayData.routePoints.isEmpty()) {
+                Text(
+                    text = "Sem histórico local — inicia o rastreio para ver a rota",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 80.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(CardDark.copy(alpha = 0.9f))
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                )
+            }
         }
     }
 }
@@ -227,73 +343,116 @@ private fun chipColors() = FilterChipDefaults.filterChipColors(
 
 private fun updateMapLayers(
     style: Style,
-    routeHistory: List<TelemetryRecord>,
-    mapStyle: DeviceMapStyle,
+    displayData: MapDisplayData,
+    localStyle: DeviceMapStyle,
 ) {
     val routeSource = style.getSourceAs<GeoJsonSource>(SOURCE_ROUTE) ?: return
     val markerSource = style.getSourceAs<GeoJsonSource>(SOURCE_MARKER) ?: return
     val sosSource = style.getSourceAs<GeoJsonSource>(SOURCE_SOS) ?: return
 
-    style.getLayerAs<LineLayer>(LAYER_ROUTE)?.setProperties(
-        PropertyFactory.lineColor(mapStyle.routeColorHex)
-    )
-    style.getLayerAs<CircleLayer>(LAYER_MARKER_CIRCLE)?.setProperties(
-        PropertyFactory.circleColor(mapStyle.markerColorHex)
-    )
-
-    if (routeHistory.isEmpty()) {
+    // 1. Route Line Layer (personal route mode only)
+    if (displayData.isFamilyMode || displayData.routePoints.isEmpty()) {
         routeSource.setGeoJson(FeatureCollection.fromFeatures(emptyArray()))
-        markerSource.setGeoJson(FeatureCollection.fromFeatures(emptyArray()))
-        sosSource.setGeoJson(FeatureCollection.fromFeatures(emptyArray()))
-        return
-    }
-
-    val points = routeHistory.map { Point.fromLngLat(it.lng, it.lat) }
-    val routeFeature = Feature.fromGeometry(LineString.fromLngLats(points))
-    routeSource.setGeoJson(FeatureCollection.fromFeatures(arrayOf(routeFeature)))
-
-    val latest = routeHistory.last()
-    val markerProps = JsonObject().apply {
-        addProperty("label", mapStyle.markerLetter)
-    }
-    val markerFeature = Feature.fromGeometry(
-        Point.fromLngLat(latest.lng, latest.lat),
-        markerProps
-    )
-    markerSource.setGeoJson(FeatureCollection.fromFeatures(arrayOf(markerFeature)))
-
-    if (latest.emergencyState) {
-        val sosFeature = Feature.fromGeometry(Point.fromLngLat(latest.lng, latest.lat))
-        sosSource.setGeoJson(FeatureCollection.fromFeatures(arrayOf(sosFeature)))
     } else {
-        sosSource.setGeoJson(FeatureCollection.fromFeatures(emptyArray()))
+        style.getLayerAs<LineLayer>(LAYER_ROUTE)?.setProperties(
+            PropertyFactory.lineColor(localStyle.routeColorHex)
+        )
+        val points = displayData.routePoints.map { Point.fromLngLat(it.lng, it.lat) }
+        val routeFeature = Feature.fromGeometry(LineString.fromLngLats(points))
+        routeSource.setGeoJson(FeatureCollection.fromFeatures(arrayOf(routeFeature)))
     }
+
+    // 2. Markers & Emergency SOS States
+    val markerFeatures = mutableListOf<Feature>()
+    val sosFeatures = mutableListOf<Feature>()
+
+    if (displayData.isFamilyMode) {
+        displayData.familyMarkers.forEach { marker ->
+            val props = JsonObject().apply {
+                addProperty("label", marker.markerLetter)
+                addProperty("color", marker.markerColorHex)
+            }
+            markerFeatures.add(
+                Feature.fromGeometry(
+                    Point.fromLngLat(marker.lng, marker.lat),
+                    props
+                )
+            )
+
+            if (marker.emergencyState) {
+                sosFeatures.add(Feature.fromGeometry(Point.fromLngLat(marker.lng, marker.lat)))
+            }
+        }
+    } else {
+        displayData.primaryMarker?.let { marker ->
+            val props = JsonObject().apply {
+                addProperty("label", marker.letter)
+                addProperty("color", marker.colorHex)
+            }
+            markerFeatures.add(
+                Feature.fromGeometry(
+                    Point.fromLngLat(marker.lng, marker.lat),
+                    props
+                )
+            )
+
+            if (marker.emergencyState) {
+                sosFeatures.add(Feature.fromGeometry(Point.fromLngLat(marker.lng, marker.lat)))
+            }
+        }
+    }
+
+    markerSource.setGeoJson(FeatureCollection.fromFeatures(markerFeatures.toTypedArray()))
+    sosSource.setGeoJson(FeatureCollection.fromFeatures(sosFeatures.toTypedArray()))
 }
 
 private fun fitCameraToRoute(
     map: org.maplibre.android.maps.MapLibreMap,
-    routeHistory: List<TelemetryRecord>,
+    displayData: MapDisplayData,
 ) {
-    if (routeHistory.isEmpty()) return
-
-    if (routeHistory.size == 1) {
-        val only = routeHistory.first()
+    if (displayData.isFamilyMode) {
+        val markers = displayData.familyMarkers
+        if (markers.isEmpty()) return
+        if (markers.size == 1) {
+            val only = markers.first()
+            map.easeCamera(
+                CameraUpdateFactory.newCameraPosition(
+                    CameraPosition.Builder()
+                        .target(LatLng(only.lat, only.lng))
+                        .zoom(14.0)
+                        .build()
+                ),
+                800
+            )
+            return
+        }
+        val boundsBuilder = LatLngBounds.Builder()
+        markers.forEach { boundsBuilder.include(LatLng(it.lat, it.lng)) }
         map.easeCamera(
-            CameraUpdateFactory.newCameraPosition(
-                CameraPosition.Builder()
-                    .target(LatLng(only.lat, only.lng))
-                    .zoom(15.0)
-                    .build()
-            ),
-            800
+            CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 80),
+            1000
         )
-        return
+    } else {
+        val routeHistory = displayData.routePoints
+        if (routeHistory.isEmpty()) return
+        if (routeHistory.size == 1) {
+            val only = routeHistory.first()
+            map.easeCamera(
+                CameraUpdateFactory.newCameraPosition(
+                    CameraPosition.Builder()
+                        .target(LatLng(only.lat, only.lng))
+                        .zoom(15.0)
+                        .build()
+                ),
+                800
+            )
+            return
+        }
+        val boundsBuilder = LatLngBounds.Builder()
+        routeHistory.forEach { boundsBuilder.include(LatLng(it.lat, it.lng)) }
+        map.easeCamera(
+            CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 80),
+            1000
+        )
     }
-
-    val boundsBuilder = LatLngBounds.Builder()
-    routeHistory.forEach { boundsBuilder.include(LatLng(it.lat, it.lng)) }
-    map.easeCamera(
-        CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 80),
-        1000
-    )
 }
