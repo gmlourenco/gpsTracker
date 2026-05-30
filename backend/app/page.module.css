@@ -138,11 +138,13 @@
 }
 
 .deviceDetails {
-  display: flex;
-  gap: 16px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 16px;
   color: #aaa;
   font-size: 0.85rem;
   font-weight: 500;
+  margin-bottom: 12px;
 }
 
 .mapSection {
@@ -181,4 +183,52 @@
     height: 300px;
     flex: none;
   }
+}
+
+.deviceCard.sos {
+  border: 2px solid var(--sos) !important;
+  background: rgba(231, 76, 60, 0.1) !important;
+  box-shadow: 0 0 15px rgba(231, 76, 60, 0.3);
+  background-image: repeating-linear-gradient(
+    45deg,
+    rgba(231, 76, 60, 0.05),
+    rgba(231, 76, 60, 0.05) 10px,
+    rgba(0, 0, 0, 0) 10px,
+    rgba(0, 0, 0, 0) 20px
+  ) !important;
+}
+
+.actionContainer {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.navButton {
+  background: var(--accent);
+  color: white;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  display: inline-block;
+}
+
+.navButton:hover {
+  background: #27ae60;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(46, 204, 113, 0.3);
+}
+
+.sos .navButton {
+  background: var(--sos);
+}
+
+.sos .navButton:hover {
+  background: #c0392b;
+  box-shadow: 0 4px 10px rgba(231, 76, 60, 0.4);
 }

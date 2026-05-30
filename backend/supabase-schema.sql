@@ -19,8 +19,13 @@ CREATE TABLE IF NOT EXISTS public.devices (
     created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     last_seen_at    TIMESTAMPTZ,                                   -- Updated on every telemetry ingest
     tracking_enabled BOOLEAN      NOT NULL DEFAULT TRUE,
-    app_version     VARCHAR(20)   NOT NULL DEFAULT '1.0.0'
+    app_version     VARCHAR(20)   NOT NULL DEFAULT '1.0.0',
+    fcm_token       TEXT                                           -- Firebase Cloud Messaging push token (nullable — registered on first app launch)
 );
+
+-- Migration for existing deployments:
+-- ALTER TABLE public.devices ADD COLUMN IF NOT EXISTS fcm_token TEXT;
+
 
 -- ============================================================
 -- TABLE: locations

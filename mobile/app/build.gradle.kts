@@ -5,18 +5,20 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.google.services)
 }
 
 android {
-    namespace = "com.seguranca.rural"
+    namespace = "com.segurancarural.gpstracker"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.seguranca.rural"
+        applicationId = "com.segurancarural.gpstracker"
         minSdk = 26           // Android 8.0 — minimum for reliable ForegroundService + FusedLocation
         targetSdk = 36
         versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
-        versionName = project.findProperty("versionName")?.toString() ?: "0.1.0"
+        versionName = project.findProperty("versionName")?.toString() ?: "0.2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -38,7 +40,7 @@ android {
         create("dev") {
             dimension = "environment"
             applicationIdSuffix = ".dev"
-            resValue("string", "app_name", "Segurança Rural Dev")
+            resValue("string", "app_name", "SR GPS Tracker Dev")
 
             val localProps = Properties()
             val localPropsFile = rootProject.file("local.properties")
@@ -53,7 +55,7 @@ android {
         create("pre") {
             dimension = "environment"
             applicationIdSuffix = ".pre"
-            resValue("string", "app_name", "Segurança Rural Pre")
+            resValue("string", "app_name", "SR GPS Tracker Pre")
 
             val localProps = Properties()
             val localPropsFile = rootProject.file("local.properties")
@@ -67,7 +69,7 @@ android {
         }
         create("prod") {
             dimension = "environment"
-            resValue("string", "app_name", "Segurança Rural")
+            resValue("string", "app_name", "SR GPS Tracker")
 
             val localProps = Properties()
             val localPropsFile = rootProject.file("local.properties")
@@ -92,8 +94,8 @@ android {
         }
         debug {
             isDebuggable = true
-            applicationIdSuffix = ".debug"
         }
+
     }
 
     compileOptions {
@@ -153,12 +155,19 @@ dependencies {
     // Coroutines
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
+    // Provides Task.await() for Firebase / Play Services
+    implementation(libs.kotlinx.coroutines.play.services)
+
 
     // EncryptedSharedPreferences
     implementation(libs.androidx.security.crypto)
 
     // MapLibre Android SDK
     implementation(libs.maplibre.android)
+
+    // Firebase Cloud Messaging (push notifications)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging.ktx)
 
     // Testing
     testImplementation(libs.junit)

@@ -18,6 +18,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../lib/supabase';
 import { validateEmergencyPayload, ApiResponse } from '../../types/telemetry';
+import { sendEmergencyNotifications } from '../../lib/notifications';
+import { sendSosPushToAll } from '../../lib/fcm';
+
 
 export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse>> {
   // ── 1. Authorization ──────────────────────────────────────────────────────
@@ -110,8 +113,32 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     `| Time: ${payload.timestamp}`
   );
 
+  // Trigger FCM push (all other devices) + Email + WhatsApp — fire & forget
+  try {
+    await Promise.all([
+      sendSosPushToAll({
+        senderDeviceId: payload.deviceId,
+        deviceLabel:    payload.deviceLabel,
+        lat:            payload.gps.lat,
+        lng:            payload.gps.lng,
+        batteryLevel:   payload.batteryLevel,
+        timestamp:      payload.timestamp,
+      }),
+      sendEmergencyNotifications({
+        deviceLabel:  payload.deviceLabel,
+        lat:          payload.gps.lat,
+        lng:          payload.gps.lng,
+        batteryLevel: payload.batteryLevel,
+        timestamp:    payload.timestamp,
+      }),
+    ]);
+  } catch (err) {
+    console.error('[POST /api/emergency] Alert dispatch failed:', err);
+  }
+
   return NextResponse.json(
     { success: true, message: 'SOS recorded. Emergency state is ACTIVE.' },
     { status: 200 }
   );
 }
+
