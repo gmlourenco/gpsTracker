@@ -1,7 +1,7 @@
 package com.seguranca.rural.data.network
 
-import android.util.Log
 import com.seguranca.rural.BuildConfig
+import com.seguranca.rural.util.AppLog
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.android.Android
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -29,13 +29,15 @@ object ApiClient {
                     isLenient = true
                 })
             }
-            install(Logging) {
-                logger = object : Logger {
-                    override fun log(message: String) {
-                        Log.d("Ktor", message)
+            if (BuildConfig.DEBUG) {
+                install(Logging) {
+                    logger = object : Logger {
+                        override fun log(message: String) {
+                            AppLog.d("Ktor", message)
+                        }
                     }
+                    level = LogLevel.HEADERS
                 }
-                level = LogLevel.ALL
             }
         }
     }

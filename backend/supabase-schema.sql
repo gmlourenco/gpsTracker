@@ -15,6 +15,7 @@ CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE TABLE IF NOT EXISTS public.devices (
     id              UUID          PRIMARY KEY,
     label           VARCHAR(50)   NOT NULL,                        -- Human-readable name (e.g., "Trator-Pai")
+    marker_color    VARCHAR(7)    NOT NULL DEFAULT '#16A34A',      -- Map marker hex color (#RRGGBB)
     created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW(),
     last_seen_at    TIMESTAMPTZ,                                   -- Updated on every telemetry ingest
     tracking_enabled BOOLEAN      NOT NULL DEFAULT TRUE,
