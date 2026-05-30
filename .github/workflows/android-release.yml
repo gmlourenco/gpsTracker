@@ -64,6 +64,90 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
+      - name: Setup google-services.json
+        env:
+          GOOGLE_SERVICES_BASE64: ${{ secrets.GOOGLE_SERVICES_BASE64 }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_BASE64" ]; then
+            echo "Decoding google-services.json from Base64 secret..."
+            echo "$GOOGLE_SERVICES_BASE64" | base64 -d > mobile/app/google-services.json
+          elif [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            echo "Writing google-services.json from JSON secret..."
+            echo "$GOOGLE_SERVICES_JSON" > mobile/app/google-services.json
+          elif [ ! -f mobile/app/google-services.json ]; then
+            echo "No google-services.json found, creating mock version for compilation..."
+            cat << 'EOF' > mobile/app/google-services.json
+            {
+              "project_info": {
+                "project_number": "1234567890",
+                "project_id": "mock-project-id",
+                "storage_bucket": "mock-project-id.appspot.com"
+              },
+              "client": [
+                {
+                  "client_info": {
+                    "mobilesdk_app_id": "1:1234567890:android:mockappid",
+                    "android_client_info": {
+                      "package_name": "com.segurancarural.gpstracker"
+                    }
+                  },
+                  "oauth_client": [],
+                  "api_key": [
+                    {
+                      "current_key": "mock-api-key"
+                    }
+                  ],
+                  "services": {
+                    "appinvite_service": {
+                      "other_platform_oauth_client": []
+                    }
+                  }
+                },
+                {
+                  "client_info": {
+                    "mobilesdk_app_id": "1:1234567890:android:mockappiddev",
+                    "android_client_info": {
+                      "package_name": "com.segurancarural.gpstracker.dev"
+                    }
+                  },
+                  "oauth_client": [],
+                  "api_key": [
+                    {
+                      "current_key": "mock-api-key"
+                    }
+                  ],
+                  "services": {
+                    "appinvite_service": {
+                      "other_platform_oauth_client": []
+                    }
+                  }
+                },
+                {
+                  "client_info": {
+                    "mobilesdk_app_id": "1:1234567890:android:mockappidpre",
+                    "android_client_info": {
+                      "package_name": "com.segurancarural.gpstracker.pre"
+                    }
+                  },
+                  "oauth_client": [],
+                  "api_key": [
+                    {
+                      "current_key": "mock-api-key"
+                    }
+                  ],
+                  "services": {
+                    "appinvite_service": {
+                      "other_platform_oauth_client": []
+                    }
+                  }
+                }
+              ],
+              "configuration_version": "1"
+            }
+            EOF
+          fi
+
       - name: Decode keystore
         if: env.ANDROID_KEYSTORE_BASE64 != ''
         env:
@@ -82,7 +166,7 @@ jobs:
         run: |
           chmod +x gradlew
           if [ -f release.keystore ]; then
-            ./gradlew :app:assembleRelease \
+            ./gradlew :app:assembleProdRelease \
               -PversionName="$VERSION_NAME" \
               -Pandroid.injected.signing.store.file="$ANDROID_KEYSTORE_FILE" \
               -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
@@ -91,12 +175,12 @@ jobs:
               --stacktrace
           else
             echo "::warning::No signing secrets — building unsigned release (install may require manual trust)"
-            ./gradlew :app:assembleRelease -PversionName="$VERSION_NAME" --stacktrace
+            ./gradlew :app:assembleProdRelease -PversionName="$VERSION_NAME" --stacktrace
           fi
 
       - name: Rename APK
         run: |
-          APK=$(find mobile/app/build/outputs/apk/release -name '*.apk' | head -1)
+          APK=$(find mobile/app/build/outputs/apk -name '*.apk' | head -1)
           cp "$APK" "mobile/seguranca-rural-${{ steps.version.outputs.version }}.apk"
 
       - name: Create GitHub Release

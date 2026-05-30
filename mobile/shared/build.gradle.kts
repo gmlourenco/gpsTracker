@@ -50,7 +50,8 @@ kotlin {
 }
 
 android {
-    namespace = "com.seguranca.rural.shared"
+    namespace = "com.segurancarural.gpstracker.shared"
+
     compileSdk = 36
 
     defaultConfig {
