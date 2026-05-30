@@ -15,8 +15,8 @@ android {
         applicationId = "com.seguranca.rural"
         minSdk = 26           // Android 8.0 — minimum for reliable ForegroundService + FusedLocation
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0-alpha"
+        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
+        versionName = project.findProperty("versionName")?.toString() ?: "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -26,15 +26,59 @@ android {
             localProps.load(localPropsFile.inputStream())
         }
 
-        val backendUrl = localProps.getProperty("backend.base.url") 
-            ?: project.findProperty("backend.base.url")?.toString() 
-            ?: "https://nextgpstracking.vercel.app"
-        buildConfigField("String", "BACKEND_BASE_URL", "\"$backendUrl\"")
-
         val deviceSecret = localProps.getProperty("device.api.secret") 
             ?: project.findProperty("device.api.secret")?.toString() 
             ?: "change-me-in-local-properties"
         buildConfigField("String", "DEVICE_API_SECRET", "\"$deviceSecret\"")
+    }
+
+    flavorDimensions.add("environment")
+
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+            applicationIdSuffix = ".dev"
+            resValue("string", "app_name", "Segurança Rural Dev")
+
+            val localProps = Properties()
+            val localPropsFile = rootProject.file("local.properties")
+            if (localPropsFile.exists()) {
+                localProps.load(localPropsFile.inputStream())
+            }
+            val backendUrl = localProps.getProperty("backend.base.url.dev") 
+                ?: localProps.getProperty("backend.base.url")
+                ?: "http://10.0.2.2:3000"
+            buildConfigField("String", "BACKEND_BASE_URL", "\"$backendUrl\"")
+        }
+        create("pre") {
+            dimension = "environment"
+            applicationIdSuffix = ".pre"
+            resValue("string", "app_name", "Segurança Rural Pre")
+
+            val localProps = Properties()
+            val localPropsFile = rootProject.file("local.properties")
+            if (localPropsFile.exists()) {
+                localProps.load(localPropsFile.inputStream())
+            }
+            val backendUrl = localProps.getProperty("backend.base.url.pre") 
+                ?: localProps.getProperty("backend.base.url")
+                ?: "https://segurancarural-gpstracker-pre.vercel.app"
+            buildConfigField("String", "BACKEND_BASE_URL", "\"$backendUrl\"")
+        }
+        create("prod") {
+            dimension = "environment"
+            resValue("string", "app_name", "Segurança Rural")
+
+            val localProps = Properties()
+            val localPropsFile = rootProject.file("local.properties")
+            if (localPropsFile.exists()) {
+                localProps.load(localPropsFile.inputStream())
+            }
+            val backendUrl = localProps.getProperty("backend.base.url.prod") 
+                ?: localProps.getProperty("backend.base.url")
+                ?: "https://gps-tracker-nine-omega.vercel.app"
+            buildConfigField("String", "BACKEND_BASE_URL", "\"$backendUrl\"")
+        }
     }
 
     buildTypes {

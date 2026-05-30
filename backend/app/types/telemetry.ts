@@ -43,6 +43,8 @@ export interface TelemetryPayload {
   networkType: string;
   /** App version string for debugging and compatibility checks */
   appVersion: string;
+  /** Map marker color (#RRGGBB), optional for backwards compatibility */
+  markerColor?: string;
 }
 
 // ── Emergency-only payload (POST /api/emergency) ────────────────────────────
@@ -71,6 +73,7 @@ export interface EmergencyPayload {
 export interface DeviceRecord {
   id: string;
   label: string;
+  marker_color: string;
   created_at: string;
   last_seen_at: string | null;
   tracking_enabled: boolean;
@@ -167,6 +170,11 @@ export function getTelemetryValidationErrors(body: unknown): string[] {
   }
   if (typeof p.appVersion !== 'string') {
     errors.push('appVersion must be a string');
+  }
+  if (p.markerColor !== undefined) {
+    if (typeof p.markerColor !== 'string' || !/^#[0-9A-Fa-f]{6}$/.test(p.markerColor)) {
+      errors.push('markerColor must be a hex color string (#RRGGBB) when provided');
+    }
   }
 
   const gps = p.gps as Record<string, unknown>;

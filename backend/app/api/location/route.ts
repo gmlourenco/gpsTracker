@@ -67,6 +67,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
       {
         id: payload.deviceId,
         label: payload.deviceLabel,
+        marker_color: payload.markerColor?.toUpperCase() ?? '#16A34A',
         last_seen_at: new Date().toISOString(),
         tracking_enabled: payload.trackingEnabled,
         app_version: payload.appVersion,

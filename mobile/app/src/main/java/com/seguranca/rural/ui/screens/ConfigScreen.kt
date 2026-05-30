@@ -2,10 +2,26 @@ package com.seguranca.rural.ui.screens
 
 import android.content.Context
 import android.content.Intent
-import android.util.Log
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.mutableIntStateOf
+import com.seguranca.rural.BuildConfig
+import com.seguranca.rural.data.repository.DeviceProfileRepository
 import com.seguranca.rural.service.LocationForegroundService
+import androidx.compose.runtime.rememberCoroutineScope
+import android.widget.Toast
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextAlign
+import kotlinx.coroutines.launch
+import com.seguranca.rural.util.AppLog
+import com.seguranca.rural.util.DEFAULT_MARKER_COLOR_ARGB
+import com.seguranca.rural.util.PREF_DEVICE_MARKER_COLOR
+import com.seguranca.rural.util.markerInitial
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -58,6 +74,16 @@ private val AccentGreen = Color(0xFF16A34A)
 
 private const val PREFS_NAME = "tracking_prefs"
 
+private data class MarkerColorOption(val name: String, val argb: Int)
+
+private val markerColorOptions = listOf(
+    MarkerColorOption("Verde", 0xFF16A34A.toInt()),
+    MarkerColorOption("Azul", 0xFF3B82F6.toInt()),
+    MarkerColorOption("Laranja", 0xFFF59E0B.toInt()),
+    MarkerColorOption("Vermelho", 0xFFDC2626.toInt()),
+    MarkerColorOption("Roxo", 0xFF8B5CF6.toInt()),
+)
+
 /**
  * ConfigScreen — persists tracking parameters and device identity to SharedPreferences.
  * The LocationForegroundService reads these values on every location fix.
@@ -67,13 +93,14 @@ private const val PREFS_NAME = "tracking_prefs"
 fun ConfigScreen() {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+    val scope = rememberCoroutineScope()
+    val profileRepository = remember { DeviceProfileRepository(context) }
 
     // ── State ─────────────────────────────────────────────────────────────
     var deviceLabel by remember { mutableStateOf("") }
     var emergencyContact by remember { mutableStateOf("") }
     var contactError by remember { mutableStateOf<String?>(null) }
     var syncOnMobileData by remember { mutableStateOf(true) }
-    var pauseWhenStatic by remember { mutableStateOf(true) }
 
     // Interval: stored as Long minutes, shown as minutes
     val intervalOptions = listOf(1L, 5L, 10L, 15L, 30L, 60L)
@@ -83,18 +110,50 @@ fun ConfigScreen() {
     // Distance threshold in metres
     var distanceThresholdM by remember { mutableFloatStateOf(200f) }
 
+    var selectedMarkerColorArgb by remember { mutableIntStateOf(DEFAULT_MARKER_COLOR_ARGB) }
+
+    // Saved state baselines for comparing changes
+    var savedDeviceLabel by remember { mutableStateOf("") }
+    var savedEmergencyContact by remember { mutableStateOf("") }
+    var savedSyncOnMobileData by remember { mutableStateOf(true) }
+    var savedIntervalIdx by remember { mutableStateOf(0) }
+    var savedDistanceThresholdM by remember { mutableFloatStateOf(200f) }
+    var savedMarkerColorArgb by remember { mutableIntStateOf(DEFAULT_MARKER_COLOR_ARGB) }
+
     // ── Load from SharedPreferences on first composition ──────────────────
     LaunchedEffect(Unit) {
-        deviceLabel = prefs.getString("device_label", "Dispositivo") ?: "Dispositivo"
-        emergencyContact = prefs.getString("emergency_contact", "") ?: ""
-        syncOnMobileData = prefs.getBoolean("sync_on_mobile_data", true)
-        pauseWhenStatic = prefs.getBoolean("pause_when_static", true)
-        distanceThresholdM = prefs.getFloat("tracking_distance_m", 200f)
+        val label = prefs.getString("device_label", "Dispositivo") ?: "Dispositivo"
+        val contact = prefs.getString("emergency_contact", "") ?: ""
+        val sync = prefs.getBoolean("sync_on_mobile_data", true)
+        val distance = prefs.getFloat("tracking_distance_m", 200f)
+        val color = prefs.getInt(PREF_DEVICE_MARKER_COLOR, DEFAULT_MARKER_COLOR_ARGB)
         val savedIntervalMs = prefs.getLong("tracking_interval_ms", 1 * 60 * 1000L)
         val savedMinutes = savedIntervalMs / 60_000L
-        selectedIntervalIdx = intervalOptions.indexOfFirst { it == savedMinutes }.coerceAtLeast(0)
-        Log.d("ConfigScreen", "Settings loaded: label=$deviceLabel, interval=${savedMinutes}min, distance=${distanceThresholdM}m")
+        val intervalIdx = intervalOptions.indexOfFirst { it == savedMinutes }.coerceAtLeast(0)
+
+        deviceLabel = label
+        emergencyContact = contact
+        syncOnMobileData = sync
+        distanceThresholdM = distance
+        selectedMarkerColorArgb = color
+        selectedIntervalIdx = intervalIdx
+
+        savedDeviceLabel = label
+        savedEmergencyContact = contact
+        savedSyncOnMobileData = sync
+        savedDistanceThresholdM = distance
+        savedMarkerColorArgb = color
+        savedIntervalIdx = intervalIdx
+
+        AppLog.d("ConfigScreen", "Settings loaded: label=$deviceLabel, interval=${savedMinutes}min")
     }
+
+    val hasChanges = deviceLabel.trim().ifEmpty { "Dispositivo" } != savedDeviceLabel ||
+            emergencyContact.trim() != savedEmergencyContact.trim() ||
+            syncOnMobileData != savedSyncOnMobileData ||
+            distanceThresholdM != savedDistanceThresholdM ||
+            selectedMarkerColorArgb != savedMarkerColorArgb ||
+            selectedIntervalIdx != savedIntervalIdx
 
     Column(
         modifier = Modifier
@@ -132,6 +191,43 @@ fun ConfigScreen() {
                 text = "Nome visível no mapa da dashboard",
                 color = TextSecondary,
                 fontSize = 11.sp
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("Cor no mapa", color = TextSecondary, fontSize = 12.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+            ) {
+                markerColorOptions.forEach { option ->
+                    val isSelected = selectedMarkerColorArgb == option.argb
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color(option.argb))
+                            .border(
+                                width = if (isSelected) 3.dp else 1.dp,
+                                color = if (isSelected) Color.White else TextSecondary.copy(0.4f),
+                                shape = CircleShape,
+                            )
+                            .clickable { selectedMarkerColorArgb = option.argb },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = markerInitial(deviceLabel.ifEmpty { "?" }),
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                        )
+                    }
+                }
+            }
+            Text(
+                text = "Bolha com a inicial do nome no ecrã Mapa",
+                color = TextSecondary,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(top = 4.dp),
             )
         }
 
@@ -175,7 +271,7 @@ fun ConfigScreen() {
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Tempo máximo entre atualizações de posição",
+                text = "Envia posição pelo menos a cada este intervalo (mesmo parado)",
                 color = TextSecondary,
                 fontSize = 11.sp
             )
@@ -208,7 +304,7 @@ fun ConfigScreen() {
                 )
             )
             Text(
-                text = "O GPS só acorda o CPU após mover esta distância",
+                text = "Envia atualização extra ao mover esta distância (antes do intervalo)",
                 color = TextSecondary,
                 fontSize = 11.sp
             )
@@ -221,13 +317,6 @@ fun ConfigScreen() {
                 description = "Envia localizações mesmo sem Wi-Fi",
                 checked = syncOnMobileData,
                 onCheckedChange = { syncOnMobileData = it }
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            SettingToggleRow(
-                label = "Pausar quando parado",
-                description = "Reduz frequência GPS se imóvel",
-                checked = pauseWhenStatic,
-                onCheckedChange = { pauseWhenStatic = it }
             )
         }
 
@@ -265,15 +354,33 @@ fun ConfigScreen() {
         Button(
             onClick = {
                 val intervalMs = intervalOptions[selectedIntervalIdx] * 60_000L
+                val trimmedLabel = deviceLabel.trim().ifEmpty { "Dispositivo" }
                 prefs.edit()
-                    .putString("device_label", deviceLabel.trim().ifEmpty { "Dispositivo" })
+                    .putString("device_label", trimmedLabel)
+                    .putInt(PREF_DEVICE_MARKER_COLOR, selectedMarkerColorArgb)
                     .putString("emergency_contact", emergencyContact)
                     .putBoolean("sync_on_mobile_data", syncOnMobileData)
-                    .putBoolean("pause_when_static", pauseWhenStatic)
                     .putLong("tracking_interval_ms", intervalMs)
                     .putFloat("tracking_distance_m", distanceThresholdM)
                     .apply()
-                Log.i("ConfigScreen", "✅ Settings saved: label=${deviceLabel}, interval=${intervalOptions[selectedIntervalIdx]}min, distance=${distanceThresholdM.roundToInt()}m")
+                
+                // Update baseline so button gets disabled again until next change
+                savedDeviceLabel = trimmedLabel
+                savedEmergencyContact = emergencyContact
+                savedSyncOnMobileData = syncOnMobileData
+                savedDistanceThresholdM = distanceThresholdM
+                savedMarkerColorArgb = selectedMarkerColorArgb
+                savedIntervalIdx = selectedIntervalIdx
+
+                Toast.makeText(context, "Configurações guardadas com sucesso", Toast.LENGTH_SHORT).show()
+                AppLog.i("ConfigScreen", "Settings saved: label=$trimmedLabel")
+
+                scope.launch {
+                    profileRepository.syncProfile(
+                        deviceLabel = trimmedLabel,
+                        markerColorArgb = selectedMarkerColorArgb,
+                    )
+                }
                 context.startService(
                     Intent(context, LocationForegroundService::class.java).apply {
                         action = LocationForegroundService.ACTION_RELOAD_CONFIG
@@ -283,12 +390,25 @@ fun ConfigScreen() {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
-            enabled = contactError == null,
-            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
+            enabled = contactError == null && hasChanges,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = AccentGreen,
+                disabledContainerColor = AccentGreen.copy(alpha = 0.5f)
+            ),
             shape = RoundedCornerShape(12.dp)
         ) {
             Text("Guardar Configurações", fontWeight = FontWeight.Bold, fontSize = 16.sp)
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "Versão ${BuildConfig.VERSION_NAME}",
+            color = TextSecondary.copy(alpha = 0.6f),
+            fontSize = 12.sp,
+            modifier = Modifier.fillMaxWidth(),
+            textAlign = TextAlign.Center,
+        )
 
         Spacer(modifier = Modifier.height(8.dp))
     }

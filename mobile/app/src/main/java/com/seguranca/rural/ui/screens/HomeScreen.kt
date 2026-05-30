@@ -42,8 +42,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import android.widget.Toast
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -92,8 +95,16 @@ fun HomeScreen(
     val isSosActive by viewModel.isSosActive.collectAsState()
     val gpsAccuracy by viewModel.lastAccuracy.collectAsState()
 
+    val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
+
+    // Trigger Toast when SOS changes state
+    LaunchedEffect(isSosActive) {
+        if (isSosActive) {
+            Toast.makeText(context, "SOS ATIVADO! Alerta de emergência enviado.", Toast.LENGTH_LONG).show()
+        }
+    }
 
     // SOS long-press state
     var sosProgress by remember { mutableFloatStateOf(0f) }
@@ -109,6 +120,26 @@ fun HomeScreen(
             repeatMode = RepeatMode.Reverse
         ),
         label = "sos_scale"
+    )
+
+    // Continuous radiating radar ripple animation
+    val radarScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = if (isSosActive) 1.6f else 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "radar_scale"
+    )
+    val radarAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.45f,
+        targetValue = if (isSosActive) 0f else 0.45f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "radar_alpha"
     )
 
     val sosColor by animateColorAsState(
@@ -188,14 +219,31 @@ fun HomeScreen(
                 .height(260.dp),
             contentAlignment = Alignment.Center
         ) {
-            // Outer pulse ring (visible when SOS is active)
+            // Radar pulse ring (visible when SOS is active)
             if (isSosActive) {
                 Box(
                     modifier = Modifier
-                        .size(220.dp)
+                        .size(200.dp)
+                        .scale(radarScale)
+                        .clip(CircleShape)
+                        .background(SosRed.copy(alpha = radarAlpha))
+                )
+                Box(
+                    modifier = Modifier
+                        .size(200.dp)
                         .scale(sosScale + 0.12f)
                         .clip(CircleShape)
-                        .background(SosRed.copy(alpha = 0.25f))
+                        .background(SosRed.copy(alpha = 0.22f))
+                )
+            }
+
+            // Circular progress indicator showing hold progress
+            if (sosProgress > 0f) {
+                CircularProgressIndicator(
+                    progress = { sosProgress },
+                    modifier = Modifier.size(216.dp),
+                    color = SosRed,
+                    strokeWidth = 6.dp
                 )
             }
 

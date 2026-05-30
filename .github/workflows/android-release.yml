@@ -1,0 +1,116 @@
+# Build a signed release APK and publish to GitHub Releases.
+# Trigger manually with a version, or push changes to app-release.json on main.
+#
+# Required GitHub secrets (Settings → Secrets → Actions):
+#   ANDROID_KEYSTORE_BASE64  — base64-encoded .jks / .keystore file
+#   ANDROID_KEYSTORE_PASSWORD
+#   ANDROID_KEY_ALIAS
+#   ANDROID_KEY_PASSWORD
+#
+# After release: set Vercel env APP_LATEST_VERSION and APP_DOWNLOAD_URL to the new asset URL.
+
+name: Android Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semver version (e.g. 1.5.0)'
+        required: true
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - 'backend/app/config/app-release.json'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=$(node -p "require('./backend/app/config/app-release.json').latestVersion")
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Release version: $VERSION"
+
+      - name: Sync app-release.json version
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'backend/app/config/app-release.json';
+          const cfg = JSON.parse(fs.readFileSync(path, 'utf8'));
+          cfg.latestVersion = process.env.VERSION;
+          fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + '\n');
+          NODE
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Decode keystore
+        if: env.ANDROID_KEYSTORE_BASE64 != ''
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > mobile/release.keystore
+
+      - name: Assemble release APK
+        working-directory: mobile
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.version }}
+          ANDROID_KEYSTORE_FILE: ${{ github.workspace }}/mobile/release.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          if [ -f release.keystore ]; then
+            ./gradlew :app:assembleRelease \
+              -PversionName="$VERSION_NAME" \
+              -Pandroid.injected.signing.store.file="$ANDROID_KEYSTORE_FILE" \
+              -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
+              -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
+              -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD" \
+              --stacktrace
+          else
+            echo "::warning::No signing secrets — building unsigned release (install may require manual trust)"
+            ./gradlew :app:assembleRelease -PversionName="$VERSION_NAME" --stacktrace
+          fi
+
+      - name: Rename APK
+        run: |
+          APK=$(find mobile/app/build/outputs/apk/release -name '*.apk' | head -1)
+          cp "$APK" "mobile/seguranca-rural-${{ steps.version.outputs.version }}.apk"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Segurança Rural v${{ steps.version.outputs.version }}
+          body: |
+            ## Segurança Rural Android v${{ steps.version.outputs.version }}
+
+            Download `seguranca-rural-*.apk` and install on the device (keeps existing settings).
+
+            **Vercel:** set `APP_LATEST_VERSION=${{ steps.version.outputs.version }}` and
+            `APP_DOWNLOAD_URL` to this release asset URL.
+          files: mobile/seguranca-rural-${{ steps.version.outputs.version }}.apk
+          draft: false
+          generate_release_notes: true
