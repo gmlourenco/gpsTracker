@@ -13,13 +13,13 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
-private data class LastPositionsResponse(
+data class LastPositionsResponse(
     val success: Boolean = false,
     val devices: List<DeviceDto> = emptyList(),
 )
 
 @Serializable
-private data class DeviceDto(
+data class DeviceDto(
     val id: String,
     val label: String,
     @SerialName("marker_color") val markerColor: String = "#16A34A",
@@ -27,7 +27,7 @@ private data class DeviceDto(
 )
 
 @Serializable
-private data class LocationDto(
+data class LocationDto(
     val lat: Double,
     val lng: Double,
     @SerialName("emergency_state") val emergencyState: Boolean = false,

@@ -34,6 +34,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -90,6 +93,8 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
     val refreshStatus by viewModel.familyRefreshStatus.collectAsState()
     val selectedPointLimit by viewModel.pointLimit.collectAsState()
     val mapStyle by viewModel.mapStyle.collectAsState()
+
+    var isStyleLoaded by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.refreshDeviceStyle()
@@ -180,6 +185,7 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                                     PropertyFactory.circleStrokeWidth(2f),
                                 )
                             )
+                            isStyleLoaded = true
                         }
                         map.cameraPosition = CameraPosition.Builder()
                             .target(LatLng(39.8, -7.5))
@@ -189,10 +195,12 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                 }
             },
             update = { mapView ->
-                mapView.getMapAsync { map ->
-                    map.getStyle { style ->
-                        updateMapLayers(style, displayData, mapStyle)
-                        fitCameraToRoute(map, displayData)
+                if (isStyleLoaded) {
+                    mapView.getMapAsync { map ->
+                        map.getStyle { style ->
+                            updateMapLayers(style, displayData, mapStyle)
+                            fitCameraToRoute(map, displayData)
+                        }
                     }
                 }
             }
