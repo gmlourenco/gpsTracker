@@ -1,53 +1,13 @@
-import { DeviceWithLatestLocation, DeviceRecord } from './types/telemetry';
+import { DeviceWithLatestLocation } from './types/telemetry';
 import styles from './page.module.css';
-
 import MapWrapper from './components/MapWrapper';
+import { DeviceService } from './services/DeviceService';
+import { getGoogleMapsDirectionsUrl } from './lib/navigation';
 
 export const dynamic = 'force-dynamic';
 
-import { getSupabaseAdmin } from './lib/supabase';
-
-// Since this is a server component, we can query the database directly 
-// which is much safer and faster than doing an HTTP fetch to our own API route!
-async function getDevices(): Promise<DeviceWithLatestLocation[]> {
-  try {
-    const supabase = getSupabaseAdmin();
-    const { data: devices, error: devicesError } = await supabase
-      .from('devices')
-      .select('*')
-      .order('last_seen_at', { ascending: false, nullsFirst: false });
-
-    if (devicesError) throw devicesError;
-    if (!devices || devices.length === 0) return [];
-
-    const deviceIds = devices.map((d: DeviceRecord) => d.id);
-    const { data: latestLocations, error: locationsError } = await supabase
-      .from('locations')
-      .select('*')
-      .in('device_id', deviceIds)
-      .order('synced_at', { ascending: false });
-
-    if (locationsError) throw locationsError;
-
-    const latestByDevice = new Map();
-    for (const loc of (latestLocations ?? [])) {
-      if (!latestByDevice.has(loc.device_id)) {
-        latestByDevice.set(loc.device_id, loc);
-      }
-    }
-
-    return devices.map((device: DeviceRecord) => ({
-      ...device,
-      latestLocation: latestByDevice.get(device.id) ?? null,
-    }));
-  } catch (error) {
-    console.error('Error fetching devices:', error);
-    return [];
-  }
-}
-
 export default async function Dashboard() {
-  const devices = await getDevices();
+  const devices = await DeviceService.getDevicesWithLatestLocation();
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now(); // Calculate once per render to satisfy react-hooks/purity
 
@@ -106,7 +66,7 @@ export default async function Dashboard() {
                   {device.latestLocation && (
                     <div className={styles.actionContainer}>
                       <a 
-                        href={`https://www.google.com/maps/dir/?api=1&destination=${device.latestLocation.lat},${device.latestLocation.lng}`}
+                        href={getGoogleMapsDirectionsUrl(device.latestLocation.lat, device.latestLocation.lng)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className={styles.navButton}

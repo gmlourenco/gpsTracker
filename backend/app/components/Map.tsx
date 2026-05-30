@@ -5,6 +5,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { DeviceWithLatestLocation } from '../types/telemetry';
+import { getGoogleMapsDirectionsUrl } from '../lib/navigation';
 
 // Fix Leaflet's default icon path issues with Webpack/Next.js
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -116,6 +117,30 @@ export default function Map({ devices }: MapProps) {
           background: transparent;
           border: none;
         }
+        
+        /* Dark Theme Leaflet Popup Styling */
+        .custom-popup .leaflet-popup-content-wrapper {
+          background: #16213E !important;
+          color: #FFFFFF !important;
+          border: 1.5px solid rgba(255, 255, 255, 0.08) !important;
+          border-radius: 12px !important;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
+        }
+        .custom-popup .leaflet-popup-content {
+          margin: 0 !important;
+          background: #16213E !important;
+          border-radius: 12px !important;
+        }
+        .custom-popup .leaflet-popup-tip {
+          background: #16213E !important;
+          border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        }
+        .custom-popup .leaflet-popup-close-button {
+          color: #94A3B8 !important;
+          padding: 6px !important;
+          margin-top: 4px !important;
+          margin-right: 4px !important;
+        }
       `}} />
       <MapContainer 
         center={center} 
@@ -131,33 +156,89 @@ export default function Map({ devices }: MapProps) {
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         />
         
-        {validDevices.map((device) => (
-          <Marker 
-            key={device.id} 
-            position={[device.latestLocation!.lat, device.latestLocation!.lng]}
-            icon={getDeviceIcon(device)}
-          >
-            <Popup className="custom-popup">
-              <div style={{ padding: '4px' }}>
-                <h3 style={{ margin: '0 0 8px 0', fontSize: '16px', fontWeight: 'bold', color: device.marker_color || '#16A34A' }}>
-                  {device.label}
-                </h3>
-                <p style={{ margin: '4px 0', fontSize: '14px' }}>
-                  <strong>Status:</strong> {device.latestLocation?.emergency_state ? '🚨 SOS' : '✅ Active'}
-                </p>
-                <p style={{ margin: '4px 0', fontSize: '14px' }}>
-                  <strong>Battery:</strong> {device.latestLocation?.battery_level}% {device.latestLocation?.battery_charging ? '⚡' : ''}
-                </p>
-                <p style={{ margin: '4px 0', fontSize: '14px' }}>
-                  <strong>Speed:</strong> {device.latestLocation?.speed.toFixed(1)} km/h
-                </p>
-                <p style={{ margin: '4px 0', fontSize: '14px', color: '#666' }}>
-                  <strong>Last seen:</strong> {device.last_seen_at ? formatDate(device.last_seen_at) : 'N/A'}
-                </p>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        {validDevices.map((device) => {
+          const isSos = !!device.latestLocation?.emergency_state;
+          const parsedColor = device.marker_color || '#16A34A';
+          return (
+            <Marker 
+              key={device.id} 
+              position={[device.latestLocation!.lat, device.latestLocation!.lng]}
+              icon={getDeviceIcon(device)}
+            >
+              <Popup className="custom-popup">
+                <div style={{ 
+                  padding: '16px', 
+                  minWidth: '230px', 
+                  fontFamily: 'system-ui, -apple-system, sans-serif'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+                    <div style={{
+                      backgroundColor: parsedColor,
+                      width: '28px',
+                      height: '28px',
+                      borderRadius: '50%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontWeight: 'bold',
+                      fontSize: '13px',
+                      color: '#FFFFFF',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
+                    }}>
+                      {device.label.trim().charAt(0).toUpperCase() || '?'}
+                    </div>
+                    <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 'bold', color: '#FFFFFF' }}>
+                      {device.label}
+                    </h3>
+                  </div>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '13px', color: '#94A3B8', marginBottom: '14px' }}>
+                    <p style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <strong>Status:</strong>
+                      {isSos ? (
+                        <span style={{ color: '#F87171', fontWeight: 'bold' }}>🚨 SOS ATIVO</span>
+                      ) : (
+                        <span style={{ color: '#4ADE80' }}>Ativo</span>
+                      )}
+                    </p>
+                    <p style={{ margin: 0 }}>
+                      🔋 {device.latestLocation?.battery_level}% {device.latestLocation?.battery_charging ? '⚡' : ''}
+                    </p>
+                    <p style={{ margin: 0 }}>
+                      📍 {device.latestLocation?.speed.toFixed(1)} km/h
+                    </p>
+                    <p style={{ margin: 0, fontSize: '11px', opacity: 0.7 }}>
+                      📱 v{device.latestLocation?.app_version || device.app_version || '--'}
+                    </p>
+                    <p style={{ margin: 0, fontSize: '11px', opacity: 0.5 }}>
+                      Último sinal: {device.last_seen_at ? formatDate(device.last_seen_at) : 'N/A'}
+                    </p>
+                  </div>
+                  
+                  <a 
+                    href={getGoogleMapsDirectionsUrl(device.latestLocation!.lat, device.latestLocation!.lng)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'block',
+                      textAlign: 'center',
+                      padding: '8px 12px',
+                      backgroundColor: isSos ? '#DC2626' : '#3B82F6',
+                      color: '#FFFFFF',
+                      borderRadius: '6px',
+                      textDecoration: 'none',
+                      fontWeight: 'bold',
+                      fontSize: '12px',
+                      transition: 'opacity 0.2s ease-in-out'
+                    }}
+                  >
+                    ➔ Iniciar Navegação
+                  </a>
+                </div>
+              </Popup>
+            </Marker>
+          );
+        })}
       </MapContainer>
     </div>
   );

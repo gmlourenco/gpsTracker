@@ -38,18 +38,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.material3.BottomSheetDefaults
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.ui.text.style.TextOverflow
-import android.content.Intent
-import android.net.Uri
-import androidx.compose.foundation.border
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,7 +55,16 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
 import org.maplibre.android.style.expressions.Expression
 import com.google.gson.JsonObject
-import com.seguranca.rural.data.model.TelemetryRecord
+import com.seguranca.rural.ui.viewmodel.MapViewModel
+import com.seguranca.rural.ui.model.MapPointLimit
+import com.seguranca.rural.ui.model.FamilyRefreshStatus
+import com.seguranca.rural.ui.model.DeviceMapStyle
+import com.seguranca.rural.ui.model.FamilyDeviceMarker
+import com.seguranca.rural.ui.model.MapDisplayData
+import com.seguranca.rural.ui.model.MapMarkerDisplay
+import com.seguranca.rural.ui.components.FamilyBottomSheet
+import com.seguranca.rural.ui.components.FamilyMemberCard
+import com.seguranca.rural.util.NavigationHelper
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.camera.CameraUpdateFactory
@@ -113,6 +113,16 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
     val sheetState = rememberModalBottomSheetState()
     val context = LocalContext.current
 
+    var selectedDevice by remember { mutableStateOf<FamilyDeviceMarker?>(null) }
+
+    // Keep active selections synchronized with the latest fetched telemetry markers
+    val currentSelectedDevice = remember(displayData.familyMarkers, selectedDevice) {
+        displayData.familyMarkers.find { it.deviceId == selectedDevice?.deviceId }
+    }
+
+    val familyMarkersState = rememberUpdatedState(displayData.familyMarkers)
+    val findFamilyEnabledState = rememberUpdatedState(findFamilyEnabled)
+
     LaunchedEffect(Unit) {
         viewModel.refreshDeviceStyle()
     }
@@ -160,7 +170,7 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                     // Setup custom GestureDetector to capture double taps for opening the bottom sheet
                     val gestureDetector = android.view.GestureDetector(ctx, object : android.view.GestureDetector.SimpleOnGestureListener() {
                         override fun onDoubleTap(e: android.view.MotionEvent): Boolean {
-                            if (findFamilyEnabled && displayData.familyMarkers.isNotEmpty()) {
+                            if (findFamilyEnabledState.value && familyMarkersState.value.isNotEmpty()) {
                                 showBottomSheet = true
                                 return true
                             }
@@ -176,6 +186,30 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                     getMapAsync { map ->
                         // Disable default double tap to zoom so it doesn't conflict with our custom action
                         map.uiSettings.isDoubleTapGesturesEnabled = false
+
+                        // Add marker click listener to show the interactive detail overlay card
+                        map.addOnMapClickListener { latLng ->
+                            val pixel = map.projection.toScreenLocation(latLng)
+                            val rect = android.graphics.RectF(
+                                (pixel.x - 24).toFloat(),
+                                (pixel.y - 24).toFloat(),
+                                (pixel.x + 24).toFloat(),
+                                (pixel.y + 24).toFloat()
+                            )
+                            val features = map.queryRenderedFeatures(rect, LAYER_MARKER_CIRCLE, LAYER_MARKER_LABEL)
+                            if (features.isNotEmpty()) {
+                                val clickedId = features.first().getStringProperty("deviceId")
+                                if (!clickedId.isNullOrEmpty()) {
+                                    val clickedMarker = familyMarkersState.value.find { it.deviceId == clickedId }
+                                    if (clickedMarker != null) {
+                                        selectedDevice = clickedMarker
+                                        return@addOnMapClickListener true
+                                    }
+                                }
+                            }
+                            selectedDevice = null
+                            false
+                        }
 
                         map.setStyle(Style.Builder().fromUri(MAP_STYLE_URI)) { style ->
                             style.addSource(GeoJsonSource(SOURCE_ROUTE))
@@ -372,232 +406,41 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
             }
         }
 
-        if (showBottomSheet) {
-            ModalBottomSheet(
-                onDismissRequest = { showBottomSheet = false },
-                sheetState = sheetState,
-                containerColor = SurfaceDark,
-                dragHandle = { BottomSheetDefaults.DragHandle(color = TextSecondary.copy(alpha = 0.5f)) }
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .padding(bottom = 24.dp)
-                ) {
-                    Text(
-                        text = "Membros da Família",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 16.dp)
+        // Interactive floating detail overlay card for clicked markers
+        if (currentSelectedDevice != null) {
+            FamilyMemberCard(
+                marker = currentSelectedDevice,
+                onClick = {
+                    val intent = NavigationHelper.getGoogleMapsRoutePreviewIntent(currentSelectedDevice.lat, currentSelectedDevice.lng)
+                    NavigationHelper.launchIntentSafely(
+                        context, 
+                        intent, 
+                        "https://www.google.com/maps/dir/?api=1&destination=${currentSelectedDevice.lat},${currentSelectedDevice.lng}"
                     )
-
-                    val sortedMarkers = remember(displayData.familyMarkers) {
-                        displayData.familyMarkers.sortedWith(
-                            compareByDescending<FamilyDeviceMarker> { it.emergencyState }
-                                .thenBy { it.label }
-                        )
-                    }
-
-                    if (sortedMarkers.isEmpty()) {
-                        Text(
-                            text = "Nenhum membro localizado ainda.",
-                            color = TextSecondary,
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(vertical = 24.dp)
-                        )
-                    } else {
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            items(sortedMarkers) { marker ->
-                                FamilyMemberCard(
-                                    marker = marker,
-                                    onClick = {
-                                        val gmmIntentUri = Uri.parse("google.navigation:q=${marker.lat},${marker.lng}")
-                                        val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri).apply {
-                                            setPackage("com.google.android.apps.maps")
-                                        }
-                                        try {
-                                            context.startActivity(mapIntent)
-                                        } catch (e: Exception) {
-                                            val fallbackUri = Uri.parse("geo:${marker.lat},${marker.lng}?q=${marker.lat},${marker.lng}")
-                                            val fallbackIntent = Intent(Intent.ACTION_VIEW, fallbackUri)
-                                            context.startActivity(fallbackIntent)
-                                        }
-                                        showBottomSheet = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun FamilyMemberCard(
-    marker: FamilyDeviceMarker,
-    onClick: () -> Unit
-) {
-    val parsedColor = remember(marker.markerColorHex) {
-        try {
-            Color(android.graphics.Color.parseColor(marker.markerColorHex))
-        } catch (e: Exception) {
-            Color(0xFF16A34A)
-        }
-    }
-
-    val cardBorder = if (marker.emergencyState) {
-        Modifier.border(2.dp, Color(0xFFDC2626), RoundedCornerShape(16.dp))
-    } else {
-        Modifier.border(1.dp, parsedColor.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
-    }
-
-    val cardBackground = if (marker.emergencyState) {
-        CardDark.copy(alpha = 0.4f)
-    } else {
-        CardDark
-    }
-
-    Card(
-        colors = CardDefaults.cardColors(containerColor = cardBackground),
-        shape = RoundedCornerShape(16.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(cardBorder)
-            .clickable { onClick() }
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    if (marker.emergencyState) {
-                        Color(0xFFDC2626).copy(alpha = 0.15f)
-                    } else {
-                        Color.Transparent
-                    }
-                )
-                .padding(16.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(parsedColor),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = marker.markerLetter,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
-                    }
-
-                    Text(
-                        text = marker.label,
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                if (marker.emergencyState) {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFDC2626))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "🚨 SOS ATIVO",
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF16A34A).copy(alpha = 0.2f))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = "Ativo",
-                            color = Color(0xFF4ADE80),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = "🔋 ${marker.batteryLevel}%",
-                        color = TextSecondary,
-                        fontSize = 13.sp
-                    )
-                    if (marker.batteryCharging) {
-                        Text(
-                            text = "⚡",
-                            color = Color(0xFFF59E0B),
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-
-                Text(
-                    text = "📍 " + String.format("%.1f", marker.speed) + " km/h",
-                    color = TextSecondary,
-                    fontSize = 13.sp
-                )
-
-                Text(
-                    text = "📱 v${marker.appVersion}",
-                    color = TextSecondary.copy(alpha = 0.7f),
-                    fontSize = 12.sp
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-            Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.08f)))
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = "➔ Toca para iniciar navegação no Google Maps",
-                color = if (marker.emergencyState) Color(0xFFF87171) else AccentBlue,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.align(Alignment.End)
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(16.dp)
+                    .fillMaxWidth()
             )
         }
+
+        // Family scrollable list bottom sheet
+        FamilyBottomSheet(
+            showBottomSheet = showBottomSheet,
+            onDismissRequest = { showBottomSheet = false },
+            sheetState = sheetState,
+            familyMarkers = displayData.familyMarkers,
+            onMemberClick = { marker ->
+                val intent = NavigationHelper.getGoogleMapsRoutePreviewIntent(marker.lat, marker.lng)
+                NavigationHelper.launchIntentSafely(
+                    context, 
+                    intent, 
+                    "https://www.google.com/maps/dir/?api=1&destination=${marker.lat},${marker.lng}"
+                )
+                showBottomSheet = false
+            }
+        )
     }
 }
 
@@ -647,6 +490,7 @@ private fun updateMapLayers(
     if (displayData.isFamilyMode) {
         displayData.familyMarkers.forEach { marker ->
             val props = JsonObject().apply {
+                addProperty("deviceId", marker.deviceId)
                 addProperty("label", marker.markerLetter)
                 addProperty("color", marker.markerColorHex)
             }
@@ -664,6 +508,7 @@ private fun updateMapLayers(
     } else {
         displayData.primaryMarker?.let { marker ->
             val props = JsonObject().apply {
+                addProperty("deviceId", "self")
                 addProperty("label", marker.letter)
                 addProperty("color", marker.colorHex)
             }

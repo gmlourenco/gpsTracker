@@ -1,4 +1,4 @@
-package com.seguranca.rural.ui.screens
+package com.seguranca.rural.ui.viewmodel
 
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -6,12 +6,16 @@ import androidx.lifecycle.viewModelScope
 import com.seguranca.rural.data.db.createAppDatabase
 import com.seguranca.rural.data.model.TelemetryRecord
 import com.seguranca.rural.data.repository.FamilyPositionsRepository
+import com.seguranca.rural.ui.model.DeviceMapStyle
+import com.seguranca.rural.ui.model.FamilyDeviceMarker
+import com.seguranca.rural.ui.model.FamilyRefreshStatus
+import com.seguranca.rural.ui.model.MapDisplayData
+import com.seguranca.rural.ui.model.MapMarkerDisplay
+import com.seguranca.rural.ui.model.MapPointLimit
 import com.seguranca.rural.util.PREF_DEVICE_LABEL
 import com.seguranca.rural.util.PREF_DEVICE_MARKER_COLOR
 import com.seguranca.rural.util.TRACKING_PREFS_NAME
 import com.seguranca.rural.util.DEFAULT_MARKER_COLOR_ARGB
-import com.seguranca.rural.util.argbToMapLibreHex
-import com.seguranca.rural.util.markerInitial
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,59 +26,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-
-/** How many recent GPS points to draw on the personal route line. */
-enum class MapPointLimit(val label: String, val maxPoints: Int?) {
-    LAST_10("10", 10),
-    LAST_100("100", 100),
-    ALL("Tudo", null),
-}
-
-enum class FamilyRefreshStatus {
-    Idle,
-    Loading,
-    Success,
-    Error,
-}
-
-data class DeviceMapStyle(
-    val label: String = "Dispositivo",
-    val markerColorArgb: Int = DEFAULT_MARKER_COLOR_ARGB,
-) {
-    val markerLetter: String get() = markerInitial(label)
-    val routeColorHex: String get() = argbToMapLibreHex(markerColorArgb)
-    val markerColorHex: String get() = routeColorHex
-}
-
-data class FamilyDeviceMarker(
-    val deviceId: String,
-    val label: String,
-    val lat: Double,
-    val lng: Double,
-    val markerColorHex: String,
-    val markerLetter: String,
-    val emergencyState: Boolean,
-    val batteryLevel: Int = 0,
-    val batteryCharging: Boolean = false,
-    val speed: Double = 0.0,
-    val appVersion: String = "1.0.0",
-)
-
-/** Unified map rendering model for either personal route or family markers. */
-data class MapDisplayData(
-    val routePoints: List<TelemetryRecord> = emptyList(),
-    val primaryMarker: MapMarkerDisplay? = null,
-    val familyMarkers: List<FamilyDeviceMarker> = emptyList(),
-    val isFamilyMode: Boolean = false,
-)
-
-data class MapMarkerDisplay(
-    val lat: Double,
-    val lng: Double,
-    val letter: String,
-    val colorHex: String,
-    val emergencyState: Boolean,
-)
 
 class MapViewModel(application: Application) : AndroidViewModel(application) {
 

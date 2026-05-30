@@ -2,7 +2,7 @@ package com.seguranca.rural.data.repository
 
 import com.seguranca.rural.BuildConfig
 import com.seguranca.rural.data.network.ApiClient
-import com.seguranca.rural.ui.screens.FamilyDeviceMarker
+import com.seguranca.rural.ui.model.FamilyDeviceMarker
 import com.seguranca.rural.util.AppLog
 import com.seguranca.rural.util.markerInitial
 import io.ktor.client.call.body
