@@ -64,6 +64,90 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
 
+      - name: Setup google-services.json
+        env:
+          GOOGLE_SERVICES_BASE64: ${{ secrets.GOOGLE_SERVICES_BASE64 }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$GOOGLE_SERVICES_BASE64" ]; then
+            echo "Decoding google-services.json from Base64 secret..."
+            echo "$GOOGLE_SERVICES_BASE64" | base64 -d > mobile/app/google-services.json
+          elif [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            echo "Writing google-services.json from JSON secret..."
+            echo "$GOOGLE_SERVICES_JSON" > mobile/app/google-services.json
+          elif [ ! -f mobile/app/google-services.json ]; then
+            echo "No google-services.json found, creating mock version for compilation..."
+            cat << 'EOF' > mobile/app/google-services.json
+            {
+              "project_info": {
+                "project_number": "1234567890",
+                "project_id": "mock-project-id",
+                "storage_bucket": "mock-project-id.appspot.com"
+              },
+              "client": [
+                {
+                  "client_info": {
+                    "mobilesdk_app_id": "1:1234567890:android:mockappid",
+                    "android_client_info": {
+                      "package_name": "com.segurancarural.gpstracker"
+                    }
+                  },
+                  "oauth_client": [],
+                  "api_key": [
+                    {
+                      "current_key": "mock-api-key"
+                    }
+                  ],
+                  "services": {
+                    "appinvite_service": {
+                      "other_platform_oauth_client": []
+                    }
+                  }
+                },
+                {
+                  "client_info": {
+                    "mobilesdk_app_id": "1:1234567890:android:mockappiddev",
+                    "android_client_info": {
+                      "package_name": "com.segurancarural.gpstracker.dev"
+                    }
+                  },
+                  "oauth_client": [],
+                  "api_key": [
+                    {
+                      "current_key": "mock-api-key"
+                    }
+                  ],
+                  "services": {
+                    "appinvite_service": {
+                      "other_platform_oauth_client": []
+                    }
+                  }
+                },
+                {
+                  "client_info": {
+                    "mobilesdk_app_id": "1:1234567890:android:mockappidpre",
+                    "android_client_info": {
+                      "package_name": "com.segurancarural.gpstracker.pre"
+                    }
+                  },
+                  "oauth_client": [],
+                  "api_key": [
+                    {
+                      "current_key": "mock-api-key"
+                    }
+                  ],
+                  "services": {
+                    "appinvite_service": {
+                      "other_platform_oauth_client": []
+                    }
+                  }
+                }
+              ],
+              "configuration_version": "1"
+            }
+            EOF
+          fi
+
       - name: Decode keystore
         if: env.ANDROID_KEYSTORE_BASE64 != ''
         env:
