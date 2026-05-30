@@ -58,6 +58,14 @@ export default async function Dashboard() {
     return 'active';
   };
 
+  // Sort devices: SOS active first, then alphabetically by label
+  const sortedDevices = [...devices].sort((a, b) => {
+    const aSos = a.latestLocation?.emergency_state ? 1 : 0;
+    const bSos = b.latestLocation?.emergency_state ? 1 : 0;
+    if (aSos !== bSos) return bSos - aSos;
+    return a.label.localeCompare(b.label);
+  });
+
   return (
     <div className={styles.dashboard}>
       <header className={styles.header}>
@@ -70,22 +78,43 @@ export default async function Dashboard() {
 
       <main className={styles.mainContent}>
         <aside className={styles.sidebar}>
-          <h2 className={styles.sidebarTitle}>Devices ({devices.length})</h2>
+          <h2 className={styles.sidebarTitle}>Membros ({devices.length})</h2>
           
           <div className={styles.deviceList}>
-            {devices.map(device => {
+            {sortedDevices.map(device => {
               const status = getStatus(device);
+              const customBorderColor = device.marker_color || '#16A34A';
+              
               return (
-                <div key={device.id} className={`${styles.deviceCard} ${styles[status]}`}>
+                <div 
+                  key={device.id} 
+                  className={`${styles.deviceCard} ${styles[status]}`}
+                  style={status !== 'sos' ? { borderLeft: `4px solid ${customBorderColor}` } : {}}
+                >
                   <div className={styles.deviceHeader}>
                     <h3>{device.label}</h3>
                     <span className={styles.statusBadge}>{status.toUpperCase()}</span>
                   </div>
                   
                   <div className={styles.deviceDetails}>
-                    <p>🔋 {device.latestLocation?.battery_level ?? '--'}%</p>
+                    <p>🔋 {device.latestLocation?.battery_level ?? '--'}%{device.latestLocation?.battery_charging ? ' ⚡' : ''}</p>
                     <p>📍 {device.latestLocation?.speed?.toFixed(1) ?? '--'} km/h</p>
+                    <p>📶 {device.latestLocation?.network_type ?? '--'}</p>
+                    <p>📱 v{device.latestLocation?.app_version ?? device.app_version ?? '--'}</p>
                   </div>
+
+                  {device.latestLocation && (
+                    <div className={styles.actionContainer}>
+                      <a 
+                        href={`https://www.google.com/maps/dir/?api=1&destination=${device.latestLocation.lat},${device.latestLocation.lng}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.navButton}
+                      >
+                        ➔ Iniciar Navegação
+                      </a>
+                    </div>
+                  )}
                 </div>
               );
             })}

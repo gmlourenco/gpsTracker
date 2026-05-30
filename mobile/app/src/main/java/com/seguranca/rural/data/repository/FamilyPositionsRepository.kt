@@ -23,6 +23,7 @@ data class DeviceDto(
     val id: String,
     val label: String,
     @SerialName("marker_color") val markerColor: String = "#16A34A",
+    @SerialName("app_version") val appVersion: String = "1.0.0",
     @SerialName("latestLocation") val latestLocation: LocationDto? = null,
 )
 
@@ -30,6 +31,9 @@ data class DeviceDto(
 data class LocationDto(
     val lat: Double,
     val lng: Double,
+    val speed: Double = 0.0,
+    @SerialName("battery_level") val batteryLevel: Int = 0,
+    @SerialName("battery_charging") val batteryCharging: Boolean = false,
     @SerialName("emergency_state") val emergencyState: Boolean = false,
 )
 
@@ -51,6 +55,10 @@ class FamilyPositionsRepository {
                     markerColorHex = device.markerColor.uppercase(),
                     markerLetter = markerInitial(device.label),
                     emergencyState = loc.emergencyState,
+                    batteryLevel = loc.batteryLevel,
+                    batteryCharging = loc.batteryCharging,
+                    speed = loc.speed,
+                    appVersion = device.appVersion,
                 )
             }
             AppLog.i("FamilyPositionsRepository", "Loaded ${markers.size} family positions")
