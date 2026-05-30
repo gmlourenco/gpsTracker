@@ -68,74 +68,74 @@ jobs:
           if [ ! -f app/google-services.json ]; then
             echo "Creating mock google-services.json for CI compilation..."
             cat << 'EOF' > app/google-services.json
-          {
-            "project_info": {
-              "project_number": "1234567890",
-              "project_id": "mock-project-id",
-              "storage_bucket": "mock-project-id.appspot.com"
-            },
-            "client": [
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:1234567890:android:mockappid",
-                  "android_client_info": {
-                    "package_name": "com.segurancarural.gpstracker"
-                  }
-                },
-                "oauth_client": [],
-                "api_key": [
-                  {
-                    "current_key": "mock-api-key"
-                  }
-                ],
-                "services": {
-                  "appinvite_service": {
-                    "other_platform_oauth_client": []
-                  }
-                }
-              },
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:1234567890:android:mockappiddev",
-                  "android_client_info": {
-                    "package_name": "com.segurancarural.gpstracker.dev"
-                  }
-                },
-                "oauth_client": [],
-                "api_key": [
-                  {
-                    "current_key": "mock-api-key"
-                  }
-                ],
-                "services": {
-                  "appinvite_service": {
-                    "other_platform_oauth_client": []
-                  }
-                }
-              },
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:1234567890:android:mockappidpre",
-                  "android_client_info": {
-                    "package_name": "com.segurancarural.gpstracker.pre"
-                  }
-                },
-                "oauth_client": [],
-                "api_key": [
-                  {
-                    "current_key": "mock-api-key"
-                  }
-                ],
-                "services": {
-                  "appinvite_service": {
-                    "other_platform_oauth_client": []
-                  }
-                }
-              }
-            ],
-            "configuration_version": "1"
-          }
-          EOF
+{
+  "project_info": {
+    "project_number": "1234567890",
+    "project_id": "mock-project-id",
+    "storage_bucket": "mock-project-id.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1234567890:android:mockappid",
+        "android_client_info": {
+          "package_name": "com.segurancarural.gpstracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "mock-api-key"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1234567890:android:mockappiddev",
+        "android_client_info": {
+          "package_name": "com.segurancarural.gpstracker.dev"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "mock-api-key"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1234567890:android:mockappidpre",
+        "android_client_info": {
+          "package_name": "com.segurancarural.gpstracker.pre"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "mock-api-key"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
+EOF
           fi
 
       - name: Build shared module
