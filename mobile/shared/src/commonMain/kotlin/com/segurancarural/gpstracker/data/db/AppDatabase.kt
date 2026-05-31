@@ -15,7 +15,7 @@ import com.segurancarural.gpstracker.data.model.TelemetryRecord
  */
 @Database(
     entities = [TelemetryRecord::class],
-    version = 2,
+    version = 1,
     exportSchema = true  // Schema exported to /shared/schemas/ for migration tracking
 )
 abstract class AppDatabase : RoomDatabase() {
