@@ -9,30 +9,34 @@ import io.ktor.client.call.body
 import io.ktor.client.request.get
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.annotation.Keep
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+@Keep
 @Serializable
 data class LastPositionsResponse(
-    val success: Boolean = false,
-    val devices: List<DeviceDto> = emptyList(),
+    @SerialName("success") val success: Boolean = false,
+    @SerialName("devices") val devices: List<DeviceDto> = emptyList(),
 )
 
+@Keep
 @Serializable
 data class DeviceDto(
-    val id: String,
-    val label: String,
+    @SerialName("id") val id: String,
+    @SerialName("label") val label: String,
     @SerialName("marker_color") val markerColor: String = "#16A34A",
     @SerialName("app_version") val appVersion: String = "1.0.0",
     @SerialName("last_seen_at") val lastSeenAt: String? = null,
     @SerialName("latestLocation") val latestLocation: LocationDto? = null,
 )
 
+@Keep
 @Serializable
 data class LocationDto(
-    val lat: Double,
-    val lng: Double,
-    val speed: Double = 0.0,
+    @SerialName("lat") val lat: Double,
+    @SerialName("lng") val lng: Double,
+    @SerialName("speed") val speed: Double = 0.0,
     @SerialName("battery_level") val batteryLevel: Int = 0,
     @SerialName("battery_charging") val batteryCharging: Boolean = false,
     @SerialName("emergency_state") val emergencyState: Boolean = false,

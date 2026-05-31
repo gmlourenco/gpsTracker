@@ -8,12 +8,14 @@ import io.ktor.client.call.body
 import io.ktor.client.request.get
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.annotation.Keep
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+@Keep
 @Serializable
 data class AppVersionResponse(
-    val success: Boolean = false,
+    @SerialName("success") val success: Boolean = false,
     @SerialName("latestVersion") val latestVersion: String = "",
     @SerialName("minVersion") val minVersion: String = "",
     @SerialName("downloadUrl") val downloadUrl: String = "",
