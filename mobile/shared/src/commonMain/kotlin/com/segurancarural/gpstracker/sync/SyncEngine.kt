@@ -44,13 +44,12 @@ private const val TAG = "SyncEngine"
  * @param dao          The [TelemetryDao] for queue access.
  * @param httpClient   A configured Ktor [HttpClient].
  * @param backendBaseUrl Base URL of the Next.js backend (e.g., "https://example.vercel.app").
- * @param deviceApiSecret The shared bearer token for API authorization.
+ * @param backendBaseUrl Base URL of the Next.js backend (e.g., "https://example.vercel.app").
  */
 class SyncEngine(
     private val dao: TelemetryDao,
     private val httpClient: HttpClient,
     private val backendBaseUrl: String,
-    private val deviceApiSecret: String,
 ) {
 
     private val locationUrl = "$backendBaseUrl/api/location"
@@ -140,7 +139,6 @@ class SyncEngine(
         return try {
             val response = httpClient.post(emergencyUrl) {
                 contentType(ContentType.Application.Json)
-                bearerAuth(deviceApiSecret)
                 setBody(record.toEmergencyJson())
             }
             if (response.status == HttpStatusCode.OK) {
@@ -159,7 +157,6 @@ class SyncEngine(
         return try {
             val response = httpClient.post(locationUrl) {
                 contentType(ContentType.Application.Json)
-                bearerAuth(deviceApiSecret)
                 setBody(record.toLocationJson())
             }
             if (response.status == HttpStatusCode.OK) {
@@ -181,7 +178,7 @@ class SyncEngine(
  * Converts a TelemetryRecord to the JSON format expected by POST /api/location.
  */
 fun TelemetryRecord.toLocationJson(markerColorHex: String? = null): String = buildJsonObject {
-    put("deviceId", deviceId)
+    put("serialNumber", serialNumber)
     put("deviceLabel", deviceLabel)
     put("timestamp", timestamp)
     put("batteryLevel", batteryLevel)
@@ -205,7 +202,7 @@ fun TelemetryRecord.toLocationJson(markerColorHex: String? = null): String = bui
  * The emergency endpoint does not include `emergencyState` or `trackingEnabled` fields.
  */
 fun TelemetryRecord.toEmergencyJson(): String = buildJsonObject {
-    put("deviceId", deviceId)
+    put("serialNumber", serialNumber)
     put("deviceLabel", deviceLabel)
     put("timestamp", timestamp)
     put("batteryLevel", batteryLevel)

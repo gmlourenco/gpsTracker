@@ -2,16 +2,13 @@ package com.segurancarural.gpstracker.data.repository
 
 import android.content.Context
 import com.segurancarural.gpstracker.BuildConfig
-import com.segurancarural.gpstracker.data.network.ApiClient
+import com.segurancarural.gpstracker.data.network.ApiRoutes
+import com.segurancarural.gpstracker.data.network.ApiService
+import com.segurancarural.gpstracker.data.network.ApiResult
 import com.segurancarural.gpstracker.util.AppLog
-import com.segurancarural.gpstracker.util.ensureDeviceId
+import com.segurancarural.gpstracker.util.ensureSerialNumber
 import com.google.firebase.messaging.FirebaseMessaging
-import io.ktor.client.request.patch
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.contentType
+import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.tasks.await
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -25,36 +22,38 @@ import kotlinx.serialization.json.Json
  */
 class FcmTokenRepository(private val context: Context) {
 
-    private val httpClient = ApiClient.httpClient
+    private val apiService = ApiService()
 
     /**
      * Uploads [token] to `PATCH /api/devices/fcm-token`.
      * Called from [FcmService.onNewToken] and from [refreshTokenIfNeeded] on app launch.
      */
     suspend fun uploadToken(token: String): Boolean {
-        val deviceId = context.ensureDeviceId()
+        val serialNumber = context.ensureSerialNumber()
 
         val payload = buildJsonObject {
-            put("deviceId", deviceId)
+            put("serialNumber", serialNumber)
             put("fcmToken", token)
         }
 
-        return try {
-            val response = httpClient.patch("${BuildConfig.BACKEND_BASE_URL}/api/devices/fcm-token") {
-                contentType(ContentType.Application.Json)
-                setBody(Json.encodeToString(payload))
-            }
-            response.bodyAsText()
-            val ok = response.status == HttpStatusCode.OK
-            if (ok) {
+        val result = apiService.patchRaw(ApiRoutes.FCM_TOKEN, Json.encodeToString(payload))
+        return when (result) {
+            is ApiResult.Success -> {
                 AppLog.i("FcmTokenRepository", "FCM token uploaded successfully")
-            } else {
-                AppLog.e("FcmTokenRepository", "FCM token upload failed: ${response.status}")
+                true
             }
-            ok
-        } catch (e: Exception) {
-            AppLog.w("FcmTokenRepository", "FCM token upload exception: ${e.message}", e)
-            false
+            is ApiResult.HttpError -> {
+                AppLog.e("FcmTokenRepository", "FCM token upload failed: ${result.code}")
+                false
+            }
+            is ApiResult.NetworkError -> {
+                AppLog.w("FcmTokenRepository", "FCM token upload exception: ${result.exception.message}", result.exception)
+                false
+            }
+            is ApiResult.Unauthorized -> {
+                AppLog.e("FcmTokenRepository", "Unauthorized FCM token upload attempt")
+                false
+            }
         }
     }
 

@@ -14,13 +14,6 @@ import {
 } from '../../../types/telemetry';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const authHeader = request.headers.get('authorization');
-  const deviceSecret = process.env.DEVICE_API_SECRET;
-
-  if (deviceSecret && authHeader !== `Bearer ${deviceSecret}`) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
-
   const supabase = getSupabaseAdmin();
 
   const { data: devices, error: devicesError } = await supabase

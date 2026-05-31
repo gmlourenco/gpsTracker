@@ -5,13 +5,10 @@ import com.segurancarural.gpstracker.BuildConfig
 import com.segurancarural.gpstracker.data.network.ApiClient
 import com.segurancarural.gpstracker.util.AppLog
 import com.segurancarural.gpstracker.util.argbToMapLibreHex
-import com.segurancarural.gpstracker.util.ensureDeviceId
-import io.ktor.client.request.patch
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.contentType
+import com.segurancarural.gpstracker.data.network.ApiRoutes
+import com.segurancarural.gpstracker.data.network.ApiService
+import com.segurancarural.gpstracker.data.network.ApiResult
+import com.segurancarural.gpstracker.util.ensureSerialNumber
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
@@ -20,32 +17,34 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
 class DeviceProfileRepository(private val context: Context) {
-    private val httpClient = ApiClient.httpClient
+    private val apiService = ApiService()
 
     suspend fun syncProfile(deviceLabel: String, markerColorArgb: Int): Boolean =
         withContext(Dispatchers.IO) {
             val payload = buildJsonObject {
-                put("deviceId", context.ensureDeviceId())
+                put("serialNumber", context.ensureSerialNumber())
                 put("deviceLabel", deviceLabel.trim().ifEmpty { "Dispositivo" })
                 put("markerColor", argbToMapLibreHex(markerColorArgb))
             }
 
-            try {
-                val response = httpClient.patch("${BuildConfig.BACKEND_BASE_URL}/api/devices/profile") {
-                    contentType(ContentType.Application.Json)
-                    setBody(Json.encodeToString(payload))
-                }
-                response.bodyAsText()
-                val ok = response.status == HttpStatusCode.OK
-                if (ok) {
+            val result = apiService.patchRaw(ApiRoutes.DEVICE_PROFILE, Json.encodeToString(payload))
+            when (result) {
+                is ApiResult.Success -> {
                     AppLog.i("DeviceProfileRepository", "Profile synced to server")
-                } else {
-                    AppLog.e("DeviceProfileRepository", "Profile sync failed: ${response.status}")
+                    true
                 }
-                ok
-            } catch (e: Exception) {
-                AppLog.w("DeviceProfileRepository", "Profile sync exception: ${e.message}", e)
-                false
+                is ApiResult.HttpError -> {
+                    AppLog.e("DeviceProfileRepository", "Profile sync failed: ${result.code}")
+                    false
+                }
+                is ApiResult.NetworkError -> {
+                    AppLog.w("DeviceProfileRepository", "Profile sync exception: ${result.exception.message}", result.exception)
+                    false
+                }
+                is ApiResult.Unauthorized -> {
+                    AppLog.e("DeviceProfileRepository", "Unauthorized profile sync attempt")
+                    false
+                }
             }
         }
 }

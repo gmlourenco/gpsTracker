@@ -22,8 +22,8 @@ data class TelemetryRecord(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
 
-    /** UUID identifying this device. Set once on first run. */
-    val deviceId: String,
+    /** Serial number identifying this device. Set once on first run. */
+    val serialNumber: String,
 
     /** Human-readable label (e.g., "Trator-Pai"). */
     val deviceLabel: String,

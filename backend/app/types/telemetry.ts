@@ -23,8 +23,8 @@ export interface GpsData {
 // ── Full telemetry payload (POST /api/location) ─────────────────────────────
 
 export interface TelemetryPayload {
-  /** UUID generated on first device setup, stored in EncryptedSharedPreferences */
-  deviceId: string;
+  /** Device serial number (ANDROID_ID hex string) */
+  serialNumber: string;
   /** Human-readable device label (e.g., "Trator-Pai") */
   deviceLabel: string;
   /** ISO 8601 timestamp from the device at point of capture */
@@ -50,8 +50,8 @@ export interface TelemetryPayload {
 // ── Emergency-only payload (POST /api/emergency) ────────────────────────────
 
 export interface EmergencyPayload {
-  /** UUID of the device triggering SOS */
-  deviceId: string;
+  /** Serial number of the device triggering SOS */
+  serialNumber: string;
   /** Device label for immediate dashboard display */
   deviceLabel: string;
   /** ISO 8601 timestamp of SOS activation */
@@ -120,10 +120,11 @@ export type ApiResponse = ApiSuccessResponse | ApiErrorResponse;
 
 // ── Validation helpers ───────────────────────────────────────────────────────
 
-/** Validates that a value is a plausible UUID string */
-export function isValidUuid(value: unknown): value is string {
+/** Validates that a value is a plausible device serial number (ANDROID_ID hex string) */
+export function isValidSerialNumber(value: unknown): value is string {
   if (typeof value !== 'string') return false;
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  // ANDROID_ID is a 16-char lowercase hex string, but we accept 8-32 chars for flexibility
+  return /^[0-9a-f]{8,32}$/i.test(value);
 }
 
 /** Validates that a value is a plausible ISO 8601 timestamp */
@@ -142,9 +143,9 @@ export function getTelemetryValidationErrors(body: unknown): string[] {
   const p = body as Record<string, unknown>;
   const errors: string[] = [];
 
-  if (!isValidUuid(p.deviceId)) {
+  if (!isValidSerialNumber(p.serialNumber)) {
     errors.push(
-      'deviceId must be a UUID string (v1–v5). Android nameUUIDFromBytes produces v3 — do not require v4 only.'
+      'serialNumber must be a hex string (8-32 chars). ANDROID_ID is typically 16 lowercase hex chars.'
     );
   }
   if (typeof p.deviceLabel !== 'string' || p.deviceLabel.trim() === '') {
@@ -211,7 +212,7 @@ export function validateEmergencyPayload(body: unknown): body is EmergencyPayloa
   if (typeof body !== 'object' || body === null) return false;
   const p = body as Record<string, unknown>;
 
-  if (!isValidUuid(p.deviceId)) return false;
+  if (!isValidSerialNumber(p.serialNumber)) return false;
   if (typeof p.deviceLabel !== 'string' || p.deviceLabel.trim() === '') return false;
   if (!isValidIsoTimestamp(p.timestamp)) return false;
   if (typeof p.batteryLevel !== 'number') return false;
