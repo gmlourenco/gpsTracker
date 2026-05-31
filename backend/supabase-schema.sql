@@ -5,7 +5,7 @@
 -- ============================================================
 
 -- Enable geospatial extension (PostGIS) for future Geofencing queries
-CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA extensions;
 
 -- ============================================================
 -- TABLE: devices
