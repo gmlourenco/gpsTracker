@@ -115,10 +115,10 @@ interface TelemetryDao {
     // ── Cleanup ───────────────────────────────────────────────────────────
 
     /**
-     * Deletes all records for a given deviceId that have not yet been synced.
-     * Used on startup to purge stale records saved with a placeholder deviceId
+     * Deletes all records for a given serialNumber that have not yet been synced.
+     * Used on startup to purge stale records saved with a placeholder serialNumber
      * (e.g., "unknown-device-id") before the real identity was established.
      */
-    @Query("DELETE FROM telemetry_queue WHERE deviceId = :deviceId AND synced = 0")
-    suspend fun deleteUnsyncedByDeviceId(deviceId: String): Int
+    @Query("DELETE FROM telemetry_queue WHERE serialNumber = :serialNumber AND synced = 0")
+    suspend fun deleteUnsyncedBySerialNumber(serialNumber: String): Int
 }

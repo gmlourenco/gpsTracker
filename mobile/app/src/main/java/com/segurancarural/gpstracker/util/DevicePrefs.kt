@@ -34,6 +34,7 @@ fun argbToMapLibreHex(argb: Int): String {
 }
 
 /** Stable device UUID (v3) — matches [LocationForegroundService.ensureDeviceIdentity]. */
+@Deprecated("Use ensureSerialNumber() instead", ReplaceWith("ensureSerialNumber()"))
 fun Context.ensureDeviceId(): String {
     val prefs = trackingPrefs()
     val existing = prefs.getString("device_id", null)
@@ -42,4 +43,18 @@ fun Context.ensureDeviceId(): String {
     val id = UUID.nameUUIDFromBytes(androidId.toByteArray()).toString()
     prefs.edit { putString("device_id", id) }
     return id
+}
+
+/**
+ * Stable device serial number — the raw ANDROID_ID hex string.
+ * Persists across app reinstalls (same signing key), resets only on factory reset.
+ * Replaces the old UUID-based ensureDeviceId().
+ */
+fun Context.ensureSerialNumber(): String {
+    val prefs = trackingPrefs()
+    val existing = prefs.getString("serial_number", null)
+    if (!existing.isNullOrBlank()) return existing
+    val androidId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
+    prefs.edit { putString("serial_number", androidId) }
+    return androidId
 }

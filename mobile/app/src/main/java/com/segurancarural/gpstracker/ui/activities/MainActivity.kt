@@ -47,6 +47,8 @@ import com.segurancarural.gpstracker.ui.screens.MapScreen
 import com.segurancarural.gpstracker.data.repository.FcmTokenRepository
 import com.segurancarural.gpstracker.ui.theme.SegurancaRuralTheme
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.segurancarural.gpstracker.ui.viewmodel.MapViewModel
 import kotlinx.coroutines.launch
 
 /**
@@ -58,6 +60,9 @@ import kotlinx.coroutines.launch
  *   - Starting the periodic [SyncWorker] on launch
  */
 class MainActivity : ComponentActivity() {
+
+    // Compose state to track incoming intents (e.g. notification click actions)
+    private val activityIntentState = androidx.compose.runtime.mutableStateOf<Intent?>(null)
 
     // ── Permission launcher ────────────────────────────────────────────────
 
@@ -82,14 +87,31 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            Toast.makeText(this, "Aviso: Sem notificações, não receberá alertas SOS de outros dispositivos.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        activityIntentState.value = intent
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // Set initial intent for notification click check
+        activityIntentState.value = intent
+
         // Schedule background sync (safe to call multiple times)
         SyncWorker.schedule(this)
 
-        // Request location and notification permissions if not already granted
+        // Request location permissions if not already granted
         if (!hasLocationPermission()) {
             val permissionsToRequest = mutableListOf(
                 Manifest.permission.ACCESS_FINE_LOCATION,
@@ -101,6 +123,12 @@ class MainActivity : ComponentActivity() {
             locationPermissionLauncher.launch(permissionsToRequest.toTypedArray())
         } else {
             checkBackgroundAndBattery()
+            // Request notification permission separately if location already granted
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                    notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            }
         }
 
         // Refresh FCM token on every launch — ensures backend always has latest token
@@ -110,9 +138,26 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             SegurancaRuralTheme {
+                val mapViewModel: MapViewModel = viewModel()
                 var currentScreen by rememberSaveable { mutableStateOf(AppScreen.HOME) }
                 var updateOffer by remember { mutableStateOf<AppUpdateOffer?>(null) }
                 var hasCheckedAndDismissedOnLaunch by rememberSaveable { mutableStateOf(false) }
+
+                // React to notification clicks/intent updates
+                val currentIntent by activityIntentState
+                LaunchedEffect(currentIntent) {
+                    currentIntent?.let { activeIntent ->
+                        val action = activeIntent.getStringExtra("click_action")
+                        val type = activeIntent.getStringExtra("type")
+                        if (action == "OPEN_SOS" || type == "SOS") {
+                            currentScreen = AppScreen.MAP
+                            mapViewModel.setFindFamilyEnabled(true)
+                            mapViewModel.refreshFamilyPositions()
+                            activeIntent.removeExtra("click_action")
+                            activeIntent.removeExtra("type")
+                        }
+                    }
+                }
 
                 LaunchedEffect(Unit) {
                     if (!hasCheckedAndDismissedOnLaunch) {
@@ -168,7 +213,7 @@ class MainActivity : ComponentActivity() {
                                     onSosActivate = { activateSos() },
                                     onSosDeactivate = { deactivateSos() },
                                 )
-                                AppScreen.MAP -> MapScreen()
+                                AppScreen.MAP -> MapScreen(viewModel = mapViewModel)
                                 AppScreen.CONFIG -> ConfigScreen(
                                     onUpdateOfferFound = { offer ->
                                         updateOffer = offer

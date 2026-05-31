@@ -11,13 +11,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../lib/supabase';
 
 export async function PATCH(request: NextRequest) {
-  // ── 1. Authorization ──────────────────────────────────────────────────────
-  const authHeader = request.headers.get('authorization');
-  const deviceSecret = process.env.DEVICE_API_SECRET;
-
-  if (deviceSecret && authHeader !== `Bearer ${deviceSecret}`) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
 
   // ── 2. Parse body ─────────────────────────────────────────────────────────
   let body: unknown;
@@ -27,11 +20,11 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { deviceId, fcmToken } = body as { deviceId?: string; fcmToken?: string };
+  const { serialNumber, fcmToken } = body as { serialNumber?: string; fcmToken?: string };
 
-  if (!deviceId || !fcmToken || typeof deviceId !== 'string' || typeof fcmToken !== 'string') {
+  if (!serialNumber || !fcmToken || typeof serialNumber !== 'string' || typeof fcmToken !== 'string') {
     return NextResponse.json(
-      { success: false, error: 'Required: deviceId (string), fcmToken (string)' },
+      { success: false, error: 'Required: serialNumber (string), fcmToken (string)' },
       { status: 400 }
     );
   }
@@ -39,10 +32,11 @@ export async function PATCH(request: NextRequest) {
   // ── 3. Update device record ───────────────────────────────────────────────
   const supabase = getSupabaseAdmin();
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('devices')
     .update({ fcm_token: fcmToken, last_seen_at: new Date().toISOString() })
-    .eq('id', deviceId);
+    .eq('id', serialNumber)
+    .select('id');
 
   if (error) {
     console.error('[PATCH /api/devices/fcm-token] DB error:', error.message);
@@ -52,6 +46,28 @@ export async function PATCH(request: NextRequest) {
     );
   }
 
-  console.log(`[PATCH /api/devices/fcm-token] Token updated for device ${deviceId}`);
+  // If no rows were updated, the device doesn't exist yet. Create it.
+  if (!data || data.length === 0) {
+    const { error: insertError } = await supabase
+      .from('devices')
+      .insert({
+        id: serialNumber,
+        fcm_token: fcmToken,
+        label: 'Dispositivo', // Default label for new devices
+        last_seen_at: new Date().toISOString(),
+      });
+
+    if (insertError) {
+      console.error('[PATCH /api/devices/fcm-token] DB insert error:', insertError.message);
+      return NextResponse.json(
+        { success: false, error: 'Database insert error', details: insertError.message },
+        { status: 500 }
+      );
+    }
+    console.log(`[PATCH /api/devices/fcm-token] New device registered with token: ${serialNumber}`);
+  } else {
+    console.log(`[PATCH /api/devices/fcm-token] Token updated for device: ${serialNumber}`);
+  }
+
   return NextResponse.json({ success: true });
 }

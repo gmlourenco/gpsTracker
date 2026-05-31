@@ -8,10 +8,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../lib/supabase';
 import { isValidMarkerColor } from '../../../lib/app-version';
-import { ApiResponse, isValidUuid } from '../../../types/telemetry';
+import { ApiResponse, isValidSerialNumber } from '../../../types/telemetry';
 
 interface DeviceProfileBody {
-  deviceId: string;
+  serialNumber: string;
   deviceLabel: string;
   markerColor: string;
 }
@@ -20,7 +20,7 @@ function validateProfileBody(body: unknown): body is DeviceProfileBody {
   if (typeof body !== 'object' || body === null) return false;
   const p = body as Record<string, unknown>;
   return (
-    isValidUuid(p.deviceId) &&
+    isValidSerialNumber(p.serialNumber) &&
     typeof p.deviceLabel === 'string' &&
     p.deviceLabel.trim() !== '' &&
     isValidMarkerColor(p.markerColor)
@@ -28,12 +28,6 @@ function validateProfileBody(body: unknown): body is DeviceProfileBody {
 }
 
 export async function PATCH(request: NextRequest): Promise<NextResponse<ApiResponse>> {
-  const authHeader = request.headers.get('authorization');
-  const deviceSecret = process.env.DEVICE_API_SECRET;
-
-  if (deviceSecret && authHeader !== `Bearer ${deviceSecret}`) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-  }
 
   let body: unknown;
   try {
@@ -47,7 +41,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse<ApiRespo
       {
         success: false,
         error: 'Validation failed',
-        details: 'Required: deviceId (UUID), deviceLabel (non-empty), markerColor (#RRGGBB)',
+        details: 'Required: serialNumber (string), deviceLabel (non-empty), markerColor (#RRGGBB)',
       },
       { status: 400 }
     );
@@ -57,7 +51,7 @@ export async function PATCH(request: NextRequest): Promise<NextResponse<ApiRespo
 
   const { error } = await supabase.from('devices').upsert(
     {
-      id: body.deviceId,
+      id: body.serialNumber,
       label: body.deviceLabel.trim(),
       marker_color: body.markerColor.toUpperCase(),
     },

@@ -3,12 +3,11 @@
  *
  * Ingests a telemetry payload from a tracker device.
  * Performs:
- *   1. Authorization check (DEVICE_API_SECRET header)
- *   2. Payload validation against TelemetryPayload schema
- *   3. Upsert the device record (create if first time, update last_seen_at)
- *   4. Insert the location row
+ *   1. Payload validation against TelemetryPayload schema
+ *   2. Upsert the device record (create if first time, update last_seen_at)
+ *   3. Insert the location row
  *
- * Returns: 200 on success, 400 on invalid payload, 401 on auth failure, 500 on DB error.
+ * Returns: 200 on success, 400 on invalid payload, 500 on DB error.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -23,18 +22,7 @@ import {
 const MAX_ACCEPTED_ACCURACY_METERS = 500;
 
 export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse>> {
-  // ── 1. Authorization ──────────────────────────────────────────────────────
-  const authHeader = request.headers.get('authorization');
-  const deviceSecret = process.env.DEVICE_API_SECRET;
-
-  if (deviceSecret && authHeader !== `Bearer ${deviceSecret}`) {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized' },
-      { status: 401 }
-    );
-  }
-
-  // ── 2. Parse & validate body ──────────────────────────────────────────────
+  // ── 1. Parse & validate body ──────────────────────────────────────────────
   let body: unknown;
   try {
     body = await request.json();
@@ -60,12 +48,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
   const payload = body;
   const supabase = getSupabaseAdmin();
 
-  // ── 3. Upsert device ──────────────────────────────────────────────────────
+  // ── 2. Upsert device ──────────────────────────────────────────────────────
   const { error: deviceError } = await supabase
     .from('devices')
     .upsert(
       {
-        id: payload.deviceId,
+        id: payload.serialNumber,
         label: payload.deviceLabel,
         marker_color: payload.markerColor?.toUpperCase() ?? '#16A34A',
         last_seen_at: new Date().toISOString(),
@@ -86,12 +74,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     );
   }
 
-  // ── 4. Insert location ────────────────────────────────────────────────────
+  // ── 3. Insert location ────────────────────────────────────────────────────
   // Clamp accuracy — very poor fixes are still stored for audit trail
   const isLowAccuracy = payload.gps.accuracy > MAX_ACCEPTED_ACCURACY_METERS;
 
   const { error: locationError } = await supabase.from('locations').insert({
-    device_id: payload.deviceId,
+    device_id: payload.serialNumber,
     lat: payload.gps.lat,
     lng: payload.gps.lng,
     accuracy: payload.gps.accuracy,

@@ -41,8 +41,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import android.provider.Settings
 import com.segurancarural.gpstracker.data.db.createAppDatabase
+import com.segurancarural.gpstracker.util.ensureSerialNumber
 import java.time.Instant
-import java.util.UUID
 
 private const val TAG = "LocationFgService"
 private const val NOTIFICATION_CHANNEL_ID = "gps_tracking_channel"
@@ -121,31 +121,16 @@ class LocationForegroundService : Service() {
         super.onCreate()
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
         createNotificationChannel()
-        ensureDeviceIdentity()
+        applicationContext.ensureSerialNumber()
         purgeStaleRecords()
         Log.i(TAG, "Service created")
-    }
-
-    /**
-     * Generates a stable, deterministic UUID from the device's ANDROID_ID.
-     * This UUID is unique per device+app, survives updates, but resets on factory reset.
-     */
-    private fun ensureDeviceIdentity() {
-        val prefs = getSharedPreferences("tracking_prefs", MODE_PRIVATE)
-        val existing = prefs.getString("device_id", null)
-        if (existing == null || existing == "unknown-device-id") {
-            val androidId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
-            val deterministicUuid = UUID.nameUUIDFromBytes(androidId.toByteArray()).toString()
-            prefs.edit().putString("device_id", deterministicUuid).apply()
-            Log.i(TAG, "Device identity established: $deterministicUuid (from ANDROID_ID)")
-        }
     }
 
     /** Purges unsynced records saved with placeholder deviceId — runs once per process start. */
     private fun purgeStaleRecords() {
         val dao = createAppDatabase(applicationContext).telemetryDao()
         serviceScope.launch {
-            val deleted = dao.deleteUnsyncedByDeviceId("unknown-device-id")
+            val deleted = dao.deleteUnsyncedBySerialNumber("unknown-device-id")
             if (deleted > 0) Log.w(TAG, "Purged $deleted stale records with 'unknown-device-id'")
         }
     }
@@ -491,14 +476,11 @@ class LocationForegroundService : Service() {
             } ?: "NONE"
 
         val prefs = getSharedPreferences("tracking_prefs", MODE_PRIVATE)
-        val deviceId = prefs.getString("device_id", null)
-            ?: UUID.nameUUIDFromBytes(
-                Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID).toByteArray()
-            ).toString()
+        val serialNumber = applicationContext.ensureSerialNumber()
         val deviceLabel = prefs.getString("device_label", "Dispositivo") ?: "Dispositivo"
 
         return TelemetryRecord(
-            deviceId = deviceId,
+            serialNumber = serialNumber,
             deviceLabel = deviceLabel,
             timestamp = isoTimestamp,
             batteryLevel = batteryLevel,
@@ -598,31 +580,28 @@ class LocationForegroundService : Service() {
         pollingJob?.cancel()
         pollingJob = serviceScope.launch {
             val familyRepository = FamilyPositionsRepository()
-            val prefs = getSharedPreferences("tracking_prefs", MODE_PRIVATE)
             val notifiedSosDevices = mutableSetOf<String>()
             
             while (isActive) {
-                val ourDeviceId = prefs.getString("device_id", null)
-                if (ourDeviceId != null) {
-                    val result = familyRepository.fetchLastPositions()
-                    result.fold(
-                        onSuccess = { markers ->
-                            val emergencyMarkers = markers.filter { it.emergencyState && it.deviceId != ourDeviceId }
-                            for (marker in emergencyMarkers) {
-                                if (marker.deviceId !in notifiedSosDevices) {
-                                    triggerEmergencyNotification(marker)
-                                    notifiedSosDevices.add(marker.deviceId)
-                                }
+                val ourSerialNumber = applicationContext.ensureSerialNumber()
+                val result = familyRepository.fetchLastPositions()
+                result.fold(
+                    onSuccess = { markers ->
+                        val emergencyMarkers = markers.filter { it.emergencyState && it.deviceId != ourSerialNumber }
+                        for (marker in emergencyMarkers) {
+                            if (marker.deviceId !in notifiedSosDevices) {
+                                triggerEmergencyNotification(marker)
+                                notifiedSosDevices.add(marker.deviceId)
                             }
-                            // Clean up devices that are no longer in SOS
-                            val currentSosIds = emergencyMarkers.map { it.deviceId }
+                        }
+                        // Clean up devices that are no longer in SOS
+                        val currentSosIds = emergencyMarkers.map { it.deviceId }
                             notifiedSosDevices.retainAll(currentSosIds)
                         },
                         onFailure = { error ->
                             Log.e(TAG, "Failed to poll family positions: ${error.message}")
                         }
                     )
-                }
                 delay(20_000L) // Poll every 20 seconds
             }
         }
