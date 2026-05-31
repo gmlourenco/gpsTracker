@@ -40,6 +40,7 @@ data class FamilyDeviceMarker(
     val batteryCharging: Boolean = false,
     val speed: Double = 0.0,
     val appVersion: String = "1.0.0",
+    val lastSeenAt: String? = null,
 )
 
 /** Unified map rendering model for either personal route or family markers. */

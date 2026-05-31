@@ -28,6 +28,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.segurancarural.gpstracker.ui.model.FamilyDeviceMarker
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 private val CardDark = Color(0xFF16213E)
 private val TextSecondary = Color(0xFF94A3B8)
@@ -182,6 +185,14 @@ fun FamilyMemberCard(
                 )
             }
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Último sinal: ${formatIsoTimestamp(marker.lastSeenAt)}",
+                color = TextSecondary.copy(alpha = 0.6f),
+                fontSize = 11.sp
+            )
+
             Spacer(modifier = Modifier.height(10.dp))
             Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.White.copy(alpha = 0.08f)))
             Spacer(modifier = Modifier.height(8.dp))
@@ -194,5 +205,17 @@ fun FamilyMemberCard(
                 modifier = Modifier.align(Alignment.End)
             )
         }
+    }
+}
+
+private fun formatIsoTimestamp(isoString: String?): String {
+    if (isoString.isNullOrEmpty()) return "N/A"
+    return try {
+        val instant = Instant.parse(isoString)
+        val formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")
+            .withZone(ZoneId.systemDefault())
+        formatter.format(instant)
+    } catch (e: Exception) {
+        isoString
     }
 }
