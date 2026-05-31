@@ -1,6 +1,6 @@
 {
-  "latestVersion": "0.2.0",
-  "minVersion": "0.2.0",
-  "downloadUrl": "https://github.com/gmlourenco/gpsTracker/releases/download/v0.2.0/seguranca-rural-0.2.0.apk",
-  "releaseNotes": "Atualização para a versão 0.2.0 com notificações de emergência FCM."
+  "latestVersion": "0.2.1",
+  "minVersion": "0.2.1",
+  "downloadUrl": "https://github.com/gmlourenco/gpsTracker/releases/download/v0.2.1/seguranca-rural-0.2.1.apk",
+  "releaseNotes": "Atualização para a versão 0.2.1 com melhorias na instalação do APK."
 }

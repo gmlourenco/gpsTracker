@@ -62,6 +62,9 @@ export default async function Dashboard() {
                     <p>📶 {device.latestLocation?.network_type ?? '--'}</p>
                     <p>📱 v{device.latestLocation?.app_version ?? device.app_version ?? '--'}</p>
                   </div>
+                  <div style={{ marginTop: '4px', fontSize: '11px', color: '#94A3B8', opacity: 0.7 }}>
+                    Último sinal: {device.last_seen_at ? new Date(device.last_seen_at).toLocaleString('pt-PT') : 'N/A'}
+                  </div>
 
                   {device.latestLocation && (
                     <div className={styles.actionContainer}>

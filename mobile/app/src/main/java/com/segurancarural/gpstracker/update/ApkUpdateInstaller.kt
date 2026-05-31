@@ -61,26 +61,44 @@ object ApkUpdateInstaller {
     }
 
     private fun installDownloadedApk(context: Context, dm: DownloadManager, downloadId: Long) {
+        AppLog.i("ApkUpdateInstaller", "installDownloadedApk called for downloadId: $downloadId")
         val uri = dm.getUriForDownloadedFile(downloadId)
         if (uri == null) {
+            AppLog.e("ApkUpdateInstaller", "Downloaded APK URI is null")
             Toast.makeText(context, "Falha na transferência do APK", Toast.LENGTH_LONG).show()
             return
         }
 
         val installUri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            val path = queryFilePath(dm, downloadId) ?: run {
-                openInstallIntent(context, uri)
+            try {
+                val tempFile = File(context.cacheDir, "update.apk")
+                if (tempFile.exists()) {
+                    tempFile.delete()
+                }
+
+                AppLog.i("ApkUpdateInstaller", "Copying downloaded APK to cache...")
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    tempFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                }
+                AppLog.i("ApkUpdateInstaller", "APK copied successfully to: ${tempFile.absolutePath}")
+
+                FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    tempFile,
+                )
+            } catch (e: Exception) {
+                AppLog.e("ApkUpdateInstaller", "Failed to copy or prepare APK for installation: ${e.message}", e)
+                Toast.makeText(context, "Falha ao preparar o instalador", Toast.LENGTH_LONG).show()
                 return
             }
-            FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                File(path),
-            )
         } else {
             uri
         }
 
+        AppLog.i("ApkUpdateInstaller", "Opening install intent with URI: $installUri")
         openInstallIntent(context, installUri)
     }
 
@@ -91,16 +109,5 @@ object ApkUpdateInstaller {
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(intent)
-    }
-
-    private fun queryFilePath(dm: DownloadManager, downloadId: Long): String? {
-        val query = DownloadManager.Query().setFilterById(downloadId)
-        dm.query(query).use { cursor ->
-            if (!cursor.moveToFirst()) return null
-            val col = cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI)
-            if (col < 0) return null
-            val localUri = cursor.getString(col) ?: return null
-            return Uri.parse(localUri).path
-        }
     }
 }
