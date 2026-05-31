@@ -24,6 +24,7 @@ data class DeviceDto(
     val label: String,
     @SerialName("marker_color") val markerColor: String = "#16A34A",
     @SerialName("app_version") val appVersion: String = "1.0.0",
+    @SerialName("last_seen_at") val lastSeenAt: String? = null,
     @SerialName("latestLocation") val latestLocation: LocationDto? = null,
 )
 
@@ -59,6 +60,7 @@ class FamilyPositionsRepository {
                     batteryCharging = loc.batteryCharging,
                     speed = loc.speed,
                     appVersion = device.appVersion,
+                    lastSeenAt = device.lastSeenAt,
                 )
             }
             AppLog.i("FamilyPositionsRepository", "Loaded ${markers.size} family positions")

@@ -17,8 +17,24 @@ android {
         applicationId = "com.segurancarural.gpstracker"
         minSdk = 26           // Android 8.0 — minimum for reliable ForegroundService + FusedLocation
         targetSdk = 36
-        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
-        versionName = project.findProperty("versionName")?.toString() ?: "0.2.0"
+
+        val version = project.findProperty("versionName")?.toString() ?: "0.2.1"
+        versionName = version
+        versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: run {
+            try {
+                val parts = version.split(".")
+                if (parts.size >= 3) {
+                    val major = parts[0].toIntOrNull() ?: 0
+                    val minor = parts[1].toIntOrNull() ?: 0
+                    val patch = parts[2].split("-")[0].toIntOrNull() ?: 0
+                    major * 10000 + minor * 100 + patch
+                } else {
+                    1
+                }
+            } catch (e: Exception) {
+                1
+            }
+        }
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -40,7 +56,7 @@ android {
         create("dev") {
             dimension = "environment"
             applicationIdSuffix = ".dev"
-            resValue("string", "app_name", "SR GPS Tracker Dev")
+            resValue("string", "app_name", "SegurancaRuralDEV")
 
             val localProps = Properties()
             val localPropsFile = rootProject.file("local.properties")
@@ -55,7 +71,7 @@ android {
         create("pre") {
             dimension = "environment"
             applicationIdSuffix = ".pre"
-            resValue("string", "app_name", "SR GPS Tracker Pre")
+            resValue("string", "app_name", "SegurancaRuralPRE")
 
             val localProps = Properties()
             val localPropsFile = rootProject.file("local.properties")
@@ -69,7 +85,7 @@ android {
         }
         create("prod") {
             dimension = "environment"
-            resValue("string", "app_name", "SR GPS Tracker")
+            resValue("string", "app_name", "SegurancaRural")
 
             val localProps = Properties()
             val localPropsFile = rootProject.file("local.properties")
