@@ -19,19 +19,6 @@ import { getSupabaseAdmin } from '../../lib/supabase';
 import { DeviceRecord, LocationRecord, DeviceWithLatestLocation } from '../../types/telemetry';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  // ── Optional: lightweight auth for dashboard consumers ───────────────────
-  // If DEVICE_API_SECRET is set, the dashboard must also present it.
-  // In Phase 3, this will be replaced by Supabase Auth magic link sessions.
-  const authHeader = request.headers.get('authorization');
-  const deviceSecret = process.env.DEVICE_API_SECRET;
-
-  if (deviceSecret && authHeader !== `Bearer ${deviceSecret}`) {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized' },
-      { status: 401 }
-    );
-  }
-
   const supabase = getSupabaseAdmin();
 
   // ── 1. Fetch all devices ──────────────────────────────────────────────────

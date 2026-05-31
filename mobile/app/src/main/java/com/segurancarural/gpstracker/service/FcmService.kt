@@ -68,6 +68,7 @@ class FcmService : FirebaseMessagingService() {
             title       = title,
             body        = body,
             isSos       = isSos,
+            data        = message.data,
         )
     }
 
@@ -78,6 +79,7 @@ class FcmService : FirebaseMessagingService() {
         title: String,
         body: String,
         isSos: Boolean,
+        data: Map<String, String> = emptyMap(),
     ) {
         val notificationManager =
             getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -90,6 +92,10 @@ class FcmService : FirebaseMessagingService() {
             0,
             Intent(this, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra("click_action", "OPEN_SOS")
+                putExtra("lat", data["lat"])
+                putExtra("lng", data["lng"])
+                putExtra("deviceLabel", data["deviceLabel"])
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )

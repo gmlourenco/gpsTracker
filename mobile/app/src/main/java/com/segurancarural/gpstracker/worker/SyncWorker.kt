@@ -64,7 +64,6 @@ class SyncWorker(
                 dao = db.telemetryDao(),
                 httpClient = httpClient,
                 backendBaseUrl = BuildConfig.BACKEND_BASE_URL,
-                deviceApiSecret = BuildConfig.DEVICE_API_SECRET,
             )
 
             val result = engine.flush()

@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "9fa0a14e174ef99377704d837157a73e",
+    "identityHash": "08491ffab105882f982c60ba910cda03",
     "entities": [
       {
         "tableName": "telemetry_queue",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `deviceId` TEXT NOT NULL, `deviceLabel` TEXT NOT NULL, `timestamp` TEXT NOT NULL, `batteryLevel` INTEGER NOT NULL, `batteryCharging` INTEGER NOT NULL, `lat` REAL NOT NULL, `lng` REAL NOT NULL, `accuracy` REAL NOT NULL, `speed` REAL NOT NULL, `heading` REAL NOT NULL, `emergencyState` INTEGER NOT NULL, `trackingEnabled` INTEGER NOT NULL, `networkType` TEXT NOT NULL, `appVersion` TEXT NOT NULL, `createdAtEpochMs` INTEGER NOT NULL, `synced` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `serialNumber` TEXT NOT NULL, `deviceLabel` TEXT NOT NULL, `timestamp` TEXT NOT NULL, `batteryLevel` INTEGER NOT NULL, `batteryCharging` INTEGER NOT NULL, `lat` REAL NOT NULL, `lng` REAL NOT NULL, `accuracy` REAL NOT NULL, `speed` REAL NOT NULL, `heading` REAL NOT NULL, `emergencyState` INTEGER NOT NULL, `trackingEnabled` INTEGER NOT NULL, `networkType` TEXT NOT NULL, `appVersion` TEXT NOT NULL, `createdAtEpochMs` INTEGER NOT NULL, `synced` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -15,8 +15,8 @@
             "notNull": true
           },
           {
-            "fieldPath": "deviceId",
-            "columnName": "deviceId",
+            "fieldPath": "serialNumber",
+            "columnName": "serialNumber",
             "affinity": "TEXT",
             "notNull": true
           },
@@ -121,7 +121,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '9fa0a14e174ef99377704d837157a73e')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '08491ffab105882f982c60ba910cda03')"
     ]
   }
 }

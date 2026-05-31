@@ -23,18 +23,7 @@ import { sendSosPushToAll } from '../../lib/fcm';
 
 
 export async function POST(request: NextRequest): Promise<NextResponse<ApiResponse>> {
-  // ── 1. Authorization ──────────────────────────────────────────────────────
-  const authHeader = request.headers.get('authorization');
-  const deviceSecret = process.env.DEVICE_API_SECRET;
-
-  if (deviceSecret && authHeader !== `Bearer ${deviceSecret}`) {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized' },
-      { status: 401 }
-    );
-  }
-
-  // ── 2. Parse & validate body ──────────────────────────────────────────────
+  // ── 1. Parse & validate body ──────────────────────────────────────────────
   let body: unknown;
   try {
     body = await request.json();
@@ -50,7 +39,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
       {
         success: false,
         error: 'Emergency payload validation failed',
-        details: 'Required: deviceId (UUID), deviceLabel, timestamp, batteryLevel, batteryCharging, gps {lat,lng,accuracy,speed,heading}, networkType, appVersion',
+        details: 'Required: serialNumber (hex string), deviceLabel, timestamp, batteryLevel, batteryCharging, gps {lat,lng,accuracy,speed,heading}, networkType, appVersion',
       },
       { status: 400 }
     );
@@ -59,12 +48,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
   const payload = body;
   const supabase = getSupabaseAdmin();
 
-  // ── 3. Upsert device ──────────────────────────────────────────────────────
+  // ── 2. Upsert device ──────────────────────────────────────────────────────
   const { error: deviceError } = await supabase
     .from('devices')
     .upsert(
       {
-        id: payload.deviceId,
+        id: payload.serialNumber,
         label: payload.deviceLabel,
         last_seen_at: new Date().toISOString(),
         app_version: payload.appVersion,
@@ -80,9 +69,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     );
   }
 
-  // ── 4. Insert SOS location — emergency_state is ALWAYS true here ──────────
+  // ── 3. Insert SOS location — emergency_state is ALWAYS true here ──────────
   const { error: locationError } = await supabase.from('locations').insert({
-    device_id: payload.deviceId,
+    device_id: payload.serialNumber,
     lat: payload.gps.lat,
     lng: payload.gps.lng,
     accuracy: payload.gps.accuracy,
@@ -107,7 +96,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
 
   // Log to server console for immediate visibility
   console.warn(
-    `🚨 SOS ACTIVATED — Device: ${payload.deviceLabel} (${payload.deviceId}) ` +
+    `🚨 SOS ACTIVATED — Device: ${payload.deviceLabel} (${payload.serialNumber}) ` +
     `| Lat: ${payload.gps.lat}, Lng: ${payload.gps.lng} ` +
     `| Battery: ${payload.batteryLevel}% ` +
     `| Time: ${payload.timestamp}`
@@ -117,7 +106,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
   try {
     await Promise.all([
       sendSosPushToAll({
-        senderDeviceId: payload.deviceId,
+        senderDeviceId: payload.serialNumber,
         deviceLabel:    payload.deviceLabel,
         lat:            payload.gps.lat,
         lng:            payload.gps.lng,

@@ -5,24 +5,20 @@ import com.segurancarural.gpstracker.BuildConfig
 import com.segurancarural.gpstracker.util.AppLog
 import com.segurancarural.gpstracker.data.db.createAppDatabase
 import com.segurancarural.gpstracker.data.model.TelemetryRecord
-import com.segurancarural.gpstracker.data.network.ApiClient
+import com.segurancarural.gpstracker.data.network.ApiRoutes
+import com.segurancarural.gpstracker.data.network.ApiService
+import com.segurancarural.gpstracker.data.network.ApiResult
 import com.segurancarural.gpstracker.sync.toLocationJson
 import com.segurancarural.gpstracker.util.argbToMapLibreHex
 import com.segurancarural.gpstracker.util.deviceMarkerColorArgb
 import com.segurancarural.gpstracker.util.shouldUploadOverCurrentNetwork
-import io.ktor.client.request.post
-import io.ktor.client.request.setBody
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.ContentType
-import io.ktor.http.HttpStatusCode
-import io.ktor.http.contentType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class TelemetryRepository(private val context: Context) {
     private val appContext = context.applicationContext
     private val dao = createAppDatabase(appContext).telemetryDao()
-    private val httpClient = ApiClient.httpClient
+    private val apiService = ApiService()
 
     suspend fun submitLocation(record: TelemetryRecord) = withContext(Dispatchers.IO) {
         if (!shouldUploadOverCurrentNetwork(appContext)) {
@@ -35,26 +31,25 @@ class TelemetryRepository(private val context: Context) {
         AppLog.i("TelemetryRepository", "Preparing to send location update...")
         AppLog.d("TelemetryRepository", "Payload: $payload")
 
-        try {
-            val response = httpClient.post("${BuildConfig.BACKEND_BASE_URL}/api/location") {
-                contentType(ContentType.Application.Json)
-                setBody(payload)
-            }
+        val result = apiService.postRaw(ApiRoutes.LOCATION, payload)
 
-            // Consume the body to release the HTTP connection back to the pool.
-            // Not doing this causes "A resource failed to call close" warnings.
-            val responseBody = response.bodyAsText()
-
-            if (response.status == HttpStatusCode.OK) {
-                AppLog.i("TelemetryRepository", "Location sent — 200 OK: $responseBody")
+        when (result) {
+            is ApiResult.Success -> {
+                AppLog.i("TelemetryRepository", "Location sent — 200 OK: ${result.data}")
                 dao.insert(record.copy(synced = true))
-            } else {
-                AppLog.e("TelemetryRepository", "Network push failed: ${response.status} — $responseBody")
+            }
+            is ApiResult.HttpError -> {
+                AppLog.e("TelemetryRepository", "Network push failed: ${result.code} — ${result.message}")
                 dao.insert(record.copy(synced = false))
             }
-        } catch (e: Exception) {
-            AppLog.w("TelemetryRepository", "Network exception: ${e.message}", e)
-            dao.insert(record.copy(synced = false))
+            is ApiResult.NetworkError -> {
+                AppLog.w("TelemetryRepository", "Network exception: ${result.exception.message}", result.exception)
+                dao.insert(record.copy(synced = false))
+            }
+            is ApiResult.Unauthorized -> {
+                AppLog.e("TelemetryRepository", "Unauthorized push attempt")
+                dao.insert(record.copy(synced = false))
+            }
         }
     }
 }
