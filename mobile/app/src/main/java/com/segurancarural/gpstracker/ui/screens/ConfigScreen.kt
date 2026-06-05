@@ -104,9 +104,9 @@ fun ConfigScreen(
 
     // ── State ─────────────────────────────────────────────────────────────
     var deviceLabel by remember { mutableStateOf("") }
-    var emergencyContact by remember { mutableStateOf("") }
-    var contactError by remember { mutableStateOf<String?>(null) }
-    var syncOnMobileData by remember { mutableStateOf(true) }
+    val sensitivityOptions = listOf("high", "medium", "low")
+    val sensitivityLabels = listOf("Alta (3G)", "Média (4G)", "Baixa (5G)")
+    var selectedSensitivityIdx by remember { mutableStateOf(1) } // default medium
 
     // Interval: stored as Long minutes, shown as minutes
     val intervalOptions = listOf(1L, 5L, 10L, 15L, 30L, 60L)
@@ -120,8 +120,7 @@ fun ConfigScreen(
 
     // Saved state baselines for comparing changes
     var savedDeviceLabel by remember { mutableStateOf("") }
-    var savedEmergencyContact by remember { mutableStateOf("") }
-    var savedSyncOnMobileData by remember { mutableStateOf(true) }
+    var savedSensitivityIdx by remember { mutableStateOf(1) }
     var savedIntervalIdx by remember { mutableStateOf(0) }
     var savedDistanceThresholdM by remember { mutableFloatStateOf(200f) }
     var savedMarkerColorArgb by remember { mutableIntStateOf(DEFAULT_MARKER_COLOR_ARGB) }
@@ -129,24 +128,23 @@ fun ConfigScreen(
     // ── Load from SharedPreferences on first composition ──────────────────
     LaunchedEffect(Unit) {
         val label = prefs.getString("device_label", "Dispositivo") ?: "Dispositivo"
-        val contact = prefs.getString("emergency_contact", "") ?: ""
-        val sync = prefs.getBoolean("sync_on_mobile_data", true)
         val distance = prefs.getFloat("tracking_distance_m", 200f)
         val color = prefs.getInt(PREF_DEVICE_MARKER_COLOR, DEFAULT_MARKER_COLOR_ARGB)
         val savedIntervalMs = prefs.getLong("tracking_interval_ms", 1 * 60 * 1000L)
         val savedMinutes = savedIntervalMs / 60_000L
         val intervalIdx = intervalOptions.indexOfFirst { it == savedMinutes }.coerceAtLeast(0)
 
+        val sensitivity = prefs.getString("accident_sensor_sensitivity", "medium") ?: "medium"
+        val sensitivityIdx = sensitivityOptions.indexOf(sensitivity).coerceAtLeast(0)
+
         deviceLabel = label
-        emergencyContact = contact
-        syncOnMobileData = sync
+        selectedSensitivityIdx = sensitivityIdx
         distanceThresholdM = distance
         selectedMarkerColorArgb = color
         selectedIntervalIdx = intervalIdx
 
         savedDeviceLabel = label
-        savedEmergencyContact = contact
-        savedSyncOnMobileData = sync
+        savedSensitivityIdx = sensitivityIdx
         savedDistanceThresholdM = distance
         savedMarkerColorArgb = color
         savedIntervalIdx = intervalIdx
@@ -155,11 +153,10 @@ fun ConfigScreen(
     }
 
     val hasChanges = deviceLabel.trim().ifEmpty { "Dispositivo" } != savedDeviceLabel ||
-            emergencyContact.trim() != savedEmergencyContact.trim() ||
-            syncOnMobileData != savedSyncOnMobileData ||
             distanceThresholdM != savedDistanceThresholdM ||
             selectedMarkerColorArgb != savedMarkerColorArgb ||
-            selectedIntervalIdx != savedIntervalIdx
+            selectedIntervalIdx != savedIntervalIdx ||
+            selectedSensitivityIdx != savedSensitivityIdx
 
     Column(
         modifier = Modifier
@@ -316,43 +313,51 @@ fun ConfigScreen(
             )
         }
 
-        // ── Data policies ──────────────────────────────────────────────────
-        ConfigCard(title = "Políticas de Dados") {
-            SettingToggleRow(
-                label = "Sincronizar em dados móveis",
-                description = "Envia localizações mesmo sem Wi-Fi",
-                checked = syncOnMobileData,
-                onCheckedChange = { syncOnMobileData = it }
-            )
-        }
-
-        // ── Emergency contact ──────────────────────────────────────────────
-        ConfigCard(title = "Contacto de Emergência") {
-            OutlinedTextField(
-                value = emergencyContact,
-                onValueChange = { value ->
-                    emergencyContact = value
-                    contactError = if (value.isNotEmpty() &&
-                        !value.matches(Regex("^[+]?[0-9\\s\\-()]{9,15}$"))
-                    ) {
-                        "Número de telefone inválido"
-                    } else null
-                },
-                label = { Text("Número de telefone", color = TextSecondary) },
-                placeholder = { Text("+351 912 345 678", color = TextSecondary.copy(0.5f)) },
-                isError = contactError != null,
-                supportingText = {
-                    contactError?.let { Text(it, color = Color(0xFFEF4444)) }
-                        ?: Text("Usado como fallback se a rede falhar", color = TextSecondary, fontSize = 11.sp)
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
-                    focusedBorderColor = AccentGreen,
-                    unfocusedBorderColor = TextSecondary,
+        // ── Security & Accidents ───────────────────────────────────────────
+        ConfigCard(title = "Segurança & Acidentes") {
+            Text("Sensibilidade do Sensor de Acidentes", color = TextSecondary, fontSize = 12.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            var sensitivityDropdownExpanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = sensitivityDropdownExpanded,
+                onExpandedChange = { sensitivityDropdownExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = sensitivityLabels[selectedSensitivityIdx],
+                    onValueChange = {},
+                    readOnly = true,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sensitivityDropdownExpanded) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        focusedBorderColor = AccentGreen,
+                        unfocusedBorderColor = TextSecondary,
+                    )
                 )
+                ExposedDropdownMenu(
+                    expanded = sensitivityDropdownExpanded,
+                    onDismissRequest = { sensitivityDropdownExpanded = false },
+                    modifier = Modifier.background(CardDark)
+                ) {
+                    sensitivityLabels.forEachIndexed { index, label ->
+                        DropdownMenuItem(
+                            text = { Text(label, color = TextPrimary) },
+                            onClick = {
+                                selectedSensitivityIdx = index
+                                sensitivityDropdownExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Uma sensibilidade mais baixa (ex: 5G) evita alarmes falsos, mas requer impactos mais fortes para ativar.",
+                color = TextSecondary,
+                fontSize = 11.sp
             )
         }
 
@@ -361,19 +366,19 @@ fun ConfigScreen(
             onClick = {
                 val intervalMs = intervalOptions[selectedIntervalIdx] * 60_000L
                 val trimmedLabel = deviceLabel.trim().ifEmpty { "Dispositivo" }
+                val sensitivity = sensitivityOptions[selectedSensitivityIdx]
+
                 prefs.edit()
                     .putString("device_label", trimmedLabel)
                     .putInt(PREF_DEVICE_MARKER_COLOR, selectedMarkerColorArgb)
-                    .putString("emergency_contact", emergencyContact)
-                    .putBoolean("sync_on_mobile_data", syncOnMobileData)
+                    .putString("accident_sensor_sensitivity", sensitivity)
                     .putLong("tracking_interval_ms", intervalMs)
                     .putFloat("tracking_distance_m", distanceThresholdM)
                     .apply()
                 
                 // Update baseline so button gets disabled again until next change
                 savedDeviceLabel = trimmedLabel
-                savedEmergencyContact = emergencyContact
-                savedSyncOnMobileData = syncOnMobileData
+                savedSensitivityIdx = selectedSensitivityIdx
                 savedDistanceThresholdM = distanceThresholdM
                 savedMarkerColorArgb = selectedMarkerColorArgb
                 savedIntervalIdx = selectedIntervalIdx
@@ -396,7 +401,7 @@ fun ConfigScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
-            enabled = contactError == null && hasChanges,
+            enabled = hasChanges,
             colors = ButtonDefaults.buttonColors(
                 containerColor = AccentGreen,
                 disabledContainerColor = AccentGreen.copy(alpha = 0.5f)
