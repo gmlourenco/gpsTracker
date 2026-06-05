@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.animation.animateColorAsState
@@ -88,8 +89,11 @@ private val TextSecondary = Color(0xFF94A3B8)
 private val AccentBlue = Color(0xFF3B82F6)
 private val SosRedHex = "#DC2626"
 
-/** Dark basemap — aligned with the web dashboard (Carto Dark Matter). */
-private const val MAP_STYLE_URI = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
+enum class MapTheme(val label: String, val icon: String) {
+    DARK("Escuro", "🌙"),
+    LIGHT("Claro", "☀️"),
+    SATELLITE("Satélite", "🛰️")
+}
 
 private const val SOURCE_ROUTE = "route-source"
 private const val LAYER_ROUTE = "route-layer"
@@ -114,6 +118,10 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
     val context = LocalContext.current
 
     var selectedDevice by remember { mutableStateOf<FamilyDeviceMarker?>(null) }
+
+    var currentTheme by remember { mutableStateOf(MapTheme.DARK) }
+    val loadedTheme = remember { mutableStateOf<MapTheme?>(null) }
+    var isExpanded by remember { mutableStateOf(false) }
 
     // Keep active selections synchronized with the latest fetched telemetry markers
     val currentSelectedDevice = remember(displayData.familyMarkers, selectedDevice) {
@@ -211,11 +219,34 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                             false
                         }
 
-                        map.setStyle(Style.Builder().fromUri(MAP_STYLE_URI)) { style ->
-                            style.addSource(GeoJsonSource(SOURCE_ROUTE))
-                            style.addLayer(
+                        map.cameraPosition = CameraPosition.Builder()
+                            .target(LatLng(39.8, -7.5))
+                            .zoom(7.0)
+                            .build()
+                    }
+                }
+            },
+            update = { mapView ->
+                // Read state values in the update lambda body to register them as recomposition dependencies
+                val theme = currentTheme
+                val loaded = loadedTheme.value
+                val display = displayData
+                val style = mapStyle
+
+                mapView.getMapAsync { map ->
+                    if (loaded != theme) {
+                        loadedTheme.value = theme
+                        isStyleLoaded = false
+                        val targetStyleBuilder = when (theme) {
+                            MapTheme.DARK -> Style.Builder().fromUri("https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json")
+                            MapTheme.LIGHT -> Style.Builder().fromUri("https://basemaps.cartocdn.com/gl/positron-gl-style/style.json")
+                            MapTheme.SATELLITE -> Style.Builder().fromJson(getSatelliteStyleJson())
+                        }
+                        map.setStyle(targetStyleBuilder) { mapStyleObj ->
+                            mapStyleObj.addSource(GeoJsonSource(SOURCE_ROUTE))
+                            mapStyleObj.addLayer(
                                 LineLayer(LAYER_ROUTE, SOURCE_ROUTE).withProperties(
-                                    PropertyFactory.lineColor(mapStyle.routeColorHex),
+                                    PropertyFactory.lineColor(style.routeColorHex),
                                     PropertyFactory.lineWidth(4f),
                                     PropertyFactory.lineOpacity(0.85f),
                                     PropertyFactory.lineJoin("round"),
@@ -223,13 +254,13 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                                 )
                             )
 
-                            style.addSource(GeoJsonSource(SOURCE_MARKER))
-                            style.addLayer(
+                            mapStyleObj.addSource(GeoJsonSource(SOURCE_MARKER))
+                            mapStyleObj.addLayer(
                                 CircleLayer(LAYER_MARKER_CIRCLE, SOURCE_MARKER).withProperties(
                                     PropertyFactory.circleColor(
                                         Expression.coalesce(
                                             Expression.get("color"),
-                                            Expression.literal(mapStyle.markerColorHex)
+                                            Expression.literal(style.markerColorHex)
                                         )
                                     ),
                                     PropertyFactory.circleRadius(16f),
@@ -237,7 +268,7 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                                     PropertyFactory.circleStrokeWidth(2.5f),
                                 )
                             )
-                            style.addLayer(
+                            mapStyleObj.addLayer(
                                 SymbolLayer(LAYER_MARKER_LABEL, SOURCE_MARKER).withProperties(
                                     PropertyFactory.textField("{label}"),
                                     PropertyFactory.textSize(14f),
@@ -247,8 +278,8 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                                 )
                             )
 
-                            style.addSource(GeoJsonSource(SOURCE_SOS))
-                            style.addLayer(
+                            mapStyleObj.addSource(GeoJsonSource(SOURCE_SOS))
+                            mapStyleObj.addLayer(
                                 CircleLayer(LAYER_SOS, SOURCE_SOS).withProperties(
                                     PropertyFactory.circleColor(SosRedHex),
                                     PropertyFactory.circleRadius(10f),
@@ -257,39 +288,92 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                                 )
                             )
                             isStyleLoaded = true
+                            updateMapLayers(mapStyleObj, display, style)
+                            fitCameraToRoute(map, display)
                         }
-                        map.cameraPosition = CameraPosition.Builder()
-                            .target(LatLng(39.8, -7.5))
-                            .zoom(7.0)
-                            .build()
-                    }
-                }
-            },
-            update = { mapView ->
-                if (isStyleLoaded) {
-                    mapView.getMapAsync { map ->
-                        map.getStyle { style ->
-                            updateMapLayers(style, displayData, mapStyle)
-                            fitCameraToRoute(map, displayData)
+                    } else if (isStyleLoaded) {
+                        map.getStyle { mapStyleObj ->
+                            updateMapLayers(mapStyleObj, display, style)
+                            fitCameraToRoute(map, display)
                         }
                     }
                 }
             }
         )
 
-        // Sleek top control panel for FindFamily toggle and Refresh button
+        // Sleek top-left map style switcher control (expanding vertically, Google Maps style)
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(top = 16.dp, start = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Main circle button (always visible, represents the current selection)
+            Card(
+                colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.92f)),
+                shape = CircleShape,
+                modifier = Modifier
+                    .size(48.dp)
+                    .clickable { isExpanded = !isExpanded },
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = currentTheme.icon,
+                        fontSize = 20.sp
+                    )
+                }
+            }
+
+            // Expanded menu options
+            if (isExpanded) {
+                MapTheme.entries.forEach { theme ->
+                    val isSelected = currentTheme == theme
+                    val backgroundColor = if (isSelected) AccentBlue else CardDark.copy(alpha = 0.92f)
+                    
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+                        shape = CircleShape,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clickable {
+                                currentTheme = theme
+                                isExpanded = false
+                            },
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = theme.icon,
+                                fontSize = 20.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Sleek top control panel for FindFamily toggle and Refresh button (aligned to TopCenter, matching height of theme selector)
         Card(
             colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.92f)),
             shape = RoundedCornerShape(24.dp),
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 16.dp)
-                .padding(horizontal = 16.dp),
+                .height(48.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Row(
                 modifier = Modifier
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .fillMaxHeight()
+                    .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -375,7 +459,7 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
             }
         }
 
-        // Dynamic empty state text displays
+        // Dynamic empty state text displays (centered to avoid overlap with dropdown and family box)
         if (findFamilyEnabled) {
             if (displayData.familyMarkers.isEmpty()) {
                 Text(
@@ -383,8 +467,7 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                     color = TextSecondary,
                     fontSize = 13.sp,
                     modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 80.dp)
+                        .align(Alignment.Center)
                         .clip(RoundedCornerShape(8.dp))
                         .background(CardDark.copy(alpha = 0.9f))
                         .padding(horizontal = 12.dp, vertical = 8.dp)
@@ -397,8 +480,7 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                     color = TextSecondary,
                     fontSize = 13.sp,
                     modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 80.dp)
+                        .align(Alignment.Center)
                         .clip(RoundedCornerShape(8.dp))
                         .background(CardDark.copy(alpha = 0.9f))
                         .padding(horizontal = 12.dp, vertical = 8.dp)
@@ -578,4 +660,31 @@ private fun fitCameraToRoute(
             1000
         )
     }
+}
+
+private fun getSatelliteStyleJson(): String {
+    return """
+    {
+      "version": 8,
+      "sources": {
+        "satellite-tiles": {
+          "type": "raster",
+          "tiles": [
+            "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+          ],
+          "tileSize": 256,
+          "attribution": "© Google"
+        }
+      },
+      "layers": [
+        {
+          "id": "satellite-layer",
+          "type": "raster",
+          "source": "satellite-tiles",
+          "minzoom": 0,
+          "maxzoom": 22
+        }
+      ]
+    }
+    """.trimIndent()
 }
