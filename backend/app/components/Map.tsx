@@ -213,6 +213,7 @@ export default function Map({ devices }: MapProps) {
         center={center} 
         zoom={validDevices.length > 0 ? 12 : 6} 
         style={{ height: '100%', width: '100%', borderRadius: '12px' }}
+        attributionControl={false}
       >
         {/* Fit Map view bounds dynamically if we have multiple devices */}
         {validDevices.length > 0 && <ChangeMapView bounds={bounds} />}
@@ -236,7 +237,7 @@ export default function Map({ devices }: MapProps) {
           <TileLayer
             key="satellite-theme"
             attribution='&copy; Google Maps contributors'
-            url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
+            url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&scale=2"
           />
         )}
         

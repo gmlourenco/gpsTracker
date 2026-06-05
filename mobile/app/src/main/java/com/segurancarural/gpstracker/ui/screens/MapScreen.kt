@@ -2,106 +2,61 @@ package com.segurancarural.gpstracker.ui.screens
 
 import android.view.ViewGroup
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
-import androidx.compose.material3.Text
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.viewmodel.compose.viewModel
-import org.maplibre.android.style.expressions.Expression
-import com.google.gson.JsonObject
 import com.segurancarural.gpstracker.ui.viewmodel.MapViewModel
-import com.segurancarural.gpstracker.ui.model.MapPointLimit
-import com.segurancarural.gpstracker.ui.model.FamilyRefreshStatus
-import com.segurancarural.gpstracker.ui.model.DeviceMapStyle
 import com.segurancarural.gpstracker.ui.model.FamilyDeviceMarker
-import com.segurancarural.gpstracker.ui.model.MapDisplayData
-import com.segurancarural.gpstracker.ui.model.MapMarkerDisplay
+import com.segurancarural.gpstracker.ui.model.MapTheme
 import com.segurancarural.gpstracker.ui.components.FamilyBottomSheet
 import com.segurancarural.gpstracker.ui.components.FamilyMemberCard
+import com.segurancarural.gpstracker.ui.components.MapThemeSwitcher
+import com.segurancarural.gpstracker.ui.components.FamilyControlPanel
+import com.segurancarural.gpstracker.ui.components.MapPointLimitFilter
+import com.segurancarural.gpstracker.ui.components.MapEmptyState
 import com.segurancarural.gpstracker.util.NavigationHelper
+import com.segurancarural.gpstracker.util.LAYER_MARKER_CIRCLE
+import com.segurancarural.gpstracker.util.LAYER_MARKER_LABEL
+import com.segurancarural.gpstracker.util.SOURCE_ROUTE
+import com.segurancarural.gpstracker.util.LAYER_ROUTE
+import com.segurancarural.gpstracker.util.SOURCE_MARKER
+import com.segurancarural.gpstracker.util.SOURCE_SOS
+import com.segurancarural.gpstracker.util.LAYER_SOS
+import com.segurancarural.gpstracker.util.SosRedHex
+import com.segurancarural.gpstracker.util.getSatelliteStyleJson
+import com.segurancarural.gpstracker.util.updateMapLayers
+import com.segurancarural.gpstracker.util.fitCameraToRoute
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
-import org.maplibre.android.camera.CameraUpdateFactory
 import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
-import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.layers.SymbolLayer
+import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.sources.GeoJsonSource
-import org.maplibre.geojson.Feature
-import org.maplibre.geojson.FeatureCollection
-import org.maplibre.geojson.LineString
-import org.maplibre.geojson.Point
 
 private val SurfaceDark = Color(0xFF1A1A2E)
-private val CardDark = Color(0xFF16213E)
-private val TextSecondary = Color(0xFF94A3B8)
-private val AccentBlue = Color(0xFF3B82F6)
-private val SosRedHex = "#DC2626"
-
-enum class MapTheme(val label: String, val icon: String) {
-    DARK("Escuro", "🌙"),
-    LIGHT("Claro", "☀️"),
-    SATELLITE("Satélite", "🛰️")
-}
-
-private const val SOURCE_ROUTE = "route-source"
-private const val LAYER_ROUTE = "route-layer"
-private const val SOURCE_MARKER = "marker-source"
-private const val LAYER_MARKER_CIRCLE = "marker-circle-layer"
-private const val LAYER_MARKER_LABEL = "marker-label-layer"
-private const val SOURCE_SOS = "sos-source"
-private const val LAYER_SOS = "sos-layer"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -121,7 +76,6 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
 
     var currentTheme by remember { mutableStateOf(MapTheme.DARK) }
     val loadedTheme = remember { mutableStateOf<MapTheme?>(null) }
-    var isExpanded by remember { mutableStateOf(false) }
 
     // Keep active selections synchronized with the latest fetched telemetry markers
     val currentSelectedDevice = remember(displayData.familyMarkers, selectedDevice) {
@@ -134,30 +88,6 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
     LaunchedEffect(Unit) {
         viewModel.refreshDeviceStyle()
     }
-
-    // Refresh icon spinning animation
-    val rotationTransition = rememberInfiniteTransition(label = "refresh_rotation")
-    val rotationAngle by rotationTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
-    )
-
-    // Dynamic color depending on refresh status
-    val refreshButtonColor by animateColorAsState(
-        targetValue = when (refreshStatus) {
-            FamilyRefreshStatus.Loading -> AccentBlue
-            FamilyRefreshStatus.Success -> Color(0xFF16A34A) // Green (for 1s)
-            FamilyRefreshStatus.Error -> Color(0xFFDC2626)   // Red (for 5s)
-            FamilyRefreshStatus.Idle -> CardDark.copy(alpha = 0.9f)
-        },
-        animationSpec = tween(300),
-        label = "refresh_color"
-    )
 
     Box(
         modifier = Modifier
@@ -194,6 +124,9 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                     getMapAsync { map ->
                         // Disable default double tap to zoom so it doesn't conflict with our custom action
                         map.uiSettings.isDoubleTapGesturesEnabled = false
+                        // Disable logo and attribution overlays at the bottom left
+                        map.uiSettings.isLogoEnabled = false
+                        map.uiSettings.isAttributionEnabled = false
 
                         // Add marker click listener to show the interactive detail overlay card
                         map.addOnMapClickListener { latLng ->
@@ -302,191 +235,49 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
         )
 
         // Sleek top-left map style switcher control (expanding vertically, Google Maps style)
-        Column(
+        MapThemeSwitcher(
+            currentTheme = currentTheme,
+            onThemeChange = { currentTheme = it },
             modifier = Modifier
                 .align(Alignment.TopStart)
-                .padding(top = 16.dp, start = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Main circle button (always visible, represents the current selection)
-            Card(
-                colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.92f)),
-                shape = CircleShape,
-                modifier = Modifier
-                    .size(48.dp)
-                    .clickable { isExpanded = !isExpanded },
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = currentTheme.icon,
-                        fontSize = 20.sp
-                    )
-                }
-            }
-
-            // Expanded menu options
-            if (isExpanded) {
-                MapTheme.entries.forEach { theme ->
-                    val isSelected = currentTheme == theme
-                    val backgroundColor = if (isSelected) AccentBlue else CardDark.copy(alpha = 0.92f)
-                    
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = backgroundColor),
-                        shape = CircleShape,
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clickable {
-                                currentTheme = theme
-                                isExpanded = false
-                            },
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = theme.icon,
-                                fontSize = 20.sp
-                            )
-                        }
-                    }
-                }
-            }
-        }
+                .padding(top = 16.dp, start = 16.dp)
+        )
 
         // Sleek top control panel for FindFamily toggle and Refresh button (aligned to TopCenter, matching height of theme selector)
-        Card(
-            colors = CardDefaults.cardColors(containerColor = CardDark.copy(alpha = 0.92f)),
-            shape = RoundedCornerShape(24.dp),
+        FamilyControlPanel(
+            findFamilyEnabled = findFamilyEnabled,
+            onFindFamilyChange = { viewModel.setFindFamilyEnabled(it) },
+            refreshStatus = refreshStatus,
+            onRefreshClick = { viewModel.refreshFamilyPositions() },
+            onTextClick = {
+                if (!findFamilyEnabled) {
+                    viewModel.setFindFamilyEnabled(true)
+                }
+                showBottomSheet = true
+            },
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .padding(top = 16.dp)
-                .height(48.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "🔎 Localizar Família",
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable {
-                            if (!findFamilyEnabled) {
-                                viewModel.setFindFamilyEnabled(true)
-                            }
-                            showBottomSheet = true
-                        }
-                    )
-                    Switch(
-                        checked = findFamilyEnabled,
-                        onCheckedChange = { viewModel.setFindFamilyEnabled(it) },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = AccentBlue,
-                            uncheckedThumbColor = TextSecondary,
-                            uncheckedTrackColor = SurfaceDark.copy(alpha = 0.6f)
-                        ),
-                        modifier = Modifier.scale(0.85f)
-                    )
-                }
-
-                if (findFamilyEnabled) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(refreshButtonColor)
-                            .clickable(enabled = refreshStatus != FamilyRefreshStatus.Loading) {
-                                viewModel.refreshFamilyPositions()
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Refresh,
-                            contentDescription = "Atualizar",
-                            tint = Color.White,
-                            modifier = Modifier
-                                .size(20.dp)
-                                .rotate(if (refreshStatus == FamilyRefreshStatus.Loading) rotationAngle else 0f)
-                        )
-                    }
-                }
-            }
-        }
+        )
 
         // Bottom point limit filters row (only displayed in personal route mode)
         if (!findFamilyEnabled) {
-            Column(
+            MapPointLimitFilter(
+                selectedLimit = selectedPointLimit,
+                onLimitSelected = { viewModel.pointLimit.value = it },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(bottom = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                MapChipRow {
-                    MapPointLimit.entries.forEach { limit ->
-                        FilterChip(
-                            selected = selectedPointLimit == limit,
-                            onClick = { viewModel.pointLimit.value = limit },
-                            label = {
-                                Text(
-                                    text = limit.label,
-                                    fontSize = 12.sp,
-                                    color = if (selectedPointLimit == limit) Color.White else TextSecondary
-                                )
-                            },
-                            modifier = Modifier.padding(horizontal = 3.dp),
-                            colors = chipColors(),
-                            border = null,
-                        )
-                    }
-                }
-            }
+                    .padding(bottom = 16.dp)
+            )
         }
 
         // Dynamic empty state text displays (centered to avoid overlap with dropdown and family box)
-        if (findFamilyEnabled) {
-            if (displayData.familyMarkers.isEmpty()) {
-                Text(
-                    text = "A carregar localizações da família...",
-                    color = TextSecondary,
-                    fontSize = 13.sp,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(CardDark.copy(alpha = 0.9f))
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                )
-            }
-        } else {
-            if (displayData.routePoints.isEmpty()) {
-                Text(
-                    text = "Sem histórico local — inicia o rastreio para ver a rota",
-                    color = TextSecondary,
-                    fontSize = 13.sp,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(CardDark.copy(alpha = 0.9f))
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                )
-            }
-        }
+        MapEmptyState(
+            findFamilyEnabled = findFamilyEnabled,
+            isEmptyFamily = displayData.familyMarkers.isEmpty(),
+            isEmptyRoute = displayData.routePoints.isEmpty(),
+            modifier = Modifier.align(Alignment.Center)
+        )
 
         // Interactive floating detail overlay card for clicked markers
         if (currentSelectedDevice != null) {
@@ -524,167 +315,4 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
             }
         )
     }
-}
-
-@Composable
-private fun MapChipRow(content: @Composable () -> Unit) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(CardDark.copy(alpha = 0.92f))
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-    ) {
-        content()
-    }
-}
-
-@Composable
-private fun chipColors() = FilterChipDefaults.filterChipColors(
-    selectedContainerColor = AccentBlue,
-    containerColor = Color.Transparent,
-)
-
-private fun updateMapLayers(
-    style: Style,
-    displayData: MapDisplayData,
-    localStyle: DeviceMapStyle,
-) {
-    val routeSource = style.getSourceAs<GeoJsonSource>(SOURCE_ROUTE) ?: return
-    val markerSource = style.getSourceAs<GeoJsonSource>(SOURCE_MARKER) ?: return
-    val sosSource = style.getSourceAs<GeoJsonSource>(SOURCE_SOS) ?: return
-
-    // 1. Route Line Layer (personal route mode only)
-    if (displayData.isFamilyMode || displayData.routePoints.isEmpty()) {
-        routeSource.setGeoJson(FeatureCollection.fromFeatures(emptyArray()))
-    } else {
-        style.getLayerAs<LineLayer>(LAYER_ROUTE)?.setProperties(
-            PropertyFactory.lineColor(localStyle.routeColorHex)
-        )
-        val points = displayData.routePoints.map { Point.fromLngLat(it.lng, it.lat) }
-        val routeFeature = Feature.fromGeometry(LineString.fromLngLats(points))
-        routeSource.setGeoJson(FeatureCollection.fromFeatures(arrayOf(routeFeature)))
-    }
-
-    // 2. Markers & Emergency SOS States
-    val markerFeatures = mutableListOf<Feature>()
-    val sosFeatures = mutableListOf<Feature>()
-
-    if (displayData.isFamilyMode) {
-        displayData.familyMarkers.forEach { marker ->
-            val props = JsonObject().apply {
-                addProperty("deviceId", marker.deviceId)
-                addProperty("label", marker.markerLetter)
-                addProperty("color", marker.markerColorHex)
-            }
-            markerFeatures.add(
-                Feature.fromGeometry(
-                    Point.fromLngLat(marker.lng, marker.lat),
-                    props
-                )
-            )
-
-            if (marker.emergencyState) {
-                sosFeatures.add(Feature.fromGeometry(Point.fromLngLat(marker.lng, marker.lat)))
-            }
-        }
-    } else {
-        displayData.primaryMarker?.let { marker ->
-            val props = JsonObject().apply {
-                addProperty("deviceId", "self")
-                addProperty("label", marker.letter)
-                addProperty("color", marker.colorHex)
-            }
-            markerFeatures.add(
-                Feature.fromGeometry(
-                    Point.fromLngLat(marker.lng, marker.lat),
-                    props
-                )
-            )
-
-            if (marker.emergencyState) {
-                sosFeatures.add(Feature.fromGeometry(Point.fromLngLat(marker.lng, marker.lat)))
-            }
-        }
-    }
-
-    markerSource.setGeoJson(FeatureCollection.fromFeatures(markerFeatures.toTypedArray()))
-    sosSource.setGeoJson(FeatureCollection.fromFeatures(sosFeatures.toTypedArray()))
-}
-
-private fun fitCameraToRoute(
-    map: org.maplibre.android.maps.MapLibreMap,
-    displayData: MapDisplayData,
-) {
-    if (displayData.isFamilyMode) {
-        val markers = displayData.familyMarkers
-        if (markers.isEmpty()) return
-        if (markers.size == 1) {
-            val only = markers.first()
-            map.easeCamera(
-                CameraUpdateFactory.newCameraPosition(
-                    CameraPosition.Builder()
-                        .target(LatLng(only.lat, only.lng))
-                        .zoom(14.0)
-                        .build()
-                ),
-                800
-            )
-            return
-        }
-        val boundsBuilder = LatLngBounds.Builder()
-        markers.forEach { boundsBuilder.include(LatLng(it.lat, it.lng)) }
-        map.easeCamera(
-            CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 80),
-            1000
-        )
-    } else {
-        val routeHistory = displayData.routePoints
-        if (routeHistory.isEmpty()) return
-        if (routeHistory.size == 1) {
-            val only = routeHistory.first()
-            map.easeCamera(
-                CameraUpdateFactory.newCameraPosition(
-                    CameraPosition.Builder()
-                        .target(LatLng(only.lat, only.lng))
-                        .zoom(15.0)
-                        .build()
-                ),
-                800
-            )
-            return
-        }
-        val boundsBuilder = LatLngBounds.Builder()
-        routeHistory.forEach { boundsBuilder.include(LatLng(it.lat, it.lng)) }
-        map.easeCamera(
-            CameraUpdateFactory.newLatLngBounds(boundsBuilder.build(), 80),
-            1000
-        )
-    }
-}
-
-private fun getSatelliteStyleJson(): String {
-    return """
-    {
-      "version": 8,
-      "sources": {
-        "satellite-tiles": {
-          "type": "raster",
-          "tiles": [
-            "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}"
-          ],
-          "tileSize": 256,
-          "attribution": "© Google"
-        }
-      },
-      "layers": [
-        {
-          "id": "satellite-layer",
-          "type": "raster",
-          "source": "satellite-tiles",
-          "minzoom": 0,
-          "maxzoom": 22
-        }
-      ]
-    }
-    """.trimIndent()
 }
