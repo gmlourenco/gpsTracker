@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -67,6 +67,7 @@ interface MapProps {
 }
 
 export default function Map({ devices }: MapProps) {
+  const [mapTheme, setMapTheme] = useState<'dark' | 'light' | 'satellite'>('dark');
   const defaultCenter: [number, number] = [39.3999, -8.2245];
   // eslint-disable-next-line react-hooks/purity
   const now = Date.now(); // Cache the current time to avoid calling impure function repeatedly
@@ -141,20 +142,104 @@ export default function Map({ devices }: MapProps) {
           margin-top: 4px !important;
           margin-right: 4px !important;
         }
+
+        /* Map Theme Switcher Control */
+        .theme-switcher-container {
+          position: absolute;
+          top: 10px;
+          left: 60px;
+          z-index: 1000;
+          background: rgba(22, 33, 62, 0.9) !important;
+          backdrop-filter: blur(8px);
+          border: 1.5px solid rgba(255, 255, 255, 0.08);
+          border-radius: 10px;
+          display: flex;
+          padding: 3px;
+          gap: 3px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        }
+        .theme-btn {
+          background: transparent;
+          color: #94A3B8;
+          border: none;
+          border-radius: 7px;
+          padding: 6px 12px;
+          font-size: 12px;
+          font-weight: 600;
+          font-family: system-ui, -apple-system, sans-serif;
+          cursor: pointer;
+          transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+        .theme-btn:hover {
+          color: #FFFFFF;
+          background: rgba(255, 255, 255, 0.04);
+        }
+        .theme-btn.active {
+          background: #3B82F6 !important;
+          color: #FFFFFF !important;
+          box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+        }
       `}} />
+      
+      {/* Map Theme Selector Overlay */}
+      <div className="theme-switcher-container">
+        <button 
+          type="button"
+          onClick={() => setMapTheme('dark')}
+          className={`theme-btn ${mapTheme === 'dark' ? 'active' : ''}`}
+        >
+          🌙 Escuro
+        </button>
+        <button 
+          type="button"
+          onClick={() => setMapTheme('light')}
+          className={`theme-btn ${mapTheme === 'light' ? 'active' : ''}`}
+        >
+          ☀️ Claro
+        </button>
+        <button 
+          type="button"
+          onClick={() => setMapTheme('satellite')}
+          className={`theme-btn ${mapTheme === 'satellite' ? 'active' : ''}`}
+        >
+          🛰️ Satélite
+        </button>
+      </div>
+
       <MapContainer 
         center={center} 
         zoom={validDevices.length > 0 ? 12 : 6} 
         style={{ height: '100%', width: '100%', borderRadius: '12px' }}
+        attributionControl={false}
       >
         {/* Fit Map view bounds dynamically if we have multiple devices */}
         {validDevices.length > 0 && <ChangeMapView bounds={bounds} />}
         
-        {/* Dark theme Map tiles (CartoDB Dark Matter) */}
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-        />
+        {/* Dynamic theme Map tiles */}
+        {mapTheme === 'dark' && (
+          <TileLayer
+            key="dark-theme"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+          />
+        )}
+        {mapTheme === 'light' && (
+          <TileLayer
+            key="light-theme"
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+            url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          />
+        )}
+        {mapTheme === 'satellite' && (
+          <TileLayer
+            key="satellite-theme"
+            attribution='&copy; Google Maps contributors'
+            url="https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}&scale=2"
+          />
+        )}
         
         {validDevices.map((device) => {
           const isSos = !!device.latestLocation?.emergency_state;
