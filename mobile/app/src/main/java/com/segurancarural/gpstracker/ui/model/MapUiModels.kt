@@ -58,3 +58,9 @@ data class MapMarkerDisplay(
     val colorHex: String,
     val emergencyState: Boolean,
 )
+
+enum class MapTheme(val label: String, val icon: String) {
+    DARK("Escuro", "🌙"),
+    LIGHT("Claro", "☀️"),
+    SATELLITE("Satélite", "🛰️")
+}
