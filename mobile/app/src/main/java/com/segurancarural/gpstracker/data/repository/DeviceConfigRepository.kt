@@ -16,6 +16,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
+enum class SaveConfigResult {
+    SUCCESS,
+    OFFLINE_QUEUED,
+    ERROR
+}
+
 class DeviceConfigRepository(private val context: Context) {
     private val apiService = ApiService()
 
@@ -69,7 +75,7 @@ class DeviceConfigRepository(private val context: Context) {
     /**
      * Saves the current device configuration to the backend database.
      */
-    suspend fun saveConfigToBackend(config: DeviceConfigDto): Boolean = withContext(Dispatchers.IO) {
+    suspend fun saveConfigToBackend(config: DeviceConfigDto): SaveConfigResult = withContext(Dispatchers.IO) {
         val url = ApiRoutes.DEVICE_CONFIG
         AppLog.i("DeviceConfigRepository", "Saving config to backend: $config")
 
@@ -78,19 +84,39 @@ class DeviceConfigRepository(private val context: Context) {
         when (result) {
             is ApiResult.Success -> {
                 AppLog.i("DeviceConfigRepository", "Config successfully saved to backend")
-                true
+                OfflineRequestManager.clearPending(context, "CONFIG")
+                SaveConfigResult.SUCCESS
             }
             is ApiResult.HttpError -> {
-                AppLog.e("DeviceConfigRepository", "Failed to save config: HTTP ${result.code} - ${result.message}")
-                false
+                if (result.code >= 500) {
+                    AppLog.e("DeviceConfigRepository", "Server error (HTTP ${result.code}) when saving config. Queueing.")
+                    OfflineRequestManager.enqueue(
+                        context = context,
+                        serviceType = "CONFIG",
+                        url = url,
+                        method = "POST",
+                        bodyJson = payload
+                    )
+                    SaveConfigResult.OFFLINE_QUEUED
+                } else {
+                    AppLog.e("DeviceConfigRepository", "Failed to save config: HTTP ${result.code} - ${result.message}")
+                    SaveConfigResult.ERROR
+                }
             }
             is ApiResult.NetworkError -> {
                 AppLog.w("DeviceConfigRepository", "Network error when saving config: ${result.exception.message}")
-                false
+                OfflineRequestManager.enqueue(
+                    context = context,
+                    serviceType = "CONFIG",
+                    url = url,
+                    method = "POST",
+                    bodyJson = payload
+                )
+                SaveConfigResult.OFFLINE_QUEUED
             }
             is ApiResult.Unauthorized -> {
                 AppLog.e("DeviceConfigRepository", "Unauthorized when saving config")
-                false
+                SaveConfigResult.ERROR
             }
         }
     }

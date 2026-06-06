@@ -13,6 +13,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.segurancarural.gpstracker.data.db.createAppDatabase
 import com.segurancarural.gpstracker.sync.SyncEngine
+import com.segurancarural.gpstracker.data.repository.OfflineRequestManager
 import com.segurancarural.gpstracker.data.network.ApiClient
 import com.segurancarural.gpstracker.util.shouldUploadOverCurrentNetwork
 import java.util.concurrent.TimeUnit
@@ -45,6 +46,13 @@ class SyncWorker(
         if (!shouldUploadOverCurrentNetwork(context)) {
             Log.d(TAG, "Mobile data sync disabled — deferring flush until Wi‑Fi")
             return Result.success()
+        }
+
+        // Try syncing any pending offline requests first
+        try {
+            OfflineRequestManager.processQueue(context)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to process offline queue: ${e.message}", e)
         }
 
         val db = createAppDatabase(context)
