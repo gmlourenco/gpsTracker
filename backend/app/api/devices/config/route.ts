@@ -56,10 +56,23 @@ export async function GET(request: NextRequest) {
   });
 }
 
+interface ConfigRequestBody {
+  serialNumber?: string;
+  deviceLabel?: string;
+  markerColor?: string;
+  emergencyContact?: string | null;
+  syncOnMobileData?: boolean;
+  trackingIntervalMs?: number;
+  trackingDistanceM?: number;
+  defaultMapType?: string;
+  accidentSensorSensitivity?: string;
+  configUpdatedAt?: number;
+}
+
 export async function POST(request: NextRequest) {
-  let body: any;
+  let body: ConfigRequestBody;
   try {
-    body = await request.json();
+    body = await request.json() as ConfigRequestBody;
   } catch {
     return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
   }

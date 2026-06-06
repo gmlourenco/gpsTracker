@@ -14,11 +14,11 @@
  * derived state based on the last_seen_at field.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../lib/supabase';
 import { DeviceRecord, LocationRecord, DeviceWithLatestLocation } from '../../types/telemetry';
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
+export async function GET(): Promise<NextResponse> {
   const supabase = getSupabaseAdmin();
 
   // ── 1. Fetch all devices ──────────────────────────────────────────────────

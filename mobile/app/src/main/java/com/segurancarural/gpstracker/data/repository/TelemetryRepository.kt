@@ -14,6 +14,10 @@ import com.segurancarural.gpstracker.util.deviceMarkerColorArgb
 import com.segurancarural.gpstracker.util.shouldUploadOverCurrentNetwork
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 
 class TelemetryRepository(private val context: Context) {
     private val appContext = context.applicationContext
@@ -35,8 +39,20 @@ class TelemetryRepository(private val context: Context) {
 
         when (result) {
             is ApiResult.Success -> {
-                AppLog.i("TelemetryRepository", "Location sent — 200 OK: ${result.data}")
-                dao.insert(record.copy(synced = true))
+                val body = result.data
+                val isLogicalSuccess = try {
+                    val json = Json.parseToJsonElement(body)
+                    json.jsonObject["success"]?.jsonPrimitive?.booleanOrNull == true
+                } catch (e: Exception) {
+                    false
+                }
+                if (isLogicalSuccess) {
+                    AppLog.i("TelemetryRepository", "Location sent successfully: $body")
+                    dao.insert(record.copy(synced = true))
+                } else {
+                    AppLog.w("TelemetryRepository", "Location push response was not a logical success (possibly captive portal): $body")
+                    dao.insert(record.copy(synced = false))
+                }
             }
             is ApiResult.HttpError -> {
                 AppLog.e("TelemetryRepository", "Network push failed: ${result.code} — ${result.message}")

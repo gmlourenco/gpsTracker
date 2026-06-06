@@ -15,6 +15,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+
+enum class SaveConfigResult {
+    SUCCESS,
+    OFFLINE_QUEUED,
+    ERROR
+}
 
 enum class SaveConfigResult {
     SUCCESS,
