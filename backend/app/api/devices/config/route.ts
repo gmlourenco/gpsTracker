@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
       syncOnMobileData: data.sync_on_mobile_data,
       trackingIntervalMs: Number(data.tracking_interval_ms),
       trackingDistanceM: Number(data.tracking_distance_m),
+      defaultMapType: data.default_map_type || 'SATELLITE',
     }
   });
 }
@@ -68,7 +69,8 @@ export async function POST(request: NextRequest) {
     emergencyContact,
     syncOnMobileData,
     trackingIntervalMs,
-    trackingDistanceM
+    trackingDistanceM,
+    defaultMapType
   } = body;
 
   if (!serialNumber || !isValidSerialNumber(serialNumber)) {
@@ -91,6 +93,9 @@ export async function POST(request: NextRequest) {
   if (typeof trackingDistanceM !== 'number') {
     return NextResponse.json({ success: false, error: 'Invalid trackingDistanceM' }, { status: 400 });
   }
+  if (defaultMapType !== undefined && typeof defaultMapType !== 'string') {
+    return NextResponse.json({ success: false, error: 'Invalid defaultMapType' }, { status: 400 });
+  }
 
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from('device_configurations').upsert(
@@ -102,6 +107,7 @@ export async function POST(request: NextRequest) {
       sync_on_mobile_data: syncOnMobileData,
       tracking_interval_ms: trackingIntervalMs,
       tracking_distance_m: trackingDistanceM,
+      default_map_type: (defaultMapType || 'SATELLITE').trim().toUpperCase(),
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'id', ignoreDuplicates: false }

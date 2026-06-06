@@ -23,6 +23,7 @@ import com.segurancarural.gpstracker.util.PREF_DEVICE_MARKER_COLOR
 import com.segurancarural.gpstracker.util.markerInitial
 import com.segurancarural.gpstracker.data.repository.DeviceConfigRepository
 import com.segurancarural.gpstracker.data.dto.DeviceConfigDto
+import com.segurancarural.gpstracker.ui.model.MapTheme
 import com.segurancarural.gpstracker.util.ensureSerialNumber
 import com.segurancarural.gpstracker.util.argbToMapLibreHex
 import androidx.compose.foundation.background
@@ -130,6 +131,9 @@ fun ConfigScreen(
     var savedDistanceThresholdM by remember { mutableFloatStateOf(200f) }
     var savedMarkerColorArgb by remember { mutableIntStateOf(DEFAULT_MARKER_COLOR_ARGB) }
 
+    var selectedMapTheme by remember { mutableStateOf(MapTheme.SATELLITE) }
+    var savedMapTheme by remember { mutableStateOf(MapTheme.SATELLITE) }
+
     // ── Load from SharedPreferences on first composition ──────────────────
     LaunchedEffect(Unit) {
         val label = prefs.getString("device_label", "Dispositivo") ?: "Dispositivo"
@@ -140,6 +144,8 @@ fun ConfigScreen(
         val savedIntervalMs = prefs.getLong("tracking_interval_ms", 1 * 60 * 1000L)
         val savedMinutes = savedIntervalMs / 60_000L
         val intervalIdx = intervalOptions.indexOfFirst { it == savedMinutes }.coerceAtLeast(0)
+        val mapTypeStr = prefs.getString("default_map_type", MapTheme.SATELLITE.name) ?: MapTheme.SATELLITE.name
+        val mapTheme = try { MapTheme.valueOf(mapTypeStr) } catch (e: Exception) { MapTheme.SATELLITE }
 
         deviceLabel = label
         emergencyContact = contact
@@ -147,6 +153,7 @@ fun ConfigScreen(
         distanceThresholdM = distance
         selectedMarkerColorArgb = color
         selectedIntervalIdx = intervalIdx
+        selectedMapTheme = mapTheme
 
         savedDeviceLabel = label
         savedEmergencyContact = contact
@@ -154,6 +161,7 @@ fun ConfigScreen(
         savedDistanceThresholdM = distance
         savedMarkerColorArgb = color
         savedIntervalIdx = intervalIdx
+        savedMapTheme = mapTheme
 
         AppLog.d("ConfigScreen", "Settings loaded: label=$deviceLabel, interval=${savedMinutes}min")
     }
@@ -163,7 +171,8 @@ fun ConfigScreen(
             syncOnMobileData != savedSyncOnMobileData ||
             distanceThresholdM != savedDistanceThresholdM ||
             selectedMarkerColorArgb != savedMarkerColorArgb ||
-            selectedIntervalIdx != savedIntervalIdx
+            selectedIntervalIdx != savedIntervalIdx ||
+            selectedMapTheme != savedMapTheme
 
     Column(
         modifier = Modifier
@@ -330,6 +339,52 @@ fun ConfigScreen(
             )
         }
 
+        // ── Default map type ──────────────────────────────────────────────
+        ConfigCard(title = "Tipo de Mapa Padrão") {
+            var mapDropdownExpanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = mapDropdownExpanded,
+                onExpandedChange = { mapDropdownExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = "${selectedMapTheme.icon} ${selectedMapTheme.label}",
+                    onValueChange = {},
+                    readOnly = true,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(mapDropdownExpanded) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        focusedBorderColor = AccentGreen,
+                        unfocusedBorderColor = TextSecondary,
+                    )
+                )
+                ExposedDropdownMenu(
+                    expanded = mapDropdownExpanded,
+                    onDismissRequest = { mapDropdownExpanded = false },
+                    modifier = Modifier.background(CardDark)
+                ) {
+                    MapTheme.values().forEach { theme ->
+                        DropdownMenuItem(
+                            text = { Text("${theme.icon} ${theme.label}", color = TextPrimary) },
+                            onClick = {
+                                selectedMapTheme = theme
+                                mapDropdownExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Tipo de mapa carregado por padrão ao abrir o ecrã do mapa",
+                color = TextSecondary,
+                fontSize = 11.sp
+            )
+        }
+
         // ── Emergency contact ──────────────────────────────────────────────
         ConfigCard(title = "Contacto de Emergência") {
             OutlinedTextField(
@@ -372,6 +427,7 @@ fun ConfigScreen(
                     .putBoolean("sync_on_mobile_data", syncOnMobileData)
                     .putLong("tracking_interval_ms", intervalMs)
                     .putFloat("tracking_distance_m", distanceThresholdM)
+                    .putString("default_map_type", selectedMapTheme.name)
                     .apply()
                 
                 // Update baseline so button gets disabled again until next change
@@ -381,6 +437,7 @@ fun ConfigScreen(
                 savedDistanceThresholdM = distanceThresholdM
                 savedMarkerColorArgb = selectedMarkerColorArgb
                 savedIntervalIdx = selectedIntervalIdx
+                savedMapTheme = selectedMapTheme
 
                 Toast.makeText(context, "Configurações guardadas com sucesso", Toast.LENGTH_SHORT).show()
                 AppLog.i("ConfigScreen", "Settings saved: label=$trimmedLabel")
@@ -398,7 +455,8 @@ fun ConfigScreen(
                             emergencyContact = emergencyContact.trim().ifEmpty { null },
                             syncOnMobileData = syncOnMobileData,
                             trackingIntervalMs = intervalMs,
-                            trackingDistanceM = distanceThresholdM
+                            trackingDistanceM = distanceThresholdM,
+                            defaultMapType = selectedMapTheme.name
                         )
                     )
                 }

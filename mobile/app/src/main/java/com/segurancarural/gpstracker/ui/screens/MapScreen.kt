@@ -1,5 +1,6 @@
 package com.segurancarural.gpstracker.ui.screens
 
+import android.content.Context
 import android.view.ViewGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -77,7 +78,12 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
 
     var selectedDevice by remember { mutableStateOf<FamilyDeviceMarker?>(null) }
 
-    var currentTheme by remember { mutableStateOf(MapTheme.DARK) }
+    val defaultTheme = remember {
+        val prefs = context.getSharedPreferences("tracking_prefs", Context.MODE_PRIVATE)
+        val mapTypeStr = prefs.getString("default_map_type", MapTheme.SATELLITE.name) ?: MapTheme.SATELLITE.name
+        try { MapTheme.valueOf(mapTypeStr) } catch (e: Exception) { MapTheme.SATELLITE }
+    }
+    var currentTheme by remember { mutableStateOf(defaultTheme) }
 
     // Keep active selections synchronized with the latest fetched telemetry markers
     val currentSelectedDevice = remember(displayData.familyMarkers, selectedDevice) {

@@ -13,7 +13,8 @@ data class DeviceConfigDto(
     @SerialName("emergencyContact") val emergencyContact: String? = null,
     @SerialName("syncOnMobileData") val syncOnMobileData: Boolean,
     @SerialName("trackingIntervalMs") val trackingIntervalMs: Long,
-    @SerialName("trackingDistanceM") val trackingDistanceM: Float
+    @SerialName("trackingDistanceM") val trackingDistanceM: Float,
+    @SerialName("defaultMapType") val defaultMapType: String = "SATELLITE"
 )
 
 @Keep

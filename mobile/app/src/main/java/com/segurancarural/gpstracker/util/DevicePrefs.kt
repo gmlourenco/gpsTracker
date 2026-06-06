@@ -86,5 +86,6 @@ fun Context.saveConfigToPrefs(config: DeviceConfigDto) {
         putBoolean("sync_on_mobile_data", config.syncOnMobileData)
         putLong("tracking_interval_ms", config.trackingIntervalMs)
         putFloat("tracking_distance_m", config.trackingDistanceM)
+        putString("default_map_type", config.defaultMapType)
     }
 }
