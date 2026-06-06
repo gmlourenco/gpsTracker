@@ -21,6 +21,10 @@ import com.segurancarural.gpstracker.util.AppLog
 import com.segurancarural.gpstracker.util.DEFAULT_MARKER_COLOR_ARGB
 import com.segurancarural.gpstracker.util.PREF_DEVICE_MARKER_COLOR
 import com.segurancarural.gpstracker.util.markerInitial
+import com.segurancarural.gpstracker.data.repository.DeviceConfigRepository
+import com.segurancarural.gpstracker.data.dto.DeviceConfigDto
+import com.segurancarural.gpstracker.util.ensureSerialNumber
+import com.segurancarural.gpstracker.util.argbToMapLibreHex
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -385,6 +389,17 @@ fun ConfigScreen(
                     profileRepository.syncProfile(
                         deviceLabel = trimmedLabel,
                         markerColorArgb = selectedMarkerColorArgb,
+                    )
+                    DeviceConfigRepository(context).saveConfigToBackend(
+                        DeviceConfigDto(
+                            serialNumber = context.ensureSerialNumber(),
+                            deviceLabel = trimmedLabel,
+                            markerColor = argbToMapLibreHex(selectedMarkerColorArgb),
+                            emergencyContact = emergencyContact.trim().ifEmpty { null },
+                            syncOnMobileData = syncOnMobileData,
+                            trackingIntervalMs = intervalMs,
+                            trackingDistanceM = distanceThresholdM
+                        )
                     )
                 }
                 context.startService(
