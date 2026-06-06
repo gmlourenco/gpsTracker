@@ -48,6 +48,7 @@ import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
 import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.Style
 import org.maplibre.android.style.layers.CircleLayer
 import org.maplibre.android.style.layers.LineLayer
@@ -67,7 +68,9 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
     val selectedPointLimit by viewModel.pointLimit.collectAsState()
     val mapStyle by viewModel.mapStyle.collectAsState()
 
-    var isStyleLoaded by remember { mutableStateOf(false) }
+    var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
+    var currentLoadedTheme by remember { mutableStateOf<MapTheme?>(null) }
+    var mapStyleInstance by remember { mutableStateOf<Style?>(null) }
     var showBottomSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState()
     val context = LocalContext.current
@@ -75,7 +78,6 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
     var selectedDevice by remember { mutableStateOf<FamilyDeviceMarker?>(null) }
 
     var currentTheme by remember { mutableStateOf(MapTheme.DARK) }
-    val loadedTheme = remember { mutableStateOf<MapTheme?>(null) }
 
     // Keep active selections synchronized with the latest fetched telemetry markers
     val currentSelectedDevice = remember(displayData.familyMarkers, selectedDevice) {
@@ -156,28 +158,30 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                             .target(LatLng(39.8, -7.5))
                             .zoom(7.0)
                             .build()
+                        mapInstance = map
                     }
                 }
             },
             update = { mapView ->
                 // Read state values in the update lambda body to register them as recomposition dependencies
                 val theme = currentTheme
-                val loaded = loadedTheme.value
+                val loaded = currentLoadedTheme
                 val display = displayData
                 val style = mapStyle
 
-                mapView.getMapAsync { map ->
+                val map = mapInstance
+                if (map != null) {
                     if (loaded != theme) {
-                        loadedTheme.value = theme
-                        isStyleLoaded = false
+                        currentLoadedTheme = theme
+                        mapStyleInstance = null
                         val targetStyleBuilder = when (theme) {
                             MapTheme.DARK -> Style.Builder().fromUri("https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json")
                             MapTheme.LIGHT -> Style.Builder().fromUri("https://basemaps.cartocdn.com/gl/positron-gl-style/style.json")
                             MapTheme.SATELLITE -> Style.Builder().fromJson(getSatelliteStyleJson())
                         }
-                        map.setStyle(targetStyleBuilder) { mapStyleObj ->
-                            mapStyleObj.addSource(GeoJsonSource(SOURCE_ROUTE))
-                            mapStyleObj.addLayer(
+                        map.setStyle(targetStyleBuilder) { loadedStyle ->
+                            loadedStyle.addSource(GeoJsonSource(SOURCE_ROUTE))
+                            loadedStyle.addLayer(
                                 LineLayer(LAYER_ROUTE, SOURCE_ROUTE).withProperties(
                                     PropertyFactory.lineColor(style.routeColorHex),
                                     PropertyFactory.lineWidth(4f),
@@ -187,8 +191,8 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                                 )
                             )
 
-                            mapStyleObj.addSource(GeoJsonSource(SOURCE_MARKER))
-                            mapStyleObj.addLayer(
+                            loadedStyle.addSource(GeoJsonSource(SOURCE_MARKER))
+                            loadedStyle.addLayer(
                                 CircleLayer(LAYER_MARKER_CIRCLE, SOURCE_MARKER).withProperties(
                                     PropertyFactory.circleColor(
                                         Expression.coalesce(
@@ -201,7 +205,7 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                                     PropertyFactory.circleStrokeWidth(2.5f),
                                 )
                             )
-                            mapStyleObj.addLayer(
+                            loadedStyle.addLayer(
                                 SymbolLayer(LAYER_MARKER_LABEL, SOURCE_MARKER).withProperties(
                                     PropertyFactory.textField("{label}"),
                                     PropertyFactory.textSize(14f),
@@ -211,8 +215,8 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                                 )
                             )
 
-                            mapStyleObj.addSource(GeoJsonSource(SOURCE_SOS))
-                            mapStyleObj.addLayer(
+                            loadedStyle.addSource(GeoJsonSource(SOURCE_SOS))
+                            loadedStyle.addLayer(
                                 CircleLayer(LAYER_SOS, SOURCE_SOS).withProperties(
                                     PropertyFactory.circleColor(SosRedHex),
                                     PropertyFactory.circleRadius(10f),
@@ -220,13 +224,13 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                                     PropertyFactory.circleStrokeWidth(2f),
                                 )
                             )
-                            isStyleLoaded = true
-                            updateMapLayers(mapStyleObj, display, style)
-                            fitCameraToRoute(map, display)
+                            mapStyleInstance = loadedStyle
                         }
-                    } else if (isStyleLoaded) {
-                        map.getStyle { mapStyleObj ->
-                            updateMapLayers(mapStyleObj, display, style)
+                    }
+
+                    if (mapStyleInstance != null && currentLoadedTheme == theme) {
+                        map.getStyle { activeStyle ->
+                            updateMapLayers(activeStyle, display, style)
                             fitCameraToRoute(map, display)
                         }
                     }

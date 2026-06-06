@@ -108,7 +108,8 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setFindFamilyEnabled(enabled: Boolean) {
         _findFamilyEnabled.value = enabled
-        if (enabled && _familyMarkers.value.isEmpty()) {
+        if (enabled) {
+            _familyMarkers.value = emptyList() // Clear old markers to ensure fresh redraw
             refreshFamilyPositions()
         }
     }
