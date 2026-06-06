@@ -8,6 +8,7 @@ object ApiRoutes {
     val LOCATION       = "$BASE/api/location"
     val EMERGENCY      = "$BASE/api/emergency"
     val DEVICE_PROFILE = "$BASE/api/devices/profile"
+    val DEVICE_CONFIG  = "$BASE/api/devices/config"
     val FCM_TOKEN      = "$BASE/api/devices/fcm-token"
     val POSITIONS_LAST = "$BASE/api/positions/last"
     fun appVersion(current: String) = "$BASE/api/app/version?current=$current"
