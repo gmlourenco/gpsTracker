@@ -45,6 +45,7 @@ import com.segurancarural.gpstracker.ui.screens.ConfigScreen
 import com.segurancarural.gpstracker.ui.screens.HomeScreen
 import com.segurancarural.gpstracker.ui.screens.MapScreen
 import com.segurancarural.gpstracker.data.repository.FcmTokenRepository
+import com.segurancarural.gpstracker.data.repository.DeviceConfigRepository
 import com.segurancarural.gpstracker.ui.theme.SegurancaRuralTheme
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -134,6 +135,11 @@ class MainActivity : ComponentActivity() {
         // Refresh FCM token on every launch — ensures backend always has latest token
         lifecycleScope.launch {
             FcmTokenRepository(this@MainActivity).refreshTokenIfNeeded()
+        }
+
+        // Load device configurations from backend on launch to restore settings if reinstalled
+        lifecycleScope.launch {
+            DeviceConfigRepository(this@MainActivity).loadConfigFromBackend()
         }
 
         setContent {

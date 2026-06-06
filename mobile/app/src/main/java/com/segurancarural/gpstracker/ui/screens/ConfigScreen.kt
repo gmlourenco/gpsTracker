@@ -21,6 +21,11 @@ import com.segurancarural.gpstracker.util.AppLog
 import com.segurancarural.gpstracker.util.DEFAULT_MARKER_COLOR_ARGB
 import com.segurancarural.gpstracker.util.PREF_DEVICE_MARKER_COLOR
 import com.segurancarural.gpstracker.util.markerInitial
+import com.segurancarural.gpstracker.data.repository.DeviceConfigRepository
+import com.segurancarural.gpstracker.data.dto.DeviceConfigDto
+import com.segurancarural.gpstracker.ui.model.MapTheme
+import com.segurancarural.gpstracker.util.ensureSerialNumber
+import com.segurancarural.gpstracker.util.argbToMapLibreHex
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -125,6 +130,9 @@ fun ConfigScreen(
     var savedDistanceThresholdM by remember { mutableFloatStateOf(200f) }
     var savedMarkerColorArgb by remember { mutableIntStateOf(DEFAULT_MARKER_COLOR_ARGB) }
 
+    var selectedMapTheme by remember { mutableStateOf(MapTheme.SATELLITE) }
+    var savedMapTheme by remember { mutableStateOf(MapTheme.SATELLITE) }
+
     // ── Load from SharedPreferences on first composition ──────────────────
     LaunchedEffect(Unit) {
         val label = prefs.getString("device_label", "Dispositivo") ?: "Dispositivo"
@@ -133,6 +141,8 @@ fun ConfigScreen(
         val savedIntervalMs = prefs.getLong("tracking_interval_ms", 1 * 60 * 1000L)
         val savedMinutes = savedIntervalMs / 60_000L
         val intervalIdx = intervalOptions.indexOfFirst { it == savedMinutes }.coerceAtLeast(0)
+        val mapTypeStr = prefs.getString("default_map_type", MapTheme.SATELLITE.name) ?: MapTheme.SATELLITE.name
+        val mapTheme = try { MapTheme.valueOf(mapTypeStr) } catch (e: Exception) { MapTheme.SATELLITE }
 
         val sensitivity = prefs.getString("accident_sensor_sensitivity", "medium") ?: "medium"
         val sensitivityIdx = sensitivityOptions.indexOf(sensitivity).coerceAtLeast(0)
@@ -142,12 +152,14 @@ fun ConfigScreen(
         distanceThresholdM = distance
         selectedMarkerColorArgb = color
         selectedIntervalIdx = intervalIdx
+        selectedMapTheme = mapTheme
 
         savedDeviceLabel = label
         savedSensitivityIdx = sensitivityIdx
         savedDistanceThresholdM = distance
         savedMarkerColorArgb = color
         savedIntervalIdx = intervalIdx
+        savedMapTheme = mapTheme
 
         AppLog.d("ConfigScreen", "Settings loaded: label=$deviceLabel, interval=${savedMinutes}min")
     }
@@ -156,6 +168,7 @@ fun ConfigScreen(
             distanceThresholdM != savedDistanceThresholdM ||
             selectedMarkerColorArgb != savedMarkerColorArgb ||
             selectedIntervalIdx != savedIntervalIdx ||
+            selectedMapTheme != savedMapTheme ||
             selectedSensitivityIdx != savedSensitivityIdx
 
     Column(
@@ -313,20 +326,28 @@ fun ConfigScreen(
             )
         }
 
-        // ── Security & Accidents ───────────────────────────────────────────
-        ConfigCard(title = "Segurança & Acidentes") {
-            Text("Sensibilidade do Sensor de Acidentes", color = TextSecondary, fontSize = 12.sp)
-            Spacer(modifier = Modifier.height(8.dp))
-            var sensitivityDropdownExpanded by remember { mutableStateOf(false) }
+        // ── Data policies ──────────────────────────────────────────────────
+        ConfigCard(title = "Políticas de Dados") {
+            SettingToggleRow(
+                label = "Sincronizar em dados móveis",
+                description = "Envia localizações mesmo sem Wi-Fi",
+                checked = syncOnMobileData,
+                onCheckedChange = { syncOnMobileData = it }
+            )
+        }
+
+        // ── Default map type ──────────────────────────────────────────────
+        ConfigCard(title = "Tipo de Mapa Padrão") {
+            var mapDropdownExpanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(
-                expanded = sensitivityDropdownExpanded,
-                onExpandedChange = { sensitivityDropdownExpanded = it }
+                expanded = mapDropdownExpanded,
+                onExpandedChange = { mapDropdownExpanded = it }
             ) {
                 OutlinedTextField(
-                    value = sensitivityLabels[selectedSensitivityIdx],
+                    value = "${selectedMapTheme.icon} ${selectedMapTheme.label}",
                     onValueChange = {},
                     readOnly = true,
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sensitivityDropdownExpanded) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(mapDropdownExpanded) },
                     modifier = Modifier
                         .fillMaxWidth()
                         .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
@@ -336,6 +357,57 @@ fun ConfigScreen(
                         focusedBorderColor = AccentGreen,
                         unfocusedBorderColor = TextSecondary,
                     )
+                )
+                ExposedDropdownMenu(
+                    expanded = mapDropdownExpanded,
+                    onDismissRequest = { mapDropdownExpanded = false },
+                    modifier = Modifier.background(CardDark)
+                ) {
+                    MapTheme.values().forEach { theme ->
+                        DropdownMenuItem(
+                            text = { Text("${theme.icon} ${theme.label}", color = TextPrimary) },
+                            onClick = {
+                                selectedMapTheme = theme
+                                mapDropdownExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Tipo de mapa carregado por padrão ao abrir o ecrã do mapa",
+                color = TextSecondary,
+                fontSize = 11.sp
+            )
+        }
+
+        // ── Emergency contact ──────────────────────────────────────────────
+        ConfigCard(title = "Contacto de Emergência") {
+            OutlinedTextField(
+                value = emergencyContact,
+                onValueChange = { value ->
+                    emergencyContact = value
+                    contactError = if (value.isNotEmpty() &&
+                        !value.matches(Regex("^[+]?[0-9\\s\\-()]{9,15}$"))
+                    ) {
+                        "Número de telefone inválido"
+                    } else null
+                },
+                label = { Text("Número de telefone", color = TextSecondary) },
+                placeholder = { Text("+351 912 345 678", color = TextSecondary.copy(0.5f)) },
+                isError = contactError != null,
+                supportingText = {
+                    contactError?.let { Text(it, color = Color(0xFFEF4444)) }
+                        ?: Text("Usado como fallback se a rede falhar", color = TextSecondary, fontSize = 11.sp)
+                },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedBorderColor = AccentGreen,
+                    unfocusedBorderColor = TextSecondary,
                 )
                 ExposedDropdownMenu(
                     expanded = sensitivityDropdownExpanded,
@@ -374,6 +446,7 @@ fun ConfigScreen(
                     .putString("accident_sensor_sensitivity", sensitivity)
                     .putLong("tracking_interval_ms", intervalMs)
                     .putFloat("tracking_distance_m", distanceThresholdM)
+                    .putString("default_map_type", selectedMapTheme.name)
                     .apply()
                 
                 // Update baseline so button gets disabled again until next change
@@ -382,6 +455,7 @@ fun ConfigScreen(
                 savedDistanceThresholdM = distanceThresholdM
                 savedMarkerColorArgb = selectedMarkerColorArgb
                 savedIntervalIdx = selectedIntervalIdx
+                savedMapTheme = selectedMapTheme
 
                 Toast.makeText(context, "Configurações guardadas com sucesso", Toast.LENGTH_SHORT).show()
                 AppLog.i("ConfigScreen", "Settings saved: label=$trimmedLabel")
@@ -390,6 +464,18 @@ fun ConfigScreen(
                     profileRepository.syncProfile(
                         deviceLabel = trimmedLabel,
                         markerColorArgb = selectedMarkerColorArgb,
+                    )
+                    DeviceConfigRepository(context).saveConfigToBackend(
+                        DeviceConfigDto(
+                            serialNumber = context.ensureSerialNumber(),
+                            deviceLabel = trimmedLabel,
+                            markerColor = argbToMapLibreHex(selectedMarkerColorArgb),
+                            emergencyContact = emergencyContact.trim().ifEmpty { null },
+                            syncOnMobileData = syncOnMobileData,
+                            trackingIntervalMs = intervalMs,
+                            trackingDistanceM = distanceThresholdM,
+                            defaultMapType = selectedMapTheme.name
+                        )
                     )
                 }
                 context.startService(
