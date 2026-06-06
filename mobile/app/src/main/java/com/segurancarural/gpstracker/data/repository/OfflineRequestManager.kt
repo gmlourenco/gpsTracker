@@ -121,9 +121,9 @@ object OfflineRequestManager {
                     val body = result.data
                     val isLogicalSuccess = try {
                         val json = Json.parseToJsonElement(body)
-                        json.jsonObject["success"]?.jsonPrimitive?.booleanOrNull == true
+                        json.jsonObject["success"]?.jsonPrimitive?.booleanOrNull ?: true
                     } catch (e: Exception) {
-                        false
+                        true
                     }
 
                     if (isLogicalSuccess) {

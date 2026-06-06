@@ -25,6 +25,12 @@ enum class SaveConfigResult {
     ERROR
 }
 
+enum class SaveConfigResult {
+    SUCCESS,
+    OFFLINE_QUEUED,
+    ERROR
+}
+
 class DeviceConfigRepository(private val context: Context) {
     private val apiService = ApiService()
 
@@ -86,28 +92,9 @@ class DeviceConfigRepository(private val context: Context) {
         val result = apiService.postRaw(url, payload)
         when (result) {
             is ApiResult.Success -> {
-                val body = result.data
-                val isLogicalSuccess = try {
-                    val json = Json.parseToJsonElement(body)
-                    json.jsonObject["success"]?.jsonPrimitive?.booleanOrNull == true
-                } catch (e: Exception) {
-                    false
-                }
-                if (isLogicalSuccess) {
-                    AppLog.i("DeviceConfigRepository", "Config successfully saved to backend")
-                    OfflineRequestManager.clearPending(context, "CONFIG")
-                    SaveConfigResult.SUCCESS
-                } else {
-                    AppLog.w("DeviceConfigRepository", "Config save response was not a logical success (possibly captive portal). Queueing.")
-                    OfflineRequestManager.enqueue(
-                        context = context,
-                        serviceType = "CONFIG",
-                        url = url,
-                        method = "POST",
-                        bodyJson = payload
-                    )
-                    SaveConfigResult.OFFLINE_QUEUED
-                }
+                AppLog.i("DeviceConfigRepository", "Config successfully saved to backend")
+                OfflineRequestManager.clearPending(context, "CONFIG")
+                SaveConfigResult.SUCCESS
             }
             is ApiResult.HttpError -> {
                 if (result.code >= 500) {
