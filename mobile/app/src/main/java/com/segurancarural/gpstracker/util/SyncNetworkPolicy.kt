@@ -12,12 +12,8 @@ private const val KEY_SYNC_ON_MOBILE = "sync_on_mobile_data"
  * Wi‑Fi and Ethernet always allowed; cellular follows the user preference.
  */
 fun shouldUploadOverCurrentNetwork(context: Context): Boolean {
-    val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    if (prefs.getBoolean(KEY_SYNC_ON_MOBILE, true)) return true
-
     val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-        ?: return true
+        ?: return false
     val caps = cm.getNetworkCapabilities(cm.activeNetwork) ?: return false
-
-    return !caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+    return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
 }

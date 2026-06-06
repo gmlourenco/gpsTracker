@@ -85,6 +85,17 @@
             android:exported="false"
             android:enabled="true" />
 
+        <!-- ── Accident Countdown Actions Receiver ────────────────────────── -->
+        <receiver
+            android:name=".receiver.AccidentReceiver"
+            android:exported="false"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="com.segurancarural.gpstracker.action.ACCIDENT_CANCEL" />
+                <action android:name="com.segurancarural.gpstracker.action.ACCIDENT_TRIGGER" />
+            </intent-filter>
+        </receiver>
+
         <!-- ── Firebase Cloud Messaging Service ──────────────────────────── -->
         <!-- Receives push notifications from the backend (SOS alerts etc.)  -->
         <!-- Works even when the app is killed — FCM wakes it up via system. -->

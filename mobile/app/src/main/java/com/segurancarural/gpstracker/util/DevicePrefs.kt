@@ -79,7 +79,14 @@ fun mapLibreHexToArgb(hex: String): Int {
 
 /** Saves configuration fetched from backend directly to SharedPreferences. */
 fun Context.saveConfigToPrefs(config: DeviceConfigDto) {
-    trackingPrefs().edit {
+    val prefs = trackingPrefs()
+    val localLastUpdated = prefs.getLong("config_last_updated_ms", -1)
+    if (config.configUpdatedAt <= localLastUpdated) {
+        // Local configuration is newer or same as server. Do not overwrite.
+        return
+    }
+
+    prefs.edit {
         putString("device_label", config.deviceLabel)
         putInt(PREF_DEVICE_MARKER_COLOR, mapLibreHexToArgb(config.markerColor))
         putString("emergency_contact", config.emergencyContact ?: "")
@@ -87,5 +94,7 @@ fun Context.saveConfigToPrefs(config: DeviceConfigDto) {
         putLong("tracking_interval_ms", config.trackingIntervalMs)
         putFloat("tracking_distance_m", config.trackingDistanceM)
         putString("default_map_type", config.defaultMapType)
+        putString("accident_sensor_sensitivity", config.accidentSensorSensitivity)
+        putLong("config_last_updated_ms", config.configUpdatedAt)
     }
 }

@@ -218,6 +218,8 @@ class MainActivity : ComponentActivity() {
                                     onStopService = { stopLocationService() },
                                     onSosActivate = { activateSos() },
                                     onSosDeactivate = { deactivateSos() },
+                                    onAccidentCancel = { cancelAccident() },
+                                    onAccidentTrigger = { triggerAccidentSos() },
                                 )
                                 AppScreen.MAP -> MapScreen(viewModel = mapViewModel)
                                 AppScreen.CONFIG -> ConfigScreen(
@@ -289,6 +291,20 @@ class MainActivity : ComponentActivity() {
     private fun deactivateSos() {
         val intent = Intent(this, LocationForegroundService::class.java).apply {
             action = LocationForegroundService.ACTION_SOS_DEACTIVATE
+        }
+        startService(intent)
+    }
+
+    private fun cancelAccident() {
+        val intent = Intent(this, LocationForegroundService::class.java).apply {
+            action = LocationForegroundService.ACTION_ACCIDENT_CANCEL
+        }
+        startService(intent)
+    }
+
+    private fun triggerAccidentSos() {
+        val intent = Intent(this, LocationForegroundService::class.java).apply {
+            action = LocationForegroundService.ACTION_ACCIDENT_TRIGGER
         }
         startService(intent)
     }

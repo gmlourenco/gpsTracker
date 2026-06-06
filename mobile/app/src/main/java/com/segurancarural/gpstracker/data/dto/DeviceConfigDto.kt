@@ -14,7 +14,9 @@ data class DeviceConfigDto(
     @SerialName("syncOnMobileData") val syncOnMobileData: Boolean,
     @SerialName("trackingIntervalMs") val trackingIntervalMs: Long,
     @SerialName("trackingDistanceM") val trackingDistanceM: Float,
-    @SerialName("defaultMapType") val defaultMapType: String = "SATELLITE"
+    @SerialName("defaultMapType") val defaultMapType: String = "SATELLITE",
+    @SerialName("accidentSensorSensitivity") val accidentSensorSensitivity: String = "medium",
+    @SerialName("configUpdatedAt") val configUpdatedAt: Long = -1
 )
 
 @Keep

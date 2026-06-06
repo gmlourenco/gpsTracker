@@ -8,6 +8,8 @@ class HomeViewModel : ViewModel() {
     
     val isTracking: StateFlow<Boolean> = TrackingStateRepository.isTracking
     val isSosActive: StateFlow<Boolean> = TrackingStateRepository.isSosActive
+    val isPreSosActive: StateFlow<Boolean> = TrackingStateRepository.isPreSosActive
+    val preSosCountdown: StateFlow<Int> = TrackingStateRepository.preSosCountdown
     val lastAccuracy: StateFlow<Float?> = TrackingStateRepository.lastAccuracy
 
     // The UI now reads purely from this ViewModel, isolating it completely from the

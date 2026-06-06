@@ -1,6 +1,6 @@
 -- Create device configurations table
 CREATE TABLE IF NOT EXISTS public.device_configurations (
-    id TEXT PRIMARY KEY, -- Matches device serialNumber (ANDROID_ID)
+    id TEXT PRIMARY KEY REFERENCES public.devices(id) ON DELETE CASCADE, -- Matches device serialNumber (ANDROID_ID)
     device_label TEXT NOT NULL DEFAULT 'Dispositivo',
     marker_color VARCHAR(7) NOT NULL DEFAULT '#16A34A',
     emergency_contact TEXT,
