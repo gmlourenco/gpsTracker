@@ -1,6 +1,5 @@
 package com.segurancarural.gpstracker.worker
 
-import com.segurancarural.gpstracker.BuildConfig
 import android.content.Context
 import android.util.Log
 import androidx.work.BackoffPolicy
@@ -12,9 +11,10 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.segurancarural.gpstracker.data.db.createAppDatabase
-import com.segurancarural.gpstracker.sync.SyncEngine
-import com.segurancarural.gpstracker.data.repository.OfflineRequestManager
 import com.segurancarural.gpstracker.data.network.ApiClient
+import com.segurancarural.gpstracker.data.network.ApiRoutes
+import com.segurancarural.gpstracker.data.repository.OfflineRequestManager
+import com.segurancarural.gpstracker.sync.SyncEngine
 import com.segurancarural.gpstracker.util.shouldUploadOverCurrentNetwork
 import java.util.concurrent.TimeUnit
 
@@ -71,7 +71,8 @@ class SyncWorker(
             val engine = SyncEngine(
                 dao = db.telemetryDao(),
                 httpClient = httpClient,
-                backendBaseUrl = BuildConfig.BACKEND_BASE_URL,
+                locationUrl = ApiRoutes.LOCATION_V2,
+                emergencyUrl = ApiRoutes.EMERGENCY,
             )
 
             val result = engine.flush()

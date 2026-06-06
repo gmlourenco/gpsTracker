@@ -21,18 +21,26 @@ class AccidentDetector(
     companion object {
         private const val TAG = "AccidentDetector"
         private const val DEBOUNCE_MS = 5000L // Prevent duplicate rapid triggers
+        private const val REQUIRED_CONSECUTIVE_SAMPLES = 2
     }
 
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private val accelerometer: Sensor? = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
     private var isListening = false
     private var lastTriggerTime = 0L
+    private var consecutiveOverThresholdCount = 0
 
     // Map sensitivity to G-force threshold in m/s^2 (G * 9.8)
-    private val threshold: Float = when (sensitivity.lowercase()) {
-        "high" -> 29.4f    // ~3G (High sensitivity - triggers easily on bumps/falls)
-        "low" -> 49.0f     // ~5G (Low sensitivity - triggers only on major high-energy crashes)
-        else -> 39.2f      // ~4G (Medium sensitivity - standard crash threshold)
+    // Increased thresholds to avoid false positives on daily activities,
+    // combined with a consecutive samples filter. Supports custom_XX values.
+    private val threshold: Float = when {
+        sensitivity.startsWith("custom_", ignoreCase = true) -> {
+            val gVal = sensitivity.substring("custom_".length).toIntOrNull() ?: 7
+            gVal.coerceIn(1, 99) * 9.8f
+        }
+        sensitivity.lowercase() == "high" -> 49.0f
+        sensitivity.lowercase() == "low" -> 98.0f
+        else -> 73.5f
     }
 
     fun start() {
@@ -41,10 +49,12 @@ class AccidentDetector(
             return
         }
         if (!isListening) {
-            // SENSOR_DELAY_NORMAL is extremely battery friendly and has a sampling rate of ~200ms,
-            // which is perfectly fine for background impact detection.
-            sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL)
+            // SENSOR_DELAY_GAME (~20ms sampling interval) is used to ensure we capture the transient
+            // peak deceleration of a physical impact, which lasts only a few milliseconds.
+            // SENSOR_DELAY_NORMAL (~200ms) would miss these fast spikes entirely.
+            sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME)
             isListening = true
+            consecutiveOverThresholdCount = 0
             Log.i(TAG, "Accident sensor started with sensitivity: $sensitivity (threshold: ${threshold} m/s²)")
         }
     }
@@ -53,6 +63,7 @@ class AccidentDetector(
         if (isListening) {
             sensorManager.unregisterListener(this)
             isListening = false
+            consecutiveOverThresholdCount = 0
             Log.i(TAG, "Accident sensor stopped")
         }
     }
@@ -68,12 +79,18 @@ class AccidentDetector(
         val magnitude = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
 
         if (magnitude > threshold) {
-            val now = System.currentTimeMillis()
-            if (now - lastTriggerTime > DEBOUNCE_MS) {
-                lastTriggerTime = now
-                Log.w(TAG, "🚨 CRITICAL IMPACT DETECTED! Magnitude: $magnitude m/s² (threshold: $threshold)")
-                onAccidentDetected()
+            consecutiveOverThresholdCount++
+            if (consecutiveOverThresholdCount >= REQUIRED_CONSECUTIVE_SAMPLES) {
+                val now = System.currentTimeMillis()
+                if (now - lastTriggerTime > DEBOUNCE_MS) {
+                    lastTriggerTime = now
+                    Log.w(TAG, "🚨 CRITICAL IMPACT DETECTED! Magnitude: $magnitude m/s² (threshold: $threshold) sustained for $consecutiveOverThresholdCount samples")
+                    consecutiveOverThresholdCount = 0
+                    onAccidentDetected()
+                }
             }
+        } else {
+            consecutiveOverThresholdCount = 0
         }
     }
 

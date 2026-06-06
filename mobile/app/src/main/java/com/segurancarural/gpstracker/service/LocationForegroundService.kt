@@ -1,8 +1,5 @@
 package com.segurancarural.gpstracker.service
 
-import com.segurancarural.gpstracker.BuildConfig
-import com.segurancarural.gpstracker.receiver.HeartbeatReceiver
-import com.segurancarural.gpstracker.ui.activities.MainActivity
 import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -24,24 +21,26 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.segurancarural.gpstracker.BuildConfig
+import com.segurancarural.gpstracker.data.db.createAppDatabase
+import com.segurancarural.gpstracker.data.model.TelemetryRecord
+import com.segurancarural.gpstracker.data.repository.FamilyPositionsRepository
 import com.segurancarural.gpstracker.data.repository.TelemetryRepository
 import com.segurancarural.gpstracker.data.repository.TrackingStateRepository
-import com.segurancarural.gpstracker.data.repository.FamilyPositionsRepository
-import com.segurancarural.gpstracker.ui.model.FamilyDeviceMarker
 import com.segurancarural.gpstracker.domain.usecase.SubmitLocationUseCase
-import com.segurancarural.gpstracker.data.model.TelemetryRecord
+import com.segurancarural.gpstracker.receiver.HeartbeatReceiver
+import com.segurancarural.gpstracker.service.LocationForegroundService.Companion.ACTION_SOS_ACTIVATE
+import com.segurancarural.gpstracker.service.LocationForegroundService.Companion.ACTION_SOS_DEACTIVATE
+import com.segurancarural.gpstracker.ui.activities.MainActivity
+import com.segurancarural.gpstracker.ui.model.FamilyDeviceMarker
+import com.segurancarural.gpstracker.util.ensureSerialNumber
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import android.provider.Settings
-import com.segurancarural.gpstracker.data.db.createAppDatabase
-import com.segurancarural.gpstracker.util.ensureSerialNumber
 import java.time.Instant
 
 private const val TAG = "LocationFgService"
@@ -373,9 +372,11 @@ class LocationForegroundService : Service() {
         // Always use high accuracy (pure GPS) for rural safety reliability to guarantee 15m or better precision
         val priority = Priority.PRIORITY_HIGH_ACCURACY
 
-        // Poll every 30 seconds normally to check distance changes, or every 15 seconds in SOS mode
+        // Poll every 30 seconds normally to check distance changes, or every 15 seconds in SOS mode.
+        // If distance threshold is <= 0m (disabled), poll at the moving time interval.
         val intervalMs = when {
             isSos -> SOS_INTERVAL_MS
+            distanceThresholdM <= 0f -> movingIntervalMs
             else -> 30_000L
         }
 
@@ -467,6 +468,7 @@ class LocationForegroundService : Service() {
     private fun shouldSubmitNow(location: android.location.Location, now: Long): Boolean {
         if (lastSubmittedTimeMs == 0L) return true
         if (now - lastSubmittedTimeMs >= movingIntervalMs) return true
+        if (distanceThresholdM <= 0f) return false
         val last = lastSubmittedLocation ?: return true
         return location.distanceTo(last) >= distanceThresholdM
     }

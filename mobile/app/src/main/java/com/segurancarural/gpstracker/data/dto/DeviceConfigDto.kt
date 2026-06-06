@@ -10,8 +10,6 @@ data class DeviceConfigDto(
     @SerialName("serialNumber") val serialNumber: String,
     @SerialName("deviceLabel") val deviceLabel: String,
     @SerialName("markerColor") val markerColor: String,
-    @SerialName("emergencyContact") val emergencyContact: String? = null,
-    @SerialName("syncOnMobileData") val syncOnMobileData: Boolean,
     @SerialName("trackingIntervalMs") val trackingIntervalMs: Long,
     @SerialName("trackingDistanceM") val trackingDistanceM: Float,
     @SerialName("defaultMapType") val defaultMapType: String = "SATELLITE",

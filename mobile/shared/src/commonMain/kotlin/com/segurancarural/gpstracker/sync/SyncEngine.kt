@@ -4,7 +4,6 @@ import android.util.Log
 import com.segurancarural.gpstracker.data.db.TelemetryDao
 import com.segurancarural.gpstracker.data.model.TelemetryRecord
 import io.ktor.client.HttpClient
-import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -13,14 +12,15 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 
 private const val TAG = "SyncEngine"
 
@@ -43,20 +43,16 @@ private const val TAG = "SyncEngine"
  *
  * After successful transmission, records are marked as synced and eventually
  * deleted from the local queue by [cleanupSynced].
- *
- * @param dao          The [TelemetryDao] for queue access.
  * @param httpClient   A configured Ktor [HttpClient].
- * @param backendBaseUrl Base URL of the Next.js backend (e.g., "https://example.vercel.app").
- * @param backendBaseUrl Base URL of the Next.js backend (e.g., "https://example.vercel.app").
+ * @param locationUrl  URL for location updates (V2 batch endpoint).
+ * @param emergencyUrl URL for emergency SOS updates.
  */
 class SyncEngine(
     private val dao: TelemetryDao,
     private val httpClient: HttpClient,
-    private val backendBaseUrl: String,
+    private val locationUrl: String,
+    private val emergencyUrl: String,
 ) {
-
-    private val locationUrl = "$backendBaseUrl/api/location"
-    private val emergencyUrl = "$backendBaseUrl/api/emergency"
 
     /**
      * Executes the full 3-phase flush. Returns [SyncResult] summarising
@@ -85,7 +81,7 @@ class SyncEngine(
         val latestRecord = dao.getLatestUnsynced()
         if (latestRecord != null) {
             Log.d(TAG, "Phase 2: Sending latest position (id=${latestRecord.id})")
-            val success = transmitToLocation(latestRecord)
+            val success = transmitBatchToLocation(listOf(latestRecord))
             if (success) {
                 dao.markSynced(listOf(latestRecord.id))
                 result.latestSynced = true
@@ -103,21 +99,16 @@ class SyncEngine(
                 break
             }
 
-            Log.d(TAG, "Phase 3: Transmitting batch of ${batch.size} records (FIFO)")
-            val successIds = mutableListOf<Long>()
-            for (record in batch) {
-                if (transmitToLocation(record)) {
-                    successIds.add(record.id)
-                    result.historySynced++
-                } else {
-                    result.errors++
-                    // Stop batching on first failure to avoid out-of-order gaps
-                    hasMore = false
-                    break
-                }
-            }
-            if (successIds.isNotEmpty()) {
+            Log.d(TAG, "Phase 3: Transmitting batch of ${batch.size} records in a single V2 request (FIFO)")
+            val success = transmitBatchToLocation(batch)
+            if (success) {
+                val successIds = batch.map { it.id }
                 dao.markSynced(successIds)
+                result.historySynced += batch.size
+            } else {
+                result.errors++
+                // Stop batching on first failure to avoid out-of-order gaps
+                hasMore = false
             }
         }
 
@@ -168,11 +159,11 @@ class SyncEngine(
         }
     }
 
-    private suspend fun transmitToLocation(record: TelemetryRecord): Boolean {
+    private suspend fun transmitBatchToLocation(records: List<TelemetryRecord>): Boolean {
         return try {
             val response = httpClient.post(locationUrl) {
                 contentType(ContentType.Application.Json)
-                setBody(record.toLocationJson())
+                setBody(records.toLocationV2Json())
             }
             if (response.status == HttpStatusCode.OK) {
                 val body = response.bodyAsText()
@@ -185,21 +176,54 @@ class SyncEngine(
                 if (isLogicalSuccess) {
                     true
                 } else {
-                    Log.e(TAG, "Location TX returned HTTP 200 but logical success=false or invalid response: $body")
+                    Log.e(TAG, "Location V2 Batch TX returned HTTP 200 but logical success=false or invalid response: $body")
                     false
                 }
             } else {
-                Log.e(TAG, "Location TX failed: ${response.status} — ${response.bodyAsText()}")
+                Log.e(TAG, "Location V2 Batch TX failed: ${response.status} — ${response.bodyAsText()}")
                 false
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Location TX exception: ${e.message}", e)
+            Log.e(TAG, "Location V2 Batch TX exception: ${e.message}", e)
             false
         }
     }
 }
 
 // ── JSON serialisation helpers ─────────────────────────────────────────────
+
+/**
+ * Converts a batch of TelemetryRecords to the JSON format expected by POST /api/v2/location.
+ */
+fun List<TelemetryRecord>.toLocationV2Json(markerColorHex: String? = null): String {
+    if (isEmpty()) return "{}"
+    val first = first()
+    return buildJsonObject {
+        put("id", first.serialNumber)
+        put("deviceLabel", first.deviceLabel)
+        putJsonArray("locations") {
+            forEach { record ->
+                addJsonObject {
+                    put("timestamp", record.timestamp)
+                    put("batteryLevel", record.batteryLevel)
+                    put("batteryCharging", record.batteryCharging)
+                    putJsonObject("gps") {
+                        put("lat", record.lat)
+                        put("lng", record.lng)
+                        put("accuracy", record.accuracy)
+                        put("speed", record.speed)
+                        put("heading", record.heading)
+                    }
+                    put("emergencyState", record.emergencyState)
+                    put("trackingEnabled", record.trackingEnabled)
+                    put("networkType", record.networkType)
+                    put("appVersion", record.appVersion)
+                    markerColorHex?.let { put("markerColor", it) }
+                }
+            }
+        }
+    }.let { Json.encodeToString(it) }
+}
 
 /**
  * Converts a TelemetryRecord to the JSON format expected by POST /api/location.

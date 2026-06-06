@@ -4,8 +4,6 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 
-private const val PREFS_NAME = "tracking_prefs"
-private const val KEY_SYNC_ON_MOBILE = "sync_on_mobile_data"
 
 /**
  * Returns true when telemetry may be uploaded over the current network.
