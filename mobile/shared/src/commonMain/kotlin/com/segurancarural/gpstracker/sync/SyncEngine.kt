@@ -18,6 +18,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
 
 private const val TAG = "SyncEngine"
 
@@ -142,7 +145,19 @@ class SyncEngine(
                 setBody(record.toEmergencyJson())
             }
             if (response.status == HttpStatusCode.OK) {
-                true
+                val body = response.bodyAsText()
+                val isLogicalSuccess = try {
+                    val json = Json.parseToJsonElement(body)
+                    json.jsonObject["success"]?.jsonPrimitive?.booleanOrNull == true
+                } catch (e: Exception) {
+                    false
+                }
+                if (isLogicalSuccess) {
+                    true
+                } else {
+                    Log.e(TAG, "Emergency TX returned HTTP 200 but logical success=false or invalid response: $body")
+                    false
+                }
             } else {
                 Log.e(TAG, "Emergency TX failed: ${response.status} — ${response.bodyAsText()}")
                 false
@@ -160,7 +175,19 @@ class SyncEngine(
                 setBody(record.toLocationJson())
             }
             if (response.status == HttpStatusCode.OK) {
-                true
+                val body = response.bodyAsText()
+                val isLogicalSuccess = try {
+                    val json = Json.parseToJsonElement(body)
+                    json.jsonObject["success"]?.jsonPrimitive?.booleanOrNull == true
+                } catch (e: Exception) {
+                    false
+                }
+                if (isLogicalSuccess) {
+                    true
+                } else {
+                    Log.e(TAG, "Location TX returned HTTP 200 but logical success=false or invalid response: $body")
+                    false
+                }
             } else {
                 Log.e(TAG, "Location TX failed: ${response.status} — ${response.bodyAsText()}")
                 false

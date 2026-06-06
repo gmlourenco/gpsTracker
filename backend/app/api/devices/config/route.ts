@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
 
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase
-    .from('device_configurations')
+    .from('devices')
     .select('*')
     .eq('id', serialNumber)
     .maybeSingle();
@@ -43,21 +43,36 @@ export async function GET(request: NextRequest) {
     success: true,
     config: {
       serialNumber: data.id,
-      deviceLabel: data.device_label,
+      deviceLabel: data.label || 'Dispositivo',
       markerColor: data.marker_color,
       emergencyContact: data.emergency_contact || '',
-      syncOnMobileData: data.sync_on_mobile_data,
-      trackingIntervalMs: Number(data.tracking_interval_ms),
-      trackingDistanceM: Number(data.tracking_distance_m),
+      syncOnMobileData: data.sync_on_mobile_data !== null ? data.sync_on_mobile_data : true,
+      trackingIntervalMs: data.tracking_interval_ms !== null ? Number(data.tracking_interval_ms) : 60000,
+      trackingDistanceM: data.tracking_distance_m !== null ? Number(data.tracking_distance_m) : 200,
       defaultMapType: data.default_map_type || 'SATELLITE',
+      accidentSensorSensitivity: data.accident_sensor_sensitivity || 'medium',
+      configUpdatedAt: data.config_updated_at !== null ? Number(data.config_updated_at) : -1,
     }
   });
 }
 
+interface ConfigRequestBody {
+  serialNumber?: string;
+  deviceLabel?: string;
+  markerColor?: string;
+  emergencyContact?: string | null;
+  syncOnMobileData?: boolean;
+  trackingIntervalMs?: number;
+  trackingDistanceM?: number;
+  defaultMapType?: string;
+  accidentSensorSensitivity?: string;
+  configUpdatedAt?: number;
+}
+
 export async function POST(request: NextRequest) {
-  let body: any;
+  let body: ConfigRequestBody;
   try {
-    body = await request.json();
+    body = await request.json() as ConfigRequestBody;
   } catch {
     return NextResponse.json({ success: false, error: 'Invalid JSON body' }, { status: 400 });
   }
@@ -70,7 +85,9 @@ export async function POST(request: NextRequest) {
     syncOnMobileData,
     trackingIntervalMs,
     trackingDistanceM,
-    defaultMapType
+    defaultMapType,
+    accidentSensorSensitivity,
+    configUpdatedAt
   } = body;
 
   if (!serialNumber || !isValidSerialNumber(serialNumber)) {
@@ -96,19 +113,26 @@ export async function POST(request: NextRequest) {
   if (defaultMapType !== undefined && typeof defaultMapType !== 'string') {
     return NextResponse.json({ success: false, error: 'Invalid defaultMapType' }, { status: 400 });
   }
+  if (accidentSensorSensitivity !== undefined && typeof accidentSensorSensitivity !== 'string') {
+    return NextResponse.json({ success: false, error: 'Invalid accidentSensorSensitivity' }, { status: 400 });
+  }
+  if (configUpdatedAt !== undefined && typeof configUpdatedAt !== 'number') {
+    return NextResponse.json({ success: false, error: 'Invalid configUpdatedAt' }, { status: 400 });
+  }
 
   const supabase = getSupabaseAdmin();
-  const { error } = await supabase.from('device_configurations').upsert(
+  const { error } = await supabase.from('devices').upsert(
     {
       id: serialNumber,
-      device_label: deviceLabel.trim(),
+      label: deviceLabel.trim(),
       marker_color: markerColor.toUpperCase(),
       emergency_contact: emergencyContact && emergencyContact.trim() !== '' ? emergencyContact.trim() : null,
       sync_on_mobile_data: syncOnMobileData,
       tracking_interval_ms: trackingIntervalMs,
       tracking_distance_m: trackingDistanceM,
       default_map_type: (defaultMapType || 'SATELLITE').trim().toUpperCase(),
-      updated_at: new Date().toISOString(),
+      accident_sensor_sensitivity: (accidentSensorSensitivity || 'medium').trim().toLowerCase(),
+      config_updated_at: configUpdatedAt !== undefined ? configUpdatedAt : -1,
     },
     { onConflict: 'id', ignoreDuplicates: false }
   );

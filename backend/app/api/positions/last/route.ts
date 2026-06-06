@@ -5,7 +5,7 @@
  * Same data as GET /api/devices but wrapped with metadata for mobile consumers.
  */
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../lib/supabase';
 import {
   DeviceRecord,
@@ -13,7 +13,7 @@ import {
   LocationRecord,
 } from '../../../types/telemetry';
 
-export async function GET(request: NextRequest): Promise<NextResponse> {
+export async function GET(): Promise<NextResponse> {
   const supabase = getSupabaseAdmin();
 
   const { data: devices, error: devicesError } = await supabase
