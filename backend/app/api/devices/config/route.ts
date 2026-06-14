@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
   if (error) {
     console.error('[GET /api/devices/config] Database error:', error);
     return NextResponse.json(
-      { success: false, error: 'Database error', details: error.message },
+      { success: false, error: 'Database error' },
       { status: 500 }
     );
   }
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
   if (error) {
     console.error('[POST /api/devices/config] Upsert error:', error);
     return NextResponse.json(
-      { success: false, error: 'Database error', details: error.message },
+      { success: false, error: 'Database error' },
       { status: 500 }
     );
   }

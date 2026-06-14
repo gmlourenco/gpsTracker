@@ -44,8 +44,10 @@ kotlin {
             implementation(libs.ktor.client.android)
         }
 
-        // iOS stubs — no real dependencies yet (Phase 3)
-        iosMain.dependencies {}
+        // iOS dependencies — Ktor Darwin engine for HTTP networking
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+        }
     }
 }
 

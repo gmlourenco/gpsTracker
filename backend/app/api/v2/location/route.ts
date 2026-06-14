@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
   if (deviceError) {
     console.error('[POST /api/v2/location] Device upsert error:', deviceError);
     return NextResponse.json(
-      { success: false, error: 'Database error (device upsert)', details: deviceError.message },
+      { success: false, error: 'Database error (device upsert)' },
       { status: 500 }
     );
   }
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
   if (locationError) {
     console.error('[POST /api/v2/location] Locations insert error:', locationError);
     return NextResponse.json(
-      { success: false, error: 'Database error (locations insert)', details: locationError.message },
+      { success: false, error: 'Database error (locations insert)' },
       { status: 500 }
     );
   }

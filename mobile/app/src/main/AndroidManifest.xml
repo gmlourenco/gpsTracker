@@ -16,6 +16,7 @@
     
     <!-- WakeLock: keeps CPU awake for background GPS tracking and transmissions -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
 
     <!-- ── Boot & Alarm Receivers ────────────────────────────────────────── -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />

@@ -22,7 +22,6 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.segurancarural.gpstracker.BuildConfig
-import com.segurancarural.gpstracker.data.db.createAppDatabase
 import com.segurancarural.gpstracker.data.model.TelemetryRecord
 import com.segurancarural.gpstracker.data.repository.FamilyPositionsRepository
 import com.segurancarural.gpstracker.data.repository.TelemetryRepository
@@ -134,7 +133,7 @@ class LocationForegroundService : Service() {
 
     /** Purges unsynced records saved with placeholder deviceId — runs once per process start. */
     private fun purgeStaleRecords() {
-        val dao = createAppDatabase(applicationContext).telemetryDao()
+        val dao = (applicationContext as com.segurancarural.gpstracker.GpsTrackerApplication).database.telemetryDao()
         serviceScope.launch {
             val deleted = dao.deleteUnsyncedBySerialNumber("unknown-device-id")
             if (deleted > 0) Log.w(TAG, "Purged $deleted stale records with 'unknown-device-id'")
@@ -213,7 +212,7 @@ class LocationForegroundService : Service() {
         try {
             val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
             wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SegurancaRural::TrackingWakeLock").apply {
-                acquire()
+                acquire(12 * 60 * 60 * 1000L) // 12-hour max (full work day)
             }
             Log.i(TAG, "WakeLock acquired successfully")
         } catch (e: Exception) {
@@ -372,21 +371,30 @@ class LocationForegroundService : Service() {
         // Always use high accuracy (pure GPS) for rural safety reliability to guarantee 15m or better precision
         val priority = Priority.PRIORITY_HIGH_ACCURACY
 
-        // Poll every 30 seconds normally to check distance changes, or every 15 seconds in SOS mode.
+        val currentSpeedKmh = lastKnownLocation?.speed?.times(3.6f) ?: 0f
+        val adaptiveIntervalMs = when {
+            currentSpeedKmh < 1f   -> 120_000L  // Stationary: 2 min
+            currentSpeedKmh < 5f   -> 60_000L   // Very slow: 1 min
+            currentSpeedKmh < 20f  -> 30_000L   // Normal tractor: 30s
+            else                   -> 15_000L   // Road transport: 15s
+        }
+
+        // Poll adaptively to check distance changes, or every 15 seconds in SOS mode.
         // If distance threshold is <= 0m (disabled), poll at the moving time interval.
         val intervalMs = when {
             isSos -> SOS_INTERVAL_MS
             distanceThresholdM <= 0f -> movingIntervalMs
-            else -> 30_000L
+            else -> minOf(movingIntervalMs, adaptiveIntervalMs)
         }
 
         val requestBuilder = LocationRequest.Builder(priority, intervalMs)
             .setMinUpdateIntervalMillis(maxOf(intervalMs / 2, 10_000L))
-            .setMaxUpdateDelayMillis(intervalMs)
+            .setMaxUpdateDelayMillis(if (isSos) intervalMs else intervalMs * 6)
+            .setWaitForAccurateLocation(true)
 
         Log.d(
             TAG,
-            "Location request: polling every ${intervalMs / 1000}s. Submit config: every ${movingIntervalMs / 60_000}min OR ${distanceThresholdM}m movement"
+            "Location request: polling every ${intervalMs / 1000}s (batch: ${requestBuilder.build().maxUpdateDelayMillis / 1000}s). Submit config: every ${movingIntervalMs / 60_000}min OR ${distanceThresholdM}m movement"
         )
 
         val request = requestBuilder.build()

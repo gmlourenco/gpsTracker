@@ -1,7 +1,7 @@
 package com.segurancarural.gpstracker.data.repository
 
 import android.content.Context
-import com.segurancarural.gpstracker.data.db.createAppDatabase
+import com.segurancarural.gpstracker.GpsTrackerApplication
 import com.segurancarural.gpstracker.data.model.TelemetryRecord
 import com.segurancarural.gpstracker.data.network.ApiResult
 import com.segurancarural.gpstracker.data.network.ApiRoutes
@@ -20,7 +20,7 @@ import kotlinx.serialization.json.jsonPrimitive
 
 class TelemetryRepository(private val context: Context) {
     private val appContext = context.applicationContext
-    private val dao = createAppDatabase(appContext).telemetryDao()
+    private val dao = (appContext as GpsTrackerApplication).database.telemetryDao()
     private val apiService = ApiService()
 
     suspend fun submitLocation(record: TelemetryRecord) = withContext(Dispatchers.IO) {

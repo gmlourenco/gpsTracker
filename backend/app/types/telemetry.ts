@@ -215,17 +215,17 @@ export function validateEmergencyPayload(body: unknown): body is EmergencyPayloa
   if (!isValidSerialNumber(p.serialNumber)) return false;
   if (typeof p.deviceLabel !== 'string' || p.deviceLabel.trim() === '') return false;
   if (!isValidIsoTimestamp(p.timestamp)) return false;
-  if (typeof p.batteryLevel !== 'number') return false;
+  if (typeof p.batteryLevel !== 'number' || p.batteryLevel < 0 || p.batteryLevel > 100) return false;
   if (typeof p.batteryCharging !== 'boolean') return false;
   if (typeof p.networkType !== 'string') return false;
   if (typeof p.appVersion !== 'string') return false;
 
   const gps = p.gps as Record<string, unknown>;
   if (typeof gps !== 'object' || gps === null) return false;
-  if (typeof gps.lat !== 'number') return false;
-  if (typeof gps.lng !== 'number') return false;
-  if (typeof gps.accuracy !== 'number') return false;
-  if (typeof gps.speed !== 'number') return false;
+  if (typeof gps.lat !== 'number' || gps.lat < -90 || gps.lat > 90) return false;
+  if (typeof gps.lng !== 'number' || gps.lng < -180 || gps.lng > 180) return false;
+  if (typeof gps.accuracy !== 'number' || gps.accuracy < 0) return false;
+  if (typeof gps.speed !== 'number' || gps.speed < 0) return false;
   if (typeof gps.heading !== 'number') return false;
 
   return true;

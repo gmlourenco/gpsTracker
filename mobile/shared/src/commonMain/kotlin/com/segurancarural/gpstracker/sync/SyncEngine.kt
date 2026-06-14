@@ -1,6 +1,5 @@
 package com.segurancarural.gpstracker.sync
 
-import android.util.Log
 import com.segurancarural.gpstracker.data.db.TelemetryDao
 import com.segurancarural.gpstracker.data.model.TelemetryRecord
 import io.ktor.client.HttpClient
@@ -21,6 +20,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import com.segurancarural.gpstracker.util.KmpLogger as Log
 
 private const val TAG = "SyncEngine"
 

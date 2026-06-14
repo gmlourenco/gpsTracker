@@ -2,76 +2,101 @@
  * GET /api/devices
  *
  * Returns all registered family devices with their latest known location.
- * Used by the web dashboard to render the device list and map markers.
+ * Uses the get_latest_positions() PostgreSQL function for O(n_devices)
+ * performance instead of loading the entire locations table.
  *
  * Response shape: DeviceWithLatestLocation[]
- *
- * A device with no location history will have latestLocation = null.
- * Devices are ordered by last_seen_at DESC (most recently active first).
- *
- * A device not seen for > 60 minutes has its status implicitly treated as
- * "Disconnected / Inactivity Alert" — the client is responsible for this
- * derived state based on the last_seen_at field.
  */
 
 import { NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../lib/supabase';
-import { DeviceRecord, LocationRecord, DeviceWithLatestLocation } from '../../types/telemetry';
+import { DeviceWithLatestLocation } from '../../types/telemetry';
 
 export async function GET(): Promise<NextResponse> {
   const supabase = getSupabaseAdmin();
 
-  // ── 1. Fetch all devices ──────────────────────────────────────────────────
-  const { data: devices, error: devicesError } = await supabase
+  // ── 1. Call optimized RPC (DISTINCT ON, single query) ─────────────────────
+  const { data: rows, error: rpcError } = await supabase.rpc('get_latest_positions');
+
+  if (rpcError) {
+    console.error('[GET /api/devices] RPC error:', rpcError);
+
+    // Fallback: fetch devices without locations if function doesn't exist yet
+    const { data: devices, error: devicesError } = await supabase
+      .from('devices')
+      .select('*')
+      .order('last_seen_at', { ascending: false, nullsFirst: false });
+
+    if (devicesError) {
+      console.error('[GET /api/devices] Fallback error:', devicesError);
+      return NextResponse.json(
+        { success: false, error: 'Database error' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json(
+      (devices ?? []).map((d) => ({ ...d, latestLocation: null })),
+      { status: 200 }
+    );
+  }
+
+  if (!rows || rows.length === 0) {
+    // No locations yet — return devices without locations
+    const { data: devices } = await supabase
+      .from('devices')
+      .select('*')
+      .order('last_seen_at', { ascending: false, nullsFirst: false });
+
+    return NextResponse.json(
+      (devices ?? []).map((d) => ({
+        ...d,
+        latestLocation: null,
+      })) as DeviceWithLatestLocation[],
+      { status: 200 }
+    );
+  }
+
+  // ── 2. Transform RPC rows into DeviceWithLatestLocation[] ─────────────────
+  const result: DeviceWithLatestLocation[] = rows.map((r: Record<string, unknown>) => ({
+    id: r.device_id as string,
+    label: r.device_label as string,
+    marker_color: r.marker_color as string,
+    created_at: r.device_created_at as string,
+    last_seen_at: r.last_seen_at as string | null,
+    tracking_enabled: r.tracking_enabled as boolean,
+    app_version: r.app_version as string,
+    latestLocation: r.loc_id ? {
+      id: r.loc_id as number,
+      device_id: r.device_id as string,
+      lat: r.lat as number,
+      lng: r.lng as number,
+      accuracy: r.accuracy as number,
+      speed: r.speed as number,
+      heading: r.heading as number,
+      battery_level: r.battery_level as number,
+      battery_charging: r.battery_charging as boolean,
+      emergency_state: r.emergency_state as boolean,
+      network_type: r.network_type as string,
+      tracking_enabled: r.loc_tracking_enabled as boolean,
+      app_version: r.loc_app_version as string,
+      created_at: r.created_at as string,
+      synced_at: r.synced_at as string,
+    } : null,
+  }));
+
+  // Also include devices that have no locations yet
+  const deviceIdsWithLocations = new Set(result.map((d) => d.id));
+  const { data: allDevices } = await supabase
     .from('devices')
     .select('*')
     .order('last_seen_at', { ascending: false, nullsFirst: false });
 
-  if (devicesError) {
-    console.error('[GET /api/devices] Devices fetch error:', devicesError);
-    return NextResponse.json(
-      { success: false, error: 'Database error', details: devicesError.message },
-      { status: 500 }
-    );
-  }
-
-  if (!devices || devices.length === 0) {
-    return NextResponse.json([] as DeviceWithLatestLocation[], { status: 200 });
-  }
-
-  // ── 2. Fetch the latest location for each device ──────────────────────────
-  // Use a single query with DISTINCT ON equivalent:
-  // For each device_id, get the row with the highest synced_at.
-  const deviceIds = (devices as DeviceRecord[]).map((d) => d.id);
-
-  const { data: latestLocations, error: locationsError } = await supabase
-    .from('locations')
-    .select('*')
-    .in('device_id', deviceIds)
-    .order('synced_at', { ascending: false });
-
-  if (locationsError) {
-    console.error('[GET /api/devices] Locations fetch error:', locationsError);
-    return NextResponse.json(
-      { success: false, error: 'Database error (locations)', details: locationsError.message },
-      { status: 500 }
-    );
-  }
-
-  // Build a map: deviceId → most recent location (first occurrence per device_id
-  // since results are already ordered by synced_at DESC)
-  const latestByDevice = new Map<string, LocationRecord>();
-  for (const loc of (latestLocations ?? []) as LocationRecord[]) {
-    if (!latestByDevice.has(loc.device_id)) {
-      latestByDevice.set(loc.device_id, loc);
+  for (const device of (allDevices ?? [])) {
+    if (!deviceIdsWithLocations.has(device.id)) {
+      result.push({ ...device, latestLocation: null });
     }
   }
-
-  // ── 3. Merge and return ───────────────────────────────────────────────────
-  const result: DeviceWithLatestLocation[] = (devices as DeviceRecord[]).map((device) => ({
-    ...device,
-    latestLocation: latestByDevice.get(device.id) ?? null,
-  }));
 
   return NextResponse.json(result, { status: 200 });
 }
