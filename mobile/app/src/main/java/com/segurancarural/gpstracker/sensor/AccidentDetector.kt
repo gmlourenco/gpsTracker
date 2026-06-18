@@ -18,7 +18,7 @@ import kotlin.math.sqrt
 class AccidentDetector(
     context: Context,
     private val sensitivity: String,
-    private val onAccidentDetected: () -> Unit
+    private val onAccidentDetected: (isRollover: Boolean) -> Unit
 ) : SensorEventListener {
 
     companion object {
@@ -42,6 +42,7 @@ class AccidentDetector(
     
     // Gyroscope integration for rollover
     private var lastGyroMagnitude = 0f
+    private var lastGyroTimestamp: Long = 0L
     private var totalRotationRad = 0f
 
     // Map sensitivity to G-force threshold in m/s^2 (G * 9.8)
@@ -122,8 +123,12 @@ class AccidentDetector(
         lastGyroMagnitude = sqrt(
             (event.values[0].pow(2) + event.values[1].pow(2) + event.values[2].pow(2)).toDouble()
         ).toFloat()
-        // Accumulate rotation (~50Hz sampling implies ~0.02s dt)
-        totalRotationRad += lastGyroMagnitude * 0.02f
+        // Accumulate rotation using actual elapsed time
+        if (lastGyroTimestamp > 0L) {
+            val dtSeconds = (event.timestamp - lastGyroTimestamp) / 1_000_000_000f
+            totalRotationRad += lastGyroMagnitude * dtSeconds
+        }
+        lastGyroTimestamp = event.timestamp
     }
 
     private fun onImpactConfirmed() {
@@ -133,9 +138,10 @@ class AccidentDetector(
             val isRollover = rolloverAngleDeg > 45
             
             Log.w(TAG, "Post-impact analysis: Rollover detected? $isRollover (Angle: $rolloverAngleDeg)")
-            onAccidentDetected()
+            onAccidentDetected(isRollover)
             
             totalRotationRad = 0f // Reset
+            lastGyroTimestamp = 0L
         }, POST_IMPACT_ANALYSIS_MS)
     }
 

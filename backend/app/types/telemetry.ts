@@ -127,12 +127,21 @@ export function isValidSerialNumber(value: unknown): value is string {
   return /^[0-9a-f]{8,32}$/i.test(value);
 }
 
-/** Validates that a value is a plausible ISO 8601 timestamp */
+/** Validates that a value is a strict ISO 8601 timestamp (YYYY-MM-DDTHH:MM:SS with optional ms and timezone) */
 export function isValidIsoTimestamp(value: unknown): value is string {
   if (typeof value !== 'string') return false;
-  const d = new Date(value);
-  return !isNaN(d.getTime());
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,3})?(Z|[+-]\d{2}:\d{2})$/.test(value)) return false;
+  return !isNaN(new Date(value).getTime());
 }
+
+/** Rejects timestamps more than 5 minutes in the future (clock drift tolerance) */
+export function isNotFutureTimestamp(value: string): boolean {
+  return new Date(value).getTime() <= Date.now() + 5 * 60 * 1000;
+}
+
+const MAX_LABEL_LENGTH = 50;
+const MAX_NETWORK_TYPE_LENGTH = 10;
+const MAX_VERSION_LENGTH = 20;
 
 /** Returns human-readable validation failures (empty array = valid). */
 export function getTelemetryValidationErrors(body: unknown): string[] {
@@ -151,8 +160,14 @@ export function getTelemetryValidationErrors(body: unknown): string[] {
   if (typeof p.deviceLabel !== 'string' || p.deviceLabel.trim() === '') {
     errors.push('deviceLabel must be a non-empty string');
   }
+  if (typeof p.deviceLabel === 'string' && p.deviceLabel.length > MAX_LABEL_LENGTH) {
+    errors.push(`deviceLabel must not exceed ${MAX_LABEL_LENGTH} characters`);
+  }
   if (!isValidIsoTimestamp(p.timestamp)) {
     errors.push('timestamp must be a valid ISO 8601 string');
+  }
+  if (typeof p.timestamp === 'string' && isValidIsoTimestamp(p.timestamp) && !isNotFutureTimestamp(p.timestamp)) {
+    errors.push('timestamp must not be more than 5 minutes in the future');
   }
   if (typeof p.batteryLevel !== 'number' || p.batteryLevel < 0 || p.batteryLevel > 100) {
     errors.push('batteryLevel must be a number between 0 and 100');
@@ -169,8 +184,14 @@ export function getTelemetryValidationErrors(body: unknown): string[] {
   if (typeof p.networkType !== 'string') {
     errors.push('networkType must be a string');
   }
+  if (typeof p.networkType === 'string' && p.networkType.length > MAX_NETWORK_TYPE_LENGTH) {
+    errors.push(`networkType must not exceed ${MAX_NETWORK_TYPE_LENGTH} characters`);
+  }
   if (typeof p.appVersion !== 'string') {
     errors.push('appVersion must be a string');
+  }
+  if (typeof p.appVersion === 'string' && p.appVersion.length > MAX_VERSION_LENGTH) {
+    errors.push(`appVersion must not exceed ${MAX_VERSION_LENGTH} characters`);
   }
   if (p.markerColor !== undefined) {
     if (typeof p.markerColor !== 'string' || !/^#[0-9A-Fa-f]{6}$/.test(p.markerColor)) {
@@ -227,6 +248,11 @@ export function validateEmergencyPayload(body: unknown): body is EmergencyPayloa
   if (typeof gps.accuracy !== 'number' || gps.accuracy < 0) return false;
   if (typeof gps.speed !== 'number' || gps.speed < 0) return false;
   if (typeof gps.heading !== 'number') return false;
+
+  if (typeof p.deviceLabel === 'string' && p.deviceLabel.length > MAX_LABEL_LENGTH) return false;
+  if (typeof p.timestamp === 'string' && isValidIsoTimestamp(p.timestamp) && !isNotFutureTimestamp(p.timestamp)) return false;
+  if (typeof p.networkType === 'string' && p.networkType.length > MAX_NETWORK_TYPE_LENGTH) return false;
+  if (typeof p.appVersion === 'string' && p.appVersion.length > MAX_VERSION_LENGTH) return false;
 
   return true;
 }

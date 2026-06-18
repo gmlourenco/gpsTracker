@@ -35,18 +35,22 @@ export const supabasePublic: SupabaseClient = createClient(
  * Admin Supabase client — uses the service_role key.
  * SERVER-SIDE ONLY. Bypasses RLS. Do not import in Client Components.
  */
+let _adminClient: SupabaseClient | null = null;
+
 export function getSupabaseAdmin(): SupabaseClient {
+  if (_adminClient) return _adminClient;
   if (!supabaseServiceRoleKey) {
     throw new Error(
       'Missing environment variable: SUPABASE_SERVICE_ROLE_KEY. ' +
       'Add it to .env.local and to your Vercel project environment variables.'
     );
   }
-  return createClient(supabaseUrl, supabaseServiceRoleKey, {
+  _adminClient = createClient(supabaseUrl, supabaseServiceRoleKey, {
     auth: {
       // Service role clients should never persist sessions
       autoRefreshToken: false,
       persistSession: false,
     },
   });
+  return _adminClient;
 }

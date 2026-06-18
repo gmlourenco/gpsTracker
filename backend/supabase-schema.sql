@@ -91,7 +91,6 @@ RETURNS TABLE (
     last_seen_at    TIMESTAMPTZ,
     tracking_enabled BOOLEAN,
     app_version     VARCHAR(20),
-    fcm_token       TEXT,
     loc_id          BIGINT,
     lat             NUMERIC(9,6),
     lng             NUMERIC(9,6),
@@ -115,7 +114,6 @@ RETURNS TABLE (
         d.last_seen_at,
         d.tracking_enabled,
         d.app_version,
-        d.fcm_token,
         l.id              AS loc_id,
         l.lat,
         l.lng,
@@ -189,15 +187,49 @@ END $$;
 -- farm-scoped variants. The policies below are intentionally broad
 -- so the migration does NOT break the existing single-family setup.
 
--- Devices: full access for authenticated users
-CREATE POLICY "Authenticated users: full access to devices"
-    ON public.devices FOR ALL TO authenticated
-    USING (true) WITH CHECK (true);
+-- Devices: Farm members can view devices in their farm(s)
+CREATE POLICY "Farm members: view their devices"
+    ON public.devices FOR SELECT TO authenticated
+    USING (
+        farm_id IN (
+            SELECT farm_id FROM public.farm_members
+            WHERE user_id = auth.uid()
+        )
+    );
 
--- Locations: full access for authenticated users
-CREATE POLICY "Authenticated users: full access to locations"
-    ON public.locations FOR ALL TO authenticated
-    USING (true) WITH CHECK (true);
+-- Devices: Only farm owners/admins can manage (insert/update/delete) devices
+CREATE POLICY "Farm admins: manage devices"
+    ON public.devices FOR ALL TO authenticated
+    USING (
+        farm_id IN (
+            SELECT farm_id FROM public.farm_members
+            WHERE user_id = auth.uid()
+              AND role IN ('owner', 'admin')
+        )
+    )
+    WITH CHECK (
+        farm_id IN (
+            SELECT farm_id FROM public.farm_members
+            WHERE user_id = auth.uid()
+              AND role IN ('owner', 'admin')
+        )
+    );
+
+-- Locations: Farm members can view locations for devices in their farm(s)
+CREATE POLICY "Farm members: view device locations"
+    ON public.locations FOR SELECT TO authenticated
+    USING (
+        device_id IN (
+            SELECT d.id FROM public.devices d
+            JOIN public.farm_members fm ON fm.farm_id = d.farm_id
+            WHERE fm.user_id = auth.uid()
+        )
+    );
+
+-- Locations: Service role can insert locations (via API routes)
+CREATE POLICY "Service role: insert locations"
+    ON public.locations FOR INSERT TO service_role
+    WITH CHECK (true);
 
 -- Farms: members can see their own farms
 CREATE POLICY "Farm members can view their farms"
@@ -316,38 +348,42 @@ CREATE POLICY "Farm admins can manage geofences"
     );
 
 -- ============================================================
--- 7d. GEOFENCE BOUNDARY CHECK (SECURITY DEFINER)
+-- 7d. GEOFENCE BOUNDARY CHECK (SECURITY INVOKER)
 -- ============================================================
--- WARNING: SECURITY DEFINER functions must be moved to a private
--- schema before production deployment to prevent direct invocation
--- via the Data API. For now, SET search_path = '' as mitigation.
 CREATE OR REPLACE FUNCTION public.check_geofence_violation(
     p_device_id TEXT,
     p_lat NUMERIC,
     p_lng NUMERIC
-) RETURNS TABLE (
+)
+RETURNS TABLE (
     geofence_id UUID,
     geofence_name TEXT,
     is_inside BOOLEAN
-) AS $$
+)
+LANGUAGE plpgsql
+SECURITY INVOKER
+AS $$
 BEGIN
     RETURN QUERY
     SELECT
-        g.id,
-        g.name,
+        g.id      AS geofence_id,
+        g.name    AS geofence_name,
         extensions.ST_Covers(
             g.boundary,
-            extensions.ST_SetSRID(extensions.ST_MakePoint(p_lng::double precision, p_lat::double precision), 4326)::geography
+            extensions.ST_SetSRID(
+                extensions.ST_MakePoint(p_lng::double precision, p_lat::double precision),
+                4326
+            )::geography
         ) AS is_inside
     FROM public.geofences g
     JOIN public.devices d ON d.farm_id = g.farm_id
-    WHERE d.id = p_device_id AND g.alert_on_exit = true;
+    WHERE d.id = p_device_id
+      AND g.alert_on_exit = true;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path = '';
+$$;
 
 COMMENT ON FUNCTION public.check_geofence_violation IS
-    'Checks if a device location is inside/outside its farm geofences. SECURITY DEFINER — migrate to private schema for production.';
+    'Checks if a device location is inside/outside its farm geofences. Runs as INVOKER — RLS policies apply for direct RPC callers.';
 
 -- ============================================================
 -- 8. RECREATE REALTIME PUBLICATION

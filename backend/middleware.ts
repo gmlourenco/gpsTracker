@@ -7,7 +7,48 @@ import { NextRequest, NextResponse } from 'next/server';
  * Security improvements:
  *   - Timing-safe comparison to prevent timing attacks
  *   - STRICT mode: rejects all requests if DEVICE_API_SECRET is not configured
+ *   - In-memory sliding window rate limiting (H-3)
  */
+
+// ── Rate Limiting ───────────────────────────────────────────────────────────
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 60;  // 60 requests per minute per identifier
+const RATE_LIMIT_CLEANUP_INTERVAL_MS = 5 * 60_000; // Clean stale entries every 5 min
+
+interface RateLimitEntry {
+  count: number;
+  resetAt: number;
+}
+
+const rateLimitMap = new Map<string, RateLimitEntry>();
+let lastCleanup = Date.now();
+
+/**
+ * Returns true if the request is within rate limits, false if exceeded.
+ * Uses a simple fixed-window counter per identifier.
+ */
+function checkRateLimit(identifier: string): boolean {
+  const now = Date.now();
+
+  // Periodically purge expired entries to prevent memory leaks
+  if (now - lastCleanup > RATE_LIMIT_CLEANUP_INTERVAL_MS) {
+    lastCleanup = now;
+    for (const [key, entry] of rateLimitMap) {
+      if (now > entry.resetAt) rateLimitMap.delete(key);
+    }
+  }
+
+  const entry = rateLimitMap.get(identifier);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(identifier, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  entry.count++;
+  return entry.count <= RATE_LIMIT_MAX_REQUESTS;
+}
+
+// ── Middleware ───────────────────────────────────────────────────────────────
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -46,6 +87,20 @@ export function middleware(request: NextRequest) {
     );
   }
 
+  // ── Rate limiting (H-3) ────────────────────────────────────────────────
+  // Identify by device serial header, falling back to IP address
+  const identifier =
+    request.headers.get('x-device-serial') ||
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    'unknown';
+
+  if (!checkRateLimit(identifier)) {
+    return NextResponse.json(
+      { success: false, error: 'Too many requests. Please slow down.' },
+      { status: 429 }
+    );
+  }
+
   return NextResponse.next();
 }
 
@@ -72,3 +127,4 @@ function timingSafeEqual(a: string, b: string): boolean {
 export const config = {
   matcher: '/api/:path*',
 };
+

@@ -36,7 +36,6 @@ kotlin {
 
             // Room runtime (KMP-compatible)
             implementation(libs.androidx.room.runtime)
-            implementation(libs.androidx.room.ktx)
         }
 
         androidMain.dependencies {
@@ -44,9 +43,10 @@ kotlin {
             implementation(libs.ktor.client.android)
         }
 
-        // iOS dependencies — Ktor Darwin engine for HTTP networking
+        // iOS dependencies — Ktor Darwin engine for HTTP networking, SQLite bundled driver for Room
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
+            implementation(libs.androidx.sqlite.bundled)
         }
     }
 }

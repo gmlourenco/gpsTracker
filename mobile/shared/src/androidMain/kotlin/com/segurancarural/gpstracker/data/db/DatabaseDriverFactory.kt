@@ -27,5 +27,6 @@ fun createAppDatabase(context: Context): AppDatabase {
         AppDatabase.DATABASE_NAME
     )
         .addMigrations(MIGRATION_1_2)
+        .fallbackToDestructiveMigration()
         .build()
 }

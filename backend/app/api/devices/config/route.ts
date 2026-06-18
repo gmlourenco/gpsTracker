@@ -9,6 +9,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../lib/supabase';
 import { isValidSerialNumber } from '../../../types/telemetry';
 
+const VALID_MAP_TYPES = ['SATELLITE', 'NORMAL', 'TERRAIN', 'HYBRID'] as const;
+const VALID_SENSOR_SENSITIVITIES = ['low', 'medium', 'high', 'off'] as const;
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const serialNumber = searchParams.get('serialNumber');
@@ -120,6 +123,27 @@ export async function POST(request: NextRequest) {
   }
   if (updatePayload.tracking_distance_m !== undefined && typeof updatePayload.tracking_distance_m !== 'number') {
     return NextResponse.json({ success: false, error: 'Invalid trackingDistanceM' }, { status: 400 });
+  }
+  if (
+    updatePayload.default_map_type !== undefined &&
+    (typeof updatePayload.default_map_type !== 'string' ||
+      !(VALID_MAP_TYPES as readonly string[]).includes(updatePayload.default_map_type as string))
+  ) {
+    return NextResponse.json(
+      { success: false, error: `Invalid defaultMapType. Must be one of: ${VALID_MAP_TYPES.join(', ')}` },
+      { status: 400 }
+    );
+  }
+  if (
+    updatePayload.accident_sensor_sensitivity !== undefined &&
+    typeof updatePayload.accident_sensor_sensitivity === 'string' &&
+    !(VALID_SENSOR_SENSITIVITIES as readonly string[]).includes(updatePayload.accident_sensor_sensitivity) &&
+    !/^custom_\d+(\.\d+)?$/.test(updatePayload.accident_sensor_sensitivity)
+  ) {
+    return NextResponse.json(
+      { success: false, error: `Invalid accidentSensorSensitivity. Must be one of: ${VALID_SENSOR_SENSITIVITIES.join(', ')}, or a custom threshold (custom_N)` },
+      { status: 400 }
+    );
   }
 
   const supabase = getSupabaseAdmin();

@@ -333,7 +333,6 @@ class LocationForegroundService : Service() {
         cancelHeartbeatAlarm()
         pollingJob?.cancel()
         pollingJob = null
-        serviceScope.cancel()
 
         // Release WakeLock
         if (wakeLock?.isHeld == true) {
@@ -715,7 +714,8 @@ class LocationForegroundService : Service() {
         accidentDetector = com.segurancarural.gpstracker.sensor.AccidentDetector(
             context = this,
             sensitivity = sensitivity,
-            onAccidentDetected = {
+            onAccidentDetected = { isRollover ->
+                Log.w(TAG, "Accident detected — rollover: $isRollover")
                 triggerAccidentCountdown()
             }
         )
