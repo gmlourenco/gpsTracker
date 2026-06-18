@@ -3,8 +3,8 @@ package com.segurancarural.gpstracker.util
 import android.content.Context
 import android.provider.Settings
 import androidx.core.content.edit
-import java.util.UUID
 import com.segurancarural.gpstracker.data.dto.DeviceConfigDto
+import java.util.UUID
 
 const val TRACKING_PREFS_NAME = "tracking_prefs"
 const val PREF_DEVICE_LABEL = "device_label"
@@ -89,8 +89,6 @@ fun Context.saveConfigToPrefs(config: DeviceConfigDto) {
     prefs.edit {
         putString("device_label", config.deviceLabel)
         putInt(PREF_DEVICE_MARKER_COLOR, mapLibreHexToArgb(config.markerColor))
-        putString("emergency_contact", config.emergencyContact ?: "")
-        putBoolean("sync_on_mobile_data", config.syncOnMobileData)
         putLong("tracking_interval_ms", config.trackingIntervalMs)
         putFloat("tracking_distance_m", config.trackingDistanceM)
         putString("default_map_type", config.defaultMapType)

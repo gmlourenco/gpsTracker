@@ -9,17 +9,10 @@ plugins {
     alias(libs.plugins.ksp)
     alias(libs.plugins.androidx.room)
 }
-
 kotlin {
-    androidTarget {
-        compilations.all {
-            compileTaskProvider.configure {
-                compilerOptions {
-                    jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
-                }
-            }
-        }
-    }
+    jvmToolchain(17)
+
+    androidTarget()
 
     // iOS targets — placeholder for future port (Phase 3)
     iosX64()
@@ -36,7 +29,6 @@ kotlin {
 
             // Room runtime (KMP-compatible)
             implementation(libs.androidx.room.runtime)
-            implementation(libs.androidx.room.ktx)
         }
 
         androidMain.dependencies {
@@ -44,8 +36,11 @@ kotlin {
             implementation(libs.ktor.client.android)
         }
 
-        // iOS stubs — no real dependencies yet (Phase 3)
-        iosMain.dependencies {}
+        // iOS dependencies — Ktor Darwin engine for HTTP networking, SQLite bundled driver for Room
+        iosMain.dependencies {
+            implementation(libs.ktor.client.darwin)
+            implementation(libs.androidx.sqlite.bundled)
+        }
     }
 }
 
@@ -59,8 +54,8 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 }
 
@@ -72,4 +67,7 @@ room {
 // KSP — Room annotation processor must run for each target
 dependencies {
     add("kspAndroid", libs.androidx.room.compiler)
+    add("kspIosX64", libs.androidx.room.compiler)
+    add("kspIosArm64", libs.androidx.room.compiler)
+    add("kspIosSimulatorArm64", libs.androidx.room.compiler)
 }

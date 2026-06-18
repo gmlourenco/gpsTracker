@@ -1,8 +1,5 @@
 package com.segurancarural.gpstracker.service
 
-import com.segurancarural.gpstracker.BuildConfig
-import com.segurancarural.gpstracker.receiver.HeartbeatReceiver
-import com.segurancarural.gpstracker.ui.activities.MainActivity
 import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -24,24 +21,25 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.segurancarural.gpstracker.BuildConfig
+import com.segurancarural.gpstracker.data.model.TelemetryRecord
+import com.segurancarural.gpstracker.data.repository.FamilyPositionsRepository
 import com.segurancarural.gpstracker.data.repository.TelemetryRepository
 import com.segurancarural.gpstracker.data.repository.TrackingStateRepository
-import com.segurancarural.gpstracker.data.repository.FamilyPositionsRepository
-import com.segurancarural.gpstracker.ui.model.FamilyDeviceMarker
 import com.segurancarural.gpstracker.domain.usecase.SubmitLocationUseCase
-import com.segurancarural.gpstracker.data.model.TelemetryRecord
+import com.segurancarural.gpstracker.receiver.HeartbeatReceiver
+import com.segurancarural.gpstracker.service.LocationForegroundService.Companion.ACTION_SOS_ACTIVATE
+import com.segurancarural.gpstracker.service.LocationForegroundService.Companion.ACTION_SOS_DEACTIVATE
+import com.segurancarural.gpstracker.ui.activities.MainActivity
+import com.segurancarural.gpstracker.ui.model.FamilyDeviceMarker
+import com.segurancarural.gpstracker.util.ensureSerialNumber
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import android.provider.Settings
-import com.segurancarural.gpstracker.data.db.createAppDatabase
-import com.segurancarural.gpstracker.util.ensureSerialNumber
 import java.time.Instant
 
 private const val TAG = "LocationFgService"
@@ -135,7 +133,7 @@ class LocationForegroundService : Service() {
 
     /** Purges unsynced records saved with placeholder deviceId — runs once per process start. */
     private fun purgeStaleRecords() {
-        val dao = createAppDatabase(applicationContext).telemetryDao()
+        val dao = (applicationContext as com.segurancarural.gpstracker.GpsTrackerApplication).database.telemetryDao()
         serviceScope.launch {
             val deleted = dao.deleteUnsyncedBySerialNumber("unknown-device-id")
             if (deleted > 0) Log.w(TAG, "Purged $deleted stale records with 'unknown-device-id'")
@@ -214,7 +212,7 @@ class LocationForegroundService : Service() {
         try {
             val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
             wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SegurancaRural::TrackingWakeLock").apply {
-                acquire()
+                acquire(12 * 60 * 60 * 1000L) // 12-hour max (full work day)
             }
             Log.i(TAG, "WakeLock acquired successfully")
         } catch (e: Exception) {
@@ -335,7 +333,6 @@ class LocationForegroundService : Service() {
         cancelHeartbeatAlarm()
         pollingJob?.cancel()
         pollingJob = null
-        serviceScope.cancel()
 
         // Release WakeLock
         if (wakeLock?.isHeld == true) {
@@ -373,19 +370,30 @@ class LocationForegroundService : Service() {
         // Always use high accuracy (pure GPS) for rural safety reliability to guarantee 15m or better precision
         val priority = Priority.PRIORITY_HIGH_ACCURACY
 
-        // Poll every 30 seconds normally to check distance changes, or every 15 seconds in SOS mode
+        val currentSpeedKmh = lastKnownLocation?.speed?.times(3.6f) ?: 0f
+        val adaptiveIntervalMs = when {
+            currentSpeedKmh < 1f   -> 120_000L  // Stationary: 2 min
+            currentSpeedKmh < 5f   -> 60_000L   // Very slow: 1 min
+            currentSpeedKmh < 20f  -> 30_000L   // Normal tractor: 30s
+            else                   -> 15_000L   // Road transport: 15s
+        }
+
+        // Poll adaptively to check distance changes, or every 15 seconds in SOS mode.
+        // If distance threshold is <= 0m (disabled), poll at the moving time interval.
         val intervalMs = when {
             isSos -> SOS_INTERVAL_MS
-            else -> 30_000L
+            distanceThresholdM <= 0f -> movingIntervalMs
+            else -> minOf(movingIntervalMs, adaptiveIntervalMs)
         }
 
         val requestBuilder = LocationRequest.Builder(priority, intervalMs)
             .setMinUpdateIntervalMillis(maxOf(intervalMs / 2, 10_000L))
-            .setMaxUpdateDelayMillis(intervalMs)
+            .setMaxUpdateDelayMillis(if (isSos) intervalMs else intervalMs * 6)
+            .setWaitForAccurateLocation(true)
 
         Log.d(
             TAG,
-            "Location request: polling every ${intervalMs / 1000}s. Submit config: every ${movingIntervalMs / 60_000}min OR ${distanceThresholdM}m movement"
+            "Location request: polling every ${intervalMs / 1000}s (batch: ${requestBuilder.build().maxUpdateDelayMillis / 1000}s). Submit config: every ${movingIntervalMs / 60_000}min OR ${distanceThresholdM}m movement"
         )
 
         val request = requestBuilder.build()
@@ -467,6 +475,7 @@ class LocationForegroundService : Service() {
     private fun shouldSubmitNow(location: android.location.Location, now: Long): Boolean {
         if (lastSubmittedTimeMs == 0L) return true
         if (now - lastSubmittedTimeMs >= movingIntervalMs) return true
+        if (distanceThresholdM <= 0f) return false
         val last = lastSubmittedLocation ?: return true
         return location.distanceTo(last) >= distanceThresholdM
     }
@@ -705,7 +714,8 @@ class LocationForegroundService : Service() {
         accidentDetector = com.segurancarural.gpstracker.sensor.AccidentDetector(
             context = this,
             sensitivity = sensitivity,
-            onAccidentDetected = {
+            onAccidentDetected = { isRollover ->
+                Log.w(TAG, "Accident detected — rollover: $isRollover")
                 triggerAccidentCountdown()
             }
         )

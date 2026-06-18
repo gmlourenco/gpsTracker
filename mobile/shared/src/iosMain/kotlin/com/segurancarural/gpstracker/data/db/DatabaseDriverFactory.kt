@@ -1,19 +1,35 @@
 package com.segurancarural.gpstracker.data.db
 
+import androidx.room.Room
+import androidx.sqlite.driver.bundled.bundledSQLiteDriver
+import kotlinx.cinterop.ExperimentalForeignApi
+import platform.Foundation.NSDocumentDirectory
+import platform.Foundation.NSFileManager
+import platform.Foundation.NSURL
+import platform.Foundation.NSUserDomainMask
+
 /**
- * iOS placeholder — Phase 3 implementation.
+ * iOS database builder using Room KMP and bundled SQLite driver.
  *
- * When the iOS port is implemented, this file will provide the
- * SQLite driver backed by the iOS file system using the Room
- * KMP iOS driver or SQLDelight equivalent.
- *
- * Current state: throws UnsupportedOperationException to prevent
- * accidental use before the iOS port is complete.
+ * Stores the database in the iOS NSDocumentDirectory.
  */
+@OptIn(ExperimentalForeignApi::class)
 fun createAppDatabase(): AppDatabase {
-    throw UnsupportedOperationException(
-        "iOS database driver is not yet implemented. " +
-        "This is a Phase 3 deliverable. " +
-        "See .ai/plan.md for the iOS port roadmap."
+    val documentDirectory: NSURL? = NSFileManager.defaultManager.URLForDirectory(
+        directory = NSDocumentDirectory,
+        inDomain = NSUserDomainMask,
+        appropriateForURL = null,
+        create = false,
+        error = null,
     )
+    
+    val dbFilePath = requireNotNull(documentDirectory?.path) { "Could not find document directory" } + "/${AppDatabase.DATABASE_NAME}"
+    
+    return Room.databaseBuilder<AppDatabase>(
+        name = dbFilePath,
+        factory = { AppDatabase::class.instantiateImpl() } // Required for KMP Room
+    )
+        .setDriver(bundledSQLiteDriver())
+        .fallbackToDestructiveMigration()
+        .build()
 }

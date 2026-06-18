@@ -2,31 +2,10 @@ package com.segurancarural.gpstracker.ui.screens
 
 import android.content.Context
 import android.content.Intent
+import android.widget.Toast
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.runtime.mutableIntStateOf
-import com.segurancarural.gpstracker.BuildConfig
-import com.segurancarural.gpstracker.update.AppUpdateChecker
-import com.segurancarural.gpstracker.update.AppUpdateOffer
-import com.segurancarural.gpstracker.service.LocationForegroundService
-import androidx.compose.runtime.rememberCoroutineScope
-import android.widget.Toast
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.style.TextAlign
-import kotlinx.coroutines.launch
-import com.segurancarural.gpstracker.util.AppLog
-import com.segurancarural.gpstracker.util.DEFAULT_MARKER_COLOR_ARGB
-import com.segurancarural.gpstracker.util.PREF_DEVICE_MARKER_COLOR
-import com.segurancarural.gpstracker.util.markerInitial
-import com.segurancarural.gpstracker.data.repository.DeviceConfigRepository
-import com.segurancarural.gpstracker.data.repository.SaveConfigResult
-import com.segurancarural.gpstracker.data.dto.DeviceConfigDto
-import com.segurancarural.gpstracker.ui.model.MapTheme
-import com.segurancarural.gpstracker.util.ensureSerialNumber
-import com.segurancarural.gpstracker.util.argbToMapLibreHex
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,7 +15,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -48,8 +29,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
-import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
@@ -61,17 +42,36 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.segurancarural.gpstracker.BuildConfig
+import com.segurancarural.gpstracker.data.dto.DeviceConfigDto
+import com.segurancarural.gpstracker.data.repository.DeviceConfigRepository
+import com.segurancarural.gpstracker.data.repository.SaveConfigResult
+import com.segurancarural.gpstracker.service.LocationForegroundService
+import com.segurancarural.gpstracker.ui.model.MapTheme
+import com.segurancarural.gpstracker.update.AppUpdateChecker
+import com.segurancarural.gpstracker.update.AppUpdateOffer
+import com.segurancarural.gpstracker.util.AppLog
+import com.segurancarural.gpstracker.util.DEFAULT_MARKER_COLOR_ARGB
+import com.segurancarural.gpstracker.util.PREF_DEVICE_MARKER_COLOR
+import com.segurancarural.gpstracker.util.argbToMapLibreHex
+import com.segurancarural.gpstracker.util.ensureSerialNumber
+import com.segurancarural.gpstracker.util.markerInitial
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 private val SurfaceDark = Color(0xFF1A1A2E)
@@ -108,13 +108,11 @@ fun ConfigScreen(
 
     // ── State ─────────────────────────────────────────────────────────────
     var deviceLabel by remember { mutableStateOf("") }
-    var emergencyContact by remember { mutableStateOf("") }
-    var contactError by remember { mutableStateOf<String?>(null) }
-    var syncOnMobileData by remember { mutableStateOf(true) }
 
-    val sensitivityOptions = listOf("high", "medium", "low")
-    val sensitivityLabels = listOf("Alta (3G)", "Média (4G)", "Baixa (5G)")
+    val sensitivityOptions = listOf("high", "medium", "low", "custom")
+    val sensitivityLabels = listOf("Alta (5G)", "Média (7.5G)", "Baixa (10G)", "Personalizada...")
     var selectedSensitivityIdx by remember { mutableStateOf(1) } // default medium
+    var customGText by remember { mutableStateOf("") }
 
     // Interval: stored as Long minutes, shown as minutes
     val intervalOptions = listOf(1L, 5L, 10L, 15L, 30L, 60L)
@@ -128,9 +126,7 @@ fun ConfigScreen(
 
     // Saved state baselines for comparing changes
     var savedDeviceLabel by remember { mutableStateOf("") }
-    var savedEmergencyContact by remember { mutableStateOf("") }
-    var savedSyncOnMobileData by remember { mutableStateOf(true) }
-    var savedSensitivityIdx by remember { mutableStateOf(1) }
+    var savedSensitivity by remember { mutableStateOf("medium") }
     var savedIntervalIdx by remember { mutableStateOf(0) }
     var savedDistanceThresholdM by remember { mutableFloatStateOf(200f) }
     var savedMarkerColorArgb by remember { mutableIntStateOf(DEFAULT_MARKER_COLOR_ARGB) }
@@ -141,11 +137,18 @@ fun ConfigScreen(
     var isSaving by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf(false) }
 
+    val currentSensitivity = if (selectedSensitivityIdx == 3) {
+        "custom_${customGText.trim()}"
+    } else {
+        sensitivityOptions[selectedSensitivityIdx]
+    }
+
+    val customGVal = customGText.toIntOrNull()
+    val isCustomGValid = selectedSensitivityIdx != 3 || (customGVal != null && customGVal in 1..99)
+
     // ── Load from SharedPreferences on first composition ──────────────────
     LaunchedEffect(Unit) {
         val label = prefs.getString("device_label", "Dispositivo") ?: "Dispositivo"
-        val contact = prefs.getString("emergency_contact", "") ?: ""
-        val sync = prefs.getBoolean("sync_on_mobile_data", true)
         val distance = prefs.getFloat("tracking_distance_m", 200f)
         val color = prefs.getInt(PREF_DEVICE_MARKER_COLOR, DEFAULT_MARKER_COLOR_ARGB)
         val savedIntervalMs = prefs.getLong("tracking_interval_ms", 1 * 60 * 1000L)
@@ -155,11 +158,15 @@ fun ConfigScreen(
         val mapTheme = try { MapTheme.valueOf(mapTypeStr) } catch (e: Exception) { MapTheme.SATELLITE }
 
         val sensitivity = prefs.getString("accident_sensor_sensitivity", "medium") ?: "medium"
-        val sensitivityIdx = sensitivityOptions.indexOf(sensitivity).coerceAtLeast(0)
+        val sensitivityIdx = if (sensitivity.startsWith("custom_", ignoreCase = true)) {
+            customGText = sensitivity.substring("custom_".length)
+            3
+        } else {
+            customGText = ""
+            sensitivityOptions.indexOf(sensitivity).coerceAtLeast(0)
+        }
 
         deviceLabel = label
-        emergencyContact = contact
-        syncOnMobileData = sync
         selectedSensitivityIdx = sensitivityIdx
         distanceThresholdM = distance
         selectedMarkerColorArgb = color
@@ -167,25 +174,21 @@ fun ConfigScreen(
         selectedMapTheme = mapTheme
 
         savedDeviceLabel = label
-        savedEmergencyContact = contact
-        savedSyncOnMobileData = sync
-        savedSensitivityIdx = sensitivityIdx
+        savedSensitivity = sensitivity
         savedDistanceThresholdM = distance
         savedMarkerColorArgb = color
         savedIntervalIdx = intervalIdx
         savedMapTheme = mapTheme
 
-        AppLog.d("ConfigScreen", "Settings loaded: label=$deviceLabel, interval=${savedMinutes}min")
+        AppLog.d("ConfigScreen", "Settings loaded: label=$deviceLabel, interval=${savedMinutes}min, sensitivity=$sensitivity")
     }
 
     val hasChanges = deviceLabel.trim().ifEmpty { "Dispositivo" } != savedDeviceLabel ||
-            emergencyContact.trim() != savedEmergencyContact.trim() ||
-            syncOnMobileData != savedSyncOnMobileData ||
             distanceThresholdM != savedDistanceThresholdM ||
             selectedMarkerColorArgb != savedMarkerColorArgb ||
             selectedIntervalIdx != savedIntervalIdx ||
             selectedMapTheme != savedMapTheme ||
-            selectedSensitivityIdx != savedSensitivityIdx
+            currentSensitivity != savedSensitivity
 
     Column(
         modifier = Modifier
@@ -342,15 +345,7 @@ fun ConfigScreen(
             )
         }
 
-        // ── Data policies ──────────────────────────────────────────────────
-        ConfigCard(title = "Políticas de Dados") {
-            SettingToggleRow(
-                label = "Sincronizar em dados móveis",
-                description = "Envia localizações mesmo sem Wi-Fi",
-                checked = syncOnMobileData,
-                onCheckedChange = { syncOnMobileData = it }
-            )
-        }
+
 
         // ── Default map type ──────────────────────────────────────────────
         ConfigCard(title = "Tipo de Mapa Padrão") {
@@ -398,35 +393,7 @@ fun ConfigScreen(
             )
         }
 
-        // ── Emergency contact ──────────────────────────────────────────────
-        ConfigCard(title = "Contacto de Emergência") {
-            OutlinedTextField(
-                value = emergencyContact,
-                onValueChange = { value ->
-                    emergencyContact = value
-                    contactError = if (value.isNotEmpty() &&
-                        !value.matches(Regex("^[+]?[0-9\\s\\-()]{9,15}$"))
-                    ) {
-                        "Número de telefone inválido"
-                    } else null
-                },
-                label = { Text("Número de telefone", color = TextSecondary) },
-                placeholder = { Text("+351 912 345 678", color = TextSecondary.copy(0.5f)) },
-                isError = contactError != null,
-                supportingText = {
-                    contactError?.let { Text(it, color = Color(0xFFEF4444)) }
-                        ?: Text("Usado como fallback se a rede falhar", color = TextSecondary, fontSize = 11.sp)
-                },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary,
-                    focusedBorderColor = AccentGreen,
-                    unfocusedBorderColor = TextSecondary,
-                )
-            )
-        }
+
 
         // ── Security & Accidents ───────────────────────────────────────────
         ConfigCard(title = "Segurança & Acidentes") {
@@ -437,8 +404,18 @@ fun ConfigScreen(
                 expanded = sensitivityDropdownExpanded,
                 onExpandedChange = { sensitivityDropdownExpanded = it }
             ) {
+                val selectedLabel = if (selectedSensitivityIdx == 3) {
+                    val customG = customGText.toIntOrNull()
+                    if (customG != null && customG in 1..99) {
+                        "Personalizada (${customG}G)"
+                    } else {
+                        "Personalizada..."
+                    }
+                } else {
+                    sensitivityLabels[selectedSensitivityIdx]
+                }
                 OutlinedTextField(
-                    value = sensitivityLabels[selectedSensitivityIdx],
+                    value = selectedLabel,
                     onValueChange = {},
                     readOnly = true,
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sensitivityDropdownExpanded) },
@@ -468,9 +445,39 @@ fun ConfigScreen(
                     }
                 }
             }
+            if (selectedSensitivityIdx == 3) {
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = customGText,
+                    onValueChange = { newValue ->
+                        if (newValue.isEmpty() || (newValue.length <= 2 && newValue.all { it.isDigit() })) {
+                            customGText = newValue
+                        }
+                    },
+                    label = { Text("Valor G-Force (1-99)", color = TextSecondary) },
+                    placeholder = { Text("Ex: 12", color = TextSecondary.copy(0.5f)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    isError = customGText.isNotEmpty() && (customGText.toIntOrNull() ?: 0) !in 1..99,
+                    supportingText = {
+                        val gVal = customGText.toIntOrNull()
+                        if (customGText.isNotEmpty() && (gVal == null || gVal !in 1..99)) {
+                            Text("Insira um valor inteiro entre 1 e 99", color = Color(0xFFEF4444))
+                        } else {
+                            Text("Impacto acima de ${customGText.ifEmpty { "XX" }}G ativará o alerta", color = TextSecondary, fontSize = 11.sp)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        focusedBorderColor = AccentGreen,
+                        unfocusedBorderColor = TextSecondary,
+                    )
+                )
+            }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "Uma sensibilidade mais baixa (ex: 5G) evita alarmes falsos, mas requer impactos mais fortes para ativar.",
+                text = "Uma sensibilidade mais baixa (ex: 10G) evita alarmes falsos, mas requer impactos mais fortes para ativar.",
                 color = TextSecondary,
                 fontSize = 11.sp
             )
@@ -481,7 +488,7 @@ fun ConfigScreen(
             onClick = {
                 val intervalMs = intervalOptions[selectedIntervalIdx] * 60_000L
                 val trimmedLabel = deviceLabel.trim().ifEmpty { "Dispositivo" }
-                val sensitivity = sensitivityOptions[selectedSensitivityIdx]
+                val sensitivity = currentSensitivity
                 val timestamp = System.currentTimeMillis()
 
                 isSaving = true
@@ -491,8 +498,6 @@ fun ConfigScreen(
                 prefs.edit()
                     .putString("device_label", trimmedLabel)
                     .putInt(PREF_DEVICE_MARKER_COLOR, selectedMarkerColorArgb)
-                    .putString("emergency_contact", emergencyContact)
-                    .putBoolean("sync_on_mobile_data", syncOnMobileData)
                     .putString("accident_sensor_sensitivity", sensitivity)
                     .putLong("tracking_interval_ms", intervalMs)
                     .putFloat("tracking_distance_m", distanceThresholdM)
@@ -502,18 +507,14 @@ fun ConfigScreen(
 
                 // Update baselines immediately so the button disables
                 val previousDeviceLabel = savedDeviceLabel
-                val previousEmergencyContact = savedEmergencyContact
-                val previousSyncOnMobileData = savedSyncOnMobileData
-                val previousSensitivityIdx = savedSensitivityIdx
+                val previousSensitivity = savedSensitivity
                 val previousDistanceThresholdM = savedDistanceThresholdM
                 val previousMarkerColorArgb = savedMarkerColorArgb
                 val previousIntervalIdx = savedIntervalIdx
                 val previousMapTheme = savedMapTheme
 
                 savedDeviceLabel = trimmedLabel
-                savedEmergencyContact = emergencyContact
-                savedSyncOnMobileData = syncOnMobileData
-                savedSensitivityIdx = selectedSensitivityIdx
+                savedSensitivity = sensitivity
                 savedDistanceThresholdM = distanceThresholdM
                 savedMarkerColorArgb = selectedMarkerColorArgb
                 savedIntervalIdx = selectedIntervalIdx
@@ -525,8 +526,6 @@ fun ConfigScreen(
                             serialNumber = context.ensureSerialNumber(),
                             deviceLabel = trimmedLabel,
                             markerColor = argbToMapLibreHex(selectedMarkerColorArgb),
-                            emergencyContact = emergencyContact.trim().ifEmpty { null },
-                            syncOnMobileData = syncOnMobileData,
                             trackingIntervalMs = intervalMs,
                             trackingDistanceM = distanceThresholdM,
                             defaultMapType = selectedMapTheme.name,
@@ -561,9 +560,7 @@ fun ConfigScreen(
                         SaveConfigResult.ERROR -> {
                             // Revert baselines so button is active and ready for retry
                             savedDeviceLabel = previousDeviceLabel
-                            savedEmergencyContact = previousEmergencyContact
-                            savedSyncOnMobileData = previousSyncOnMobileData
-                            savedSensitivityIdx = previousSensitivityIdx
+                            savedSensitivity = previousSensitivity
                             savedDistanceThresholdM = previousDistanceThresholdM
                             savedMarkerColorArgb = previousMarkerColorArgb
                             savedIntervalIdx = previousIntervalIdx
@@ -578,7 +575,7 @@ fun ConfigScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(52.dp),
-            enabled = contactError == null && hasChanges && !isSaving,
+            enabled = hasChanges && isCustomGValid && !isSaving,
             colors = ButtonDefaults.buttonColors(
                 containerColor = if (saveError) Color(0xFFDC2626) else AccentGreen,
                 disabledContainerColor = (if (saveError) Color(0xFFDC2626) else AccentGreen).copy(alpha = 0.5f)

@@ -3,7 +3,6 @@ package com.segurancarural.gpstracker.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.segurancarural.gpstracker.data.db.createAppDatabase
 import com.segurancarural.gpstracker.data.model.TelemetryRecord
 import com.segurancarural.gpstracker.data.repository.FamilyPositionsRepository
 import com.segurancarural.gpstracker.ui.model.DeviceMapStyle
@@ -12,10 +11,10 @@ import com.segurancarural.gpstracker.ui.model.FamilyRefreshStatus
 import com.segurancarural.gpstracker.ui.model.MapDisplayData
 import com.segurancarural.gpstracker.ui.model.MapMarkerDisplay
 import com.segurancarural.gpstracker.ui.model.MapPointLimit
+import com.segurancarural.gpstracker.util.DEFAULT_MARKER_COLOR_ARGB
 import com.segurancarural.gpstracker.util.PREF_DEVICE_LABEL
 import com.segurancarural.gpstracker.util.PREF_DEVICE_MARKER_COLOR
 import com.segurancarural.gpstracker.util.TRACKING_PREFS_NAME
-import com.segurancarural.gpstracker.util.DEFAULT_MARKER_COLOR_ARGB
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,7 +28,7 @@ import kotlinx.coroutines.launch
 
 class MapViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val db = createAppDatabase(application)
+    private val db = (application as com.segurancarural.gpstracker.GpsTrackerApplication).database
     private val dao = db.telemetryDao()
     private val prefs = application.getSharedPreferences(TRACKING_PREFS_NAME, Application.MODE_PRIVATE)
     private val familyRepository = FamilyPositionsRepository()

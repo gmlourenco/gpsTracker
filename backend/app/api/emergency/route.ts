@@ -64,13 +64,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
   if (deviceError) {
     console.error('[POST /api/emergency] Device upsert error:', deviceError);
     return NextResponse.json(
-      { success: false, error: 'Database error (device upsert)', details: deviceError.message },
+      { success: false, error: 'Database error (device upsert)' },
       { status: 500 }
     );
   }
 
-  // ── 3. Insert SOS location — emergency_state is ALWAYS true here ──────────
-  const { error: locationError } = await supabase.from('locations').insert({
+  const { error: locationError } = await supabase.from('locations').upsert({
     device_id: payload.serialNumber,
     lat: payload.gps.lat,
     lng: payload.gps.lng,
@@ -84,13 +83,33 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     tracking_enabled: true,
     app_version: payload.appVersion,
     created_at: payload.timestamp,
-  });
+  }, { onConflict: 'device_id,created_at', ignoreDuplicates: true });
 
   if (locationError) {
     console.error('[POST /api/emergency] Location insert error:', locationError);
     return NextResponse.json(
-      { success: false, error: 'Database error (SOS insert)', details: locationError.message },
+      { success: false, error: 'Database error (SOS insert)' },
       { status: 500 }
+    );
+  }
+
+  // ── 4. SOS deduplication — avoid notification spam ─────────────────────────
+  // Check if we already sent notifications for this device in the last 60s.
+  // If so, store the SOS location (done above) but skip re-triggering alerts.
+  const { data: recentSos } = await supabase
+    .from('locations')
+    .select('id')
+    .eq('device_id', payload.serialNumber)
+    .eq('emergency_state', true)
+    .gte('synced_at', new Date(Date.now() - 60_000).toISOString())
+    .order('synced_at', { ascending: false })
+    .limit(2);  // 2 because the one we just inserted will be included
+
+  if (recentSos && recentSos.length > 1) {
+    // SOS already active — location stored, notifications already sent
+    return NextResponse.json(
+      { success: true, message: 'SOS location updated (alerts already active)' },
+      { status: 200 }
     );
   }
 

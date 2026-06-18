@@ -69,7 +69,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
   if (deviceError) {
     console.error('[POST /api/location] Device upsert error:', deviceError);
     return NextResponse.json(
-      { success: false, error: 'Database error (device upsert)', details: deviceError.message },
+      { success: false, error: 'Database error (device upsert)' },
       { status: 500 }
     );
   }
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
   // Clamp accuracy — very poor fixes are still stored for audit trail
   const isLowAccuracy = payload.gps.accuracy > MAX_ACCEPTED_ACCURACY_METERS;
 
-  const { error: locationError } = await supabase.from('locations').insert({
+  const { error: locationError } = await supabase.from('locations').upsert({
     device_id: payload.serialNumber,
     lat: payload.gps.lat,
     lng: payload.gps.lng,
@@ -93,12 +93,12 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     app_version: payload.appVersion,
     created_at: payload.timestamp,
     // synced_at defaults to NOW() in the DB
-  });
+  }, { onConflict: 'device_id,created_at', ignoreDuplicates: true });
 
   if (locationError) {
     console.error('[POST /api/location] Location insert error:', locationError);
     return NextResponse.json(
-      { success: false, error: 'Database error (location insert)', details: locationError.message },
+      { success: false, error: 'Database error (location insert)' },
       { status: 500 }
     );
   }
