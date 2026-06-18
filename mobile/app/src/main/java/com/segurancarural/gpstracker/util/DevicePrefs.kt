@@ -3,6 +3,7 @@ package com.segurancarural.gpstracker.util
 import android.content.Context
 import android.provider.Settings
 import androidx.core.content.edit
+import com.segurancarural.gpstracker.data.dto.DeviceConfigDto
 import java.util.UUID
 
 const val TRACKING_PREFS_NAME = "tracking_prefs"
@@ -57,4 +58,41 @@ fun Context.ensureSerialNumber(): String {
     val androidId = Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
     prefs.edit { putString("serial_number", androidId) }
     return androidId
+}
+
+/** Converts MapLibre hex `#RRGGBB` or `#AARRGGBB` back to ARGB Int. */
+fun mapLibreHexToArgb(hex: String): Int {
+    return try {
+        val cleanHex = hex.replace("#", "")
+        if (cleanHex.length == 6) {
+            (0xFF000000 or cleanHex.toLong(16)).toInt()
+        } else if (cleanHex.length == 8) {
+            cleanHex.toLong(16).toInt()
+        } else {
+            DEFAULT_MARKER_COLOR_ARGB
+        }
+    } catch (e: Exception) {
+        AppLog.e("DevicePrefs", "Failed to parse color hex: $hex", e)
+        DEFAULT_MARKER_COLOR_ARGB
+    }
+}
+
+/** Saves configuration fetched from backend directly to SharedPreferences. */
+fun Context.saveConfigToPrefs(config: DeviceConfigDto) {
+    val prefs = trackingPrefs()
+    val localLastUpdated = prefs.getLong("config_last_updated_ms", -1)
+    if (config.configUpdatedAt <= localLastUpdated) {
+        // Local configuration is newer or same as server. Do not overwrite.
+        return
+    }
+
+    prefs.edit {
+        putString("device_label", config.deviceLabel)
+        putInt(PREF_DEVICE_MARKER_COLOR, mapLibreHexToArgb(config.markerColor))
+        putLong("tracking_interval_ms", config.trackingIntervalMs)
+        putFloat("tracking_distance_m", config.trackingDistanceM)
+        putString("default_map_type", config.defaultMapType)
+        putString("accident_sensor_sensitivity", config.accidentSensorSensitivity)
+        putLong("config_last_updated_ms", config.configUpdatedAt)
+    }
 }

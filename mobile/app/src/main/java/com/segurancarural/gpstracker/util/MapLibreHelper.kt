@@ -33,6 +33,7 @@ fun getSatelliteStyleJson(): String {
     return """
     {
       "version": 8,
+      "glyphs": "https://basemaps.cartocdn.com/fonts/{fontstack}/{range}.pbf",
       "sources": {
         "satellite-tiles": {
           "type": "raster",

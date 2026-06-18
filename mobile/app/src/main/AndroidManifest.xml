@@ -16,6 +16,7 @@
     
     <!-- WakeLock: keeps CPU awake for background GPS tracking and transmissions -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
 
     <!-- ── Boot & Alarm Receivers ────────────────────────────────────────── -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
@@ -84,6 +85,17 @@
             android:name=".receiver.HeartbeatReceiver"
             android:exported="false"
             android:enabled="true" />
+
+        <!-- ── Accident Countdown Actions Receiver ────────────────────────── -->
+        <receiver
+            android:name=".receiver.AccidentReceiver"
+            android:exported="false"
+            android:enabled="true">
+            <intent-filter>
+                <action android:name="com.segurancarural.gpstracker.action.ACCIDENT_CANCEL" />
+                <action android:name="com.segurancarural.gpstracker.action.ACCIDENT_TRIGGER" />
+            </intent-filter>
+        </receiver>
 
         <!-- ── Firebase Cloud Messaging Service ──────────────────────────── -->
         <!-- Receives push notifications from the backend (SOS alerts etc.)  -->

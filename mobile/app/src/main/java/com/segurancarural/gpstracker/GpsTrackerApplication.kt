@@ -5,10 +5,18 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 
+import com.segurancarural.gpstracker.data.db.AppDatabase
+import com.segurancarural.gpstracker.data.db.createAppDatabase
+
 class GpsTrackerApplication : Application() {
+
+    val database: AppDatabase by lazy {
+        createAppDatabase(this)
+    }
 
     override fun onCreate() {
         super.onCreate()
+        com.segurancarural.gpstracker.util.OfflineLogger.init(this)
         createNotificationChannels()
     }
 

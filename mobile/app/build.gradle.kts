@@ -18,7 +18,7 @@ android {
         minSdk = 26           // Android 8.0 — minimum for reliable ForegroundService + FusedLocation
         targetSdk = 36
 
-        val version = project.findProperty("versionName")?.toString() ?: "0.3.0"
+        val version = project.findProperty("versionName")?.toString() ?: "0.5.0"
         versionName = version
         versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: run {
             try {
@@ -115,18 +115,18 @@ android {
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-
-    kotlinOptions {
-        jvmTarget = "11"
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
     }
 
     buildFeatures {
         compose = true
         buildConfig = true
     }
+}
+
+kotlin {
+    jvmToolchain(17)
 }
 
 dependencies {

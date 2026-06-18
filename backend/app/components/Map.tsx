@@ -69,8 +69,6 @@ interface MapProps {
 export default function Map({ devices }: MapProps) {
   const [mapTheme, setMapTheme] = useState<'dark' | 'light' | 'satellite'>('dark');
   const defaultCenter: [number, number] = [39.3999, -8.2245];
-  // eslint-disable-next-line react-hooks/purity
-  const now = Date.now(); // Cache the current time to avoid calling impure function repeatedly
   
   const validDevices = devices.filter(d => d.latestLocation && d.latestLocation.lat !== undefined && d.latestLocation.lng !== undefined);
   

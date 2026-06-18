@@ -1,8 +1,5 @@
 package com.segurancarural.gpstracker.service
 
-import com.segurancarural.gpstracker.BuildConfig
-import com.segurancarural.gpstracker.receiver.HeartbeatReceiver
-import com.segurancarural.gpstracker.ui.activities.MainActivity
 import android.app.AlarmManager
 import android.app.Notification
 import android.app.NotificationChannel
@@ -24,24 +21,25 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.segurancarural.gpstracker.BuildConfig
+import com.segurancarural.gpstracker.data.model.TelemetryRecord
+import com.segurancarural.gpstracker.data.repository.FamilyPositionsRepository
 import com.segurancarural.gpstracker.data.repository.TelemetryRepository
 import com.segurancarural.gpstracker.data.repository.TrackingStateRepository
-import com.segurancarural.gpstracker.data.repository.FamilyPositionsRepository
-import com.segurancarural.gpstracker.ui.model.FamilyDeviceMarker
 import com.segurancarural.gpstracker.domain.usecase.SubmitLocationUseCase
-import com.segurancarural.gpstracker.data.model.TelemetryRecord
+import com.segurancarural.gpstracker.receiver.HeartbeatReceiver
+import com.segurancarural.gpstracker.service.LocationForegroundService.Companion.ACTION_SOS_ACTIVATE
+import com.segurancarural.gpstracker.service.LocationForegroundService.Companion.ACTION_SOS_DEACTIVATE
+import com.segurancarural.gpstracker.ui.activities.MainActivity
+import com.segurancarural.gpstracker.ui.model.FamilyDeviceMarker
+import com.segurancarural.gpstracker.util.ensureSerialNumber
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import android.provider.Settings
-import com.segurancarural.gpstracker.data.db.createAppDatabase
-import com.segurancarural.gpstracker.util.ensureSerialNumber
 import java.time.Instant
 
 private const val TAG = "LocationFgService"
@@ -74,6 +72,8 @@ class LocationForegroundService : Service() {
         const val ACTION_SOS_DEACTIVATE = "com.segurancarural.gpstracker.action.SOS_DEACTIVATE"
         const val ACTION_HEARTBEAT = "com.segurancarural.gpstracker.action.HEARTBEAT"
         const val ACTION_RELOAD_CONFIG = "com.segurancarural.gpstracker.action.RELOAD_CONFIG"
+        const val ACTION_ACCIDENT_CANCEL = "com.segurancarural.gpstracker.action.ACCIDENT_CANCEL"
+        const val ACTION_ACCIDENT_TRIGGER = "com.segurancarural.gpstracker.action.ACCIDENT_TRIGGER"
 
 
 
@@ -117,6 +117,11 @@ class LocationForegroundService : Service() {
     private var lastSubmittedTimeMs: Long = 0L
     private var pollingJob: kotlinx.coroutines.Job? = null
 
+    // ── Accident Detection Countdown State ───────────────────────────────
+    private var accidentDetector: com.segurancarural.gpstracker.sensor.AccidentDetector? = null
+    private var countdownJob: kotlinx.coroutines.Job? = null
+    private var ringtone: android.media.Ringtone? = null
+
     override fun onCreate() {
         super.onCreate()
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
@@ -128,7 +133,7 @@ class LocationForegroundService : Service() {
 
     /** Purges unsynced records saved with placeholder deviceId — runs once per process start. */
     private fun purgeStaleRecords() {
-        val dao = createAppDatabase(applicationContext).telemetryDao()
+        val dao = (applicationContext as com.segurancarural.gpstracker.GpsTrackerApplication).database.telemetryDao()
         serviceScope.launch {
             val deleted = dao.deleteUnsyncedBySerialNumber("unknown-device-id")
             if (deleted > 0) Log.w(TAG, "Purged $deleted stale records with 'unknown-device-id'")
@@ -140,6 +145,14 @@ class LocationForegroundService : Service() {
             ACTION_STOP -> {
                 stopTracking()
                 return START_NOT_STICKY
+            }
+            ACTION_ACCIDENT_CANCEL -> {
+                handleAccidentCancel()
+                return START_STICKY
+            }
+            ACTION_ACCIDENT_TRIGGER -> {
+                handleAccidentTrigger()
+                return START_STICKY
             }
             ACTION_SOS_ACTIVATE -> {
                 TrackingStateRepository.setSosActive(true)
@@ -177,6 +190,8 @@ class LocationForegroundService : Service() {
             ACTION_RELOAD_CONFIG -> {
                 if (TrackingStateRepository.isTracking.value) {
                     restartLocationUpdates()
+                    stopAccidentSensor()
+                    startAccidentSensor()
                     Log.i(TAG, "Tracking config reloaded from SharedPreferences")
                 }
                 return START_STICKY
@@ -197,7 +212,7 @@ class LocationForegroundService : Service() {
         try {
             val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
             wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SegurancaRural::TrackingWakeLock").apply {
-                acquire()
+                acquire(12 * 60 * 60 * 1000L) // 12-hour max (full work day)
             }
             Log.i(TAG, "WakeLock acquired successfully")
         } catch (e: Exception) {
@@ -233,6 +248,7 @@ class LocationForegroundService : Service() {
 
         scheduleNextHeartbeatAlarm()
         startBackgroundEmergencyPolling()
+        startAccidentSensor()
         Log.i(TAG, "GPS tracking started")
     }
 
@@ -312,11 +328,11 @@ class LocationForegroundService : Service() {
     private fun stopTracking() {
         TrackingStateRepository.setTracking(false)
         TrackingStateRepository.setSosActive(false)
+        stopAccidentSensor()
         fusedLocationClient.removeLocationUpdates(locationCallback)
         cancelHeartbeatAlarm()
         pollingJob?.cancel()
         pollingJob = null
-        serviceScope.cancel()
 
         // Release WakeLock
         if (wakeLock?.isHeld == true) {
@@ -354,19 +370,30 @@ class LocationForegroundService : Service() {
         // Always use high accuracy (pure GPS) for rural safety reliability to guarantee 15m or better precision
         val priority = Priority.PRIORITY_HIGH_ACCURACY
 
-        val intervalMs = when {
-            isSos -> SOS_INTERVAL_MS
-            else -> movingIntervalMs
+        val currentSpeedKmh = lastKnownLocation?.speed?.times(3.6f) ?: 0f
+        val adaptiveIntervalMs = when {
+            currentSpeedKmh < 1f   -> 120_000L  // Stationary: 2 min
+            currentSpeedKmh < 5f   -> 60_000L   // Very slow: 1 min
+            currentSpeedKmh < 20f  -> 30_000L   // Normal tractor: 30s
+            else                   -> 15_000L   // Road transport: 15s
         }
 
-        // Time-based polling only — submit policy (interval OR distance) is applied in processLocationFix.
+        // Poll adaptively to check distance changes, or every 15 seconds in SOS mode.
+        // If distance threshold is <= 0m (disabled), poll at the moving time interval.
+        val intervalMs = when {
+            isSos -> SOS_INTERVAL_MS
+            distanceThresholdM <= 0f -> movingIntervalMs
+            else -> minOf(movingIntervalMs, adaptiveIntervalMs)
+        }
+
         val requestBuilder = LocationRequest.Builder(priority, intervalMs)
             .setMinUpdateIntervalMillis(maxOf(intervalMs / 2, 10_000L))
-            .setMaxUpdateDelayMillis(intervalMs)
+            .setMaxUpdateDelayMillis(if (isSos) intervalMs else intervalMs * 6)
+            .setWaitForAccurateLocation(true)
 
         Log.d(
             TAG,
-            "Location request: submit every ${intervalMs / 60_000}min OR ${distanceThresholdM}m movement"
+            "Location request: polling every ${intervalMs / 1000}s (batch: ${requestBuilder.build().maxUpdateDelayMillis / 1000}s). Submit config: every ${movingIntervalMs / 60_000}min OR ${distanceThresholdM}m movement"
         )
 
         val request = requestBuilder.build()
@@ -448,6 +475,7 @@ class LocationForegroundService : Service() {
     private fun shouldSubmitNow(location: android.location.Location, now: Long): Boolean {
         if (lastSubmittedTimeMs == 0L) return true
         if (now - lastSubmittedTimeMs >= movingIntervalMs) return true
+        if (distanceThresholdM <= 0f) return false
         val last = lastSubmittedLocation ?: return true
         return location.distanceTo(last) >= distanceThresholdM
     }
@@ -541,17 +569,58 @@ class LocationForegroundService : Service() {
             PendingIntent.FLAG_IMMUTABLE
         )
 
-        val title = if (TrackingStateRepository.isSosActive.value) "🚨 EMERGÊNCIA ATIVA" else "📍 Rastreio GPS Ativo"
-        val text = if (TrackingStateRepository.isSosActive.value) "SOS em transmissão contínua" else "A recolher localização em segundo plano"
+        val isPreSos = TrackingStateRepository.isPreSosActive.value
+        val isSos = TrackingStateRepository.isSosActive.value
 
-        return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+        val channelId = if (isPreSos) SOS_ALERT_CHANNEL_ID else NOTIFICATION_CHANNEL_ID
+        val title = when {
+            isPreSos -> "🚨 POSSÍVEL ACIDENTE DETECTADO"
+            isSos -> "🚨 EMERGÊNCIA ATIVA"
+            else -> "📍 Rastreio GPS Ativo"
+        }
+        val text = when {
+            isPreSos -> "SOS será ativado em ${TrackingStateRepository.preSosCountdown.value}s. Toque para cancelar!"
+            isSos -> "SOS em transmissão contínua"
+            else -> "A recolher localização em segundo plano"
+        }
+
+        val builder = NotificationCompat.Builder(this, channelId)
             .setContentTitle(title)
             .setContentText(text)
-            .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+            .setSmallIcon(if (isPreSos) android.R.drawable.stat_notify_error else android.R.drawable.ic_menu_mylocation)
             .setContentIntent(openAppIntent)
             .setOngoing(true)  // Cannot be dismissed by the user
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
+
+        if (isPreSos) {
+            builder.setPriority(NotificationCompat.PRIORITY_MAX)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setFullScreenIntent(openAppIntent, true)
+
+            // Add notification actions
+            val cancelIntent = PendingIntent.getBroadcast(
+                this,
+                101,
+                Intent(this, com.segurancarural.gpstracker.receiver.AccidentReceiver::class.java).apply {
+                    action = com.segurancarural.gpstracker.receiver.AccidentReceiver.ACTION_ACCIDENT_CANCEL
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val triggerIntent = PendingIntent.getBroadcast(
+                this,
+                102,
+                Intent(this, com.segurancarural.gpstracker.receiver.AccidentReceiver::class.java).apply {
+                    action = com.segurancarural.gpstracker.receiver.AccidentReceiver.ACTION_ACCIDENT_TRIGGER
+                },
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "CANCELAR", cancelIntent)
+            builder.addAction(android.R.drawable.ic_menu_send, "ATIVAR AGORA", triggerIntent)
+        } else {
+            builder.setPriority(NotificationCompat.PRIORITY_LOW)
+        }
+
+        return builder.build()
     }
 
     private fun updateNotification() {
@@ -563,7 +632,9 @@ class LocationForegroundService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
+        stopAccidentSensor()
         TrackingStateRepository.setTracking(false)
+        TrackingStateRepository.setPreSosActive(false)
         serviceScope.cancel()
 
         // Safely release WakeLock if still held
@@ -635,5 +706,94 @@ class LocationForegroundService : Service() {
             .setDefaults(NotificationCompat.DEFAULT_ALL)
         
         notificationManager.notify(notificationId, builder.build())
+    }
+
+    private fun startAccidentSensor() {
+        val prefs = getSharedPreferences("tracking_prefs", MODE_PRIVATE)
+        val sensitivity = prefs.getString("accident_sensor_sensitivity", "medium") ?: "medium"
+        accidentDetector = com.segurancarural.gpstracker.sensor.AccidentDetector(
+            context = this,
+            sensitivity = sensitivity,
+            onAccidentDetected = { isRollover ->
+                Log.w(TAG, "Accident detected — rollover: $isRollover")
+                triggerAccidentCountdown()
+            }
+        )
+        accidentDetector?.start()
+        Log.i(TAG, "Accident detector initialized.")
+    }
+
+    private fun stopAccidentSensor() {
+        accidentDetector?.stop()
+        accidentDetector = null
+        cancelAccidentCountdown()
+    }
+
+    private fun triggerAccidentCountdown() {
+        if (TrackingStateRepository.isPreSosActive.value || TrackingStateRepository.isSosActive.value) {
+            return
+        }
+
+        Log.w(TAG, "Accident impact threshold breached! Triggering countdown.")
+        TrackingStateRepository.setPreSosActive(true)
+        TrackingStateRepository.setPreSosCountdown(15)
+
+        // Play alarm ringtone
+        try {
+            val alarmUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM)
+                ?: android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE)
+            ringtone = android.media.RingtoneManager.getRingtone(applicationContext, alarmUri)
+            ringtone?.play()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start audio alarm: ${e.message}")
+        }
+
+        updateNotification()
+
+        // Start countdown job
+        countdownJob?.cancel()
+        countdownJob = serviceScope.launch {
+            var seconds = 15
+            while (seconds > 0) {
+                TrackingStateRepository.setPreSosCountdown(seconds)
+                updateNotification()
+                delay(1000L)
+                seconds--
+            }
+            Log.i(TAG, "Accident countdown expired. Automatically triggering SOS.")
+            handleAccidentTrigger()
+        }
+    }
+
+    private fun cancelAccidentCountdown() {
+        countdownJob?.cancel()
+        countdownJob = null
+
+        TrackingStateRepository.setPreSosActive(false)
+        TrackingStateRepository.setPreSosCountdown(15)
+
+        try {
+            ringtone?.stop()
+            ringtone = null
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to stop ringtone: ${e.message}")
+        }
+    }
+
+    fun handleAccidentCancel() {
+        Log.i(TAG, "Accident countdown cancelled by user.")
+        cancelAccidentCountdown()
+        updateNotification()
+    }
+
+    fun handleAccidentTrigger() {
+        Log.w(TAG, "Accident SOS triggered immediately.")
+        cancelAccidentCountdown()
+        
+        // Trigger actual SOS action
+        val intent = Intent(this, LocationForegroundService::class.java).apply {
+            action = ACTION_SOS_ACTIVATE
+        }
+        startService(intent)
     }
 }

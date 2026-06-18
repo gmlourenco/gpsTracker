@@ -1,7 +1,9 @@
 package com.segurancarural.gpstracker.data.model
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.segurancarural.gpstracker.util.currentTimeMillis
 
 /**
  * TelemetryRecord — the local Room entity that mirrors the telemetry JSON payload.
@@ -15,7 +17,13 @@ import androidx.room.PrimaryKey
  *   - Normal records        → FIFO (oldest first, in batches of 25)
  *   - Latest point          → The single newest record (synced first, before history)
  */
-@Entity(tableName = "telemetry_queue")
+@Entity(
+    tableName = "telemetry_queue",
+    indices = [
+        Index(value = ["synced", "emergencyState"]),
+        Index(value = ["synced", "createdAtEpochMs"])
+    ]
+)
 data class TelemetryRecord(
 
     /** Auto-generated local ID. Used for FIFO ordering. */
@@ -67,7 +75,7 @@ data class TelemetryRecord(
      * Epoch milliseconds when this record was created locally.
      * Used to determine FIFO ordering and heartbeat intervals.
      */
-    val createdAtEpochMs: Long = System.currentTimeMillis(),
+    val createdAtEpochMs: Long = currentTimeMillis(),
 
     /**
      * Whether this record has been successfully synced to the backend.

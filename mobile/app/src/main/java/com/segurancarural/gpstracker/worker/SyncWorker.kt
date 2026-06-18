@@ -1,6 +1,5 @@
 package com.segurancarural.gpstracker.worker
 
-import com.segurancarural.gpstracker.BuildConfig
 import android.content.Context
 import android.util.Log
 import androidx.work.BackoffPolicy
@@ -11,9 +10,10 @@ import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import com.segurancarural.gpstracker.data.db.createAppDatabase
-import com.segurancarural.gpstracker.sync.SyncEngine
 import com.segurancarural.gpstracker.data.network.ApiClient
+import com.segurancarural.gpstracker.data.network.ApiRoutes
+import com.segurancarural.gpstracker.data.repository.OfflineRequestManager
+import com.segurancarural.gpstracker.sync.SyncEngine
 import com.segurancarural.gpstracker.util.shouldUploadOverCurrentNetwork
 import java.util.concurrent.TimeUnit
 
@@ -47,7 +47,14 @@ class SyncWorker(
             return Result.success()
         }
 
-        val db = createAppDatabase(context)
+        // Try syncing any pending offline requests first
+        try {
+            OfflineRequestManager.processQueue(context)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to process offline queue: ${e.message}", e)
+        }
+
+        val db = (context.applicationContext as com.segurancarural.gpstracker.GpsTrackerApplication).database
         val unsyncedCount = db.telemetryDao().getUnsyncedCount()
 
         if (unsyncedCount == 0) {
@@ -63,7 +70,8 @@ class SyncWorker(
             val engine = SyncEngine(
                 dao = db.telemetryDao(),
                 httpClient = httpClient,
-                backendBaseUrl = BuildConfig.BACKEND_BASE_URL,
+                locationUrl = ApiRoutes.LOCATION_V2,
+                emergencyUrl = ApiRoutes.EMERGENCY,
             )
 
             val result = engine.flush()
@@ -85,7 +93,7 @@ class SyncWorker(
 
         /**
          * Schedule the periodic sync worker. Safe to call multiple times —
-         * [ExistingPeriodicWorkPolicy.KEEP] ensures only one instance runs.
+         * [ExistingPeriodicWorkPolicy.UPDATE] ensures config changes are applied.
          */
         fun schedule(context: Context) {
             val constraints = Constraints.Builder()
@@ -106,7 +114,7 @@ class SyncWorker(
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 WORK_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 request
             )
 

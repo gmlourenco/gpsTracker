@@ -41,7 +41,7 @@ export async function PATCH(request: NextRequest) {
   if (error) {
     console.error('[PATCH /api/devices/fcm-token] DB error:', error.message);
     return NextResponse.json(
-      { success: false, error: 'Database error', details: error.message },
+      { success: false, error: 'Database error' },
       { status: 500 }
     );
   }
@@ -60,7 +60,7 @@ export async function PATCH(request: NextRequest) {
     if (insertError) {
       console.error('[PATCH /api/devices/fcm-token] DB insert error:', insertError.message);
       return NextResponse.json(
-        { success: false, error: 'Database insert error', details: insertError.message },
+        { success: false, error: 'Database insert error' },
         { status: 500 }
       );
     }

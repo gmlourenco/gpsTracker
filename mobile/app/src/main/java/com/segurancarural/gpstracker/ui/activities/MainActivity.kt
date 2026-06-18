@@ -45,6 +45,7 @@ import com.segurancarural.gpstracker.ui.screens.ConfigScreen
 import com.segurancarural.gpstracker.ui.screens.HomeScreen
 import com.segurancarural.gpstracker.ui.screens.MapScreen
 import com.segurancarural.gpstracker.data.repository.FcmTokenRepository
+import com.segurancarural.gpstracker.data.repository.DeviceConfigRepository
 import com.segurancarural.gpstracker.ui.theme.SegurancaRuralTheme
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -136,6 +137,11 @@ class MainActivity : ComponentActivity() {
             FcmTokenRepository(this@MainActivity).refreshTokenIfNeeded()
         }
 
+        // Load device configurations from backend on launch to restore settings if reinstalled
+        lifecycleScope.launch {
+            DeviceConfigRepository(this@MainActivity).loadConfigFromBackend()
+        }
+
         setContent {
             SegurancaRuralTheme {
                 val mapViewModel: MapViewModel = viewModel()
@@ -212,6 +218,8 @@ class MainActivity : ComponentActivity() {
                                     onStopService = { stopLocationService() },
                                     onSosActivate = { activateSos() },
                                     onSosDeactivate = { deactivateSos() },
+                                    onAccidentCancel = { cancelAccident() },
+                                    onAccidentTrigger = { triggerAccidentSos() },
                                 )
                                 AppScreen.MAP -> MapScreen(viewModel = mapViewModel)
                                 AppScreen.CONFIG -> ConfigScreen(
@@ -283,6 +291,20 @@ class MainActivity : ComponentActivity() {
     private fun deactivateSos() {
         val intent = Intent(this, LocationForegroundService::class.java).apply {
             action = LocationForegroundService.ACTION_SOS_DEACTIVATE
+        }
+        startService(intent)
+    }
+
+    private fun cancelAccident() {
+        val intent = Intent(this, LocationForegroundService::class.java).apply {
+            action = LocationForegroundService.ACTION_ACCIDENT_CANCEL
+        }
+        startService(intent)
+    }
+
+    private fun triggerAccidentSos() {
+        val intent = Intent(this, LocationForegroundService::class.java).apply {
+            action = LocationForegroundService.ACTION_ACCIDENT_TRIGGER
         }
         startService(intent)
     }

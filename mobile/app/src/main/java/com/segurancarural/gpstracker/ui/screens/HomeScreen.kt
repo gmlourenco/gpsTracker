@@ -97,6 +97,8 @@ fun HomeScreen(
     onStopService: () -> Unit,
     onSosActivate: () -> Unit,
     onSosDeactivate: () -> Unit,
+    onAccidentCancel: () -> Unit = {},
+    onAccidentTrigger: () -> Unit = {},
     unsyncedCount: Int = 0,
     batteryLevel: Int = -1,
     lastAccuracy: Float? = null,
@@ -105,6 +107,8 @@ fun HomeScreen(
 ) {
     val isTracking by viewModel.isTracking.collectAsState()
     val isSosActive by viewModel.isSosActive.collectAsState()
+    val isPreSosActive by viewModel.isPreSosActive.collectAsState()
+    val preSosCountdown by viewModel.preSosCountdown.collectAsState()
     val gpsAccuracy by viewModel.lastAccuracy.collectAsState()
 
     val context = LocalContext.current
@@ -479,6 +483,127 @@ fun HomeScreen(
         }
 
         Spacer(modifier = Modifier.height(4.dp))
+    }
+
+    if (isPreSosActive) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.95f))
+                .pointerInput(Unit) {}, // Prevent clicks reaching background elements
+            contentAlignment = Alignment.Center
+        ) {
+            val pulsingTransition = rememberInfiniteTransition(label = "pulse_alert")
+            val pulseScale by pulsingTransition.animateFloat(
+                initialValue = 0.96f,
+                targetValue = 1.04f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(800, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "pulse_scale"
+            )
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(24.dp)
+            ) {
+                Text(
+                    text = "🚨 ACIDENTE DETECTADO 🚨",
+                    color = SosRed,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Black,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.scale(pulseScale)
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Foi detectado um impacto forte no dispositivo. O sinal de emergência SOS será ativado automaticamente.",
+                    color = TextPrimary,
+                    fontSize = 15.sp,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 22.sp
+                )
+
+                Spacer(modifier = Modifier.height(40.dp))
+
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(160.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(140.dp)
+                            .scale(pulseScale)
+                            .clip(CircleShape)
+                            .background(SosRed.copy(alpha = 0.15f))
+                    )
+
+                    CircularProgressIndicator(
+                        progress = { preSosCountdown / 15f },
+                        modifier = Modifier.size(150.dp),
+                        color = SosRed,
+                        strokeWidth = 8.dp,
+                        trackColor = Color.White.copy(alpha = 0.1f)
+                    )
+
+                    Text(
+                        text = "$preSosCountdown",
+                        color = Color.White,
+                        fontSize = 48.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "A emitir aviso sonoro...",
+                    color = TextSecondary,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(48.dp))
+
+                Button(
+                    onClick = onAccidentCancel,
+                    colors = ButtonDefaults.buttonColors(containerColor = OnlineGreen),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text(
+                        text = "FALSO ALARME (CANCELAR)",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = onAccidentTrigger,
+                    colors = ButtonDefaults.buttonColors(containerColor = SosRed),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp),
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text(
+                        text = "ATIVAR SOS IMEDIATAMENTE",
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp
+                    )
+                }
+            }
+        }
     }
 }
 
