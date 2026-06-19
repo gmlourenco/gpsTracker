@@ -100,9 +100,19 @@ export interface LocationRecord {
 
 // ── API response shapes ──────────────────────────────────────────────────────
 
+export interface PreviousLocation {
+  lat: number;
+  lng: number;
+  accuracy: number;
+  heading: number;
+  created_at: string;
+}
+
 export interface DeviceWithLatestLocation extends DeviceRecord {
   /** Most recent location record for this device, null if never seen */
   latestLocation: LocationRecord | null;
+  /** Previous locations, populated if ?history=N is passed */
+  previousLocations?: PreviousLocation[];
 }
 
 export interface ApiSuccessResponse {

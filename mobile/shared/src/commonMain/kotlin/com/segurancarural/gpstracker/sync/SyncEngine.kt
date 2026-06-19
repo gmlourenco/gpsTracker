@@ -53,6 +53,7 @@ class SyncEngine(
     private val httpClient: HttpClient,
     private val locationUrl: String,
     private val emergencyUrl: String,
+    private val farmIdProvider: () -> String? = { null }
 ) {
 
     private val syncMutex = Mutex()
@@ -186,7 +187,7 @@ class SyncEngine(
         return try {
             val response = httpClient.post(locationUrl) {
                 contentType(ContentType.Application.Json)
-                setBody(records.toLocationV2Json())
+                setBody(records.toLocationV2Json(farmId = farmIdProvider()))
             }
             if (response.status == HttpStatusCode.OK) {
                 val body = response.bodyAsText()
@@ -218,12 +219,13 @@ class SyncEngine(
 /**
  * Converts a batch of TelemetryRecords to the JSON format expected by POST /api/v2/location.
  */
-fun List<TelemetryRecord>.toLocationV2Json(markerColorHex: String? = null): String {
+fun List<TelemetryRecord>.toLocationV2Json(markerColorHex: String? = null, farmId: String? = null): String {
     if (isEmpty()) return "{}"
     val first = first()
     return buildJsonObject {
         put("id", first.serialNumber)
         put("deviceLabel", first.deviceLabel)
+        farmId?.let { put("farmId", it) }
         putJsonArray("locations") {
             forEach { record ->
                 addJsonObject {

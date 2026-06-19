@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../lib/supabase';
 import { isValidSerialNumber } from '../../../types/telemetry';
 
-const VALID_MAP_TYPES = ['SATELLITE', 'NORMAL', 'TERRAIN', 'HYBRID'] as const;
+const VALID_MAP_TYPES = ['SATELLITE', 'DARK', 'LIGHT'] as const;
 const VALID_SENSOR_SENSITIVITIES = ['low', 'medium', 'high', 'off'] as const;
 
 export async function GET(request: NextRequest) {

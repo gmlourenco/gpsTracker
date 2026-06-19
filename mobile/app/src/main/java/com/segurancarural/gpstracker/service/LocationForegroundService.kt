@@ -15,7 +15,9 @@ import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.google.android.gms.location.CurrentLocationRequest
 import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.Granularity
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
@@ -160,7 +162,13 @@ class LocationForegroundService : Service() {
                 updateNotification()
                 try {
                     Log.d(TAG, "Forcing immediate GPS fix for SOS activation...")
-                    fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                    val currentLocationRequest = CurrentLocationRequest.Builder()
+                        .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+                        .setGranularity(Granularity.GRANULARITY_FINE)
+                        .setDurationMillis(10_000)
+                        .setMaxUpdateAgeMillis(0)
+                        .build()
+                    fusedLocationClient.getCurrentLocation(currentLocationRequest, null)
                         .addOnSuccessListener { location: android.location.Location? ->
                             if (location != null) {
                                 Log.i(TAG, "✅ Forced immediate SOS location fix received (${location.accuracy}m)")
@@ -232,7 +240,13 @@ class LocationForegroundService : Service() {
         
         try {
             Log.d(TAG, "Requesting immediate forced location fix...")
-            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+            val currentLocationRequest = CurrentLocationRequest.Builder()
+                .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+                .setGranularity(Granularity.GRANULARITY_FINE)
+                .setDurationMillis(10_000)
+                .setMaxUpdateAgeMillis(0)
+                .build()
+            fusedLocationClient.getCurrentLocation(currentLocationRequest, null)
                 .addOnSuccessListener { location: android.location.Location? ->
                     if (location != null) {
                         Log.i(TAG, "✅ Forced immediate location fix received (${location.accuracy}m)")
@@ -305,7 +319,13 @@ class LocationForegroundService : Service() {
         } else {
             Log.w(TAG, "Cannot store heartbeat: lastKnownLocation is null, requesting immediate fix")
             try {
-                fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                val currentLocationRequest = CurrentLocationRequest.Builder()
+                    .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+                    .setGranularity(Granularity.GRANULARITY_FINE)
+                    .setDurationMillis(10_000)
+                    .setMaxUpdateAgeMillis(0)
+                    .build()
+                fusedLocationClient.getCurrentLocation(currentLocationRequest, null)
                     .addOnSuccessListener { location: android.location.Location? ->
                         if (location != null) {
                             Log.i(TAG, "✅ Heartbeat immediate location fix received (${location.accuracy}m)")
@@ -387,6 +407,7 @@ class LocationForegroundService : Service() {
         }
 
         val requestBuilder = LocationRequest.Builder(priority, intervalMs)
+            .setGranularity(Granularity.GRANULARITY_FINE)
             .setMinUpdateIntervalMillis(maxOf(intervalMs / 2, 10_000L))
             .setMaxUpdateDelayMillis(if (isSos) intervalMs else intervalMs * 6)
             .setWaitForAccurateLocation(true)

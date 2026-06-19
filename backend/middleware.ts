@@ -76,15 +76,19 @@ export function middleware(request: NextRequest) {
     );
   }
 
-  // Timing-safe comparison to prevent timing attacks.
-  // We use a constant-time string comparison approach:
-  // both strings are padded to equal length before comparison.
+  const isUserRoute = pathname.startsWith('/api/auth') || pathname.startsWith('/api/positions');
   const expected = `Bearer ${deviceSecret}`;
-  if (!timingSafeEqual(authHeader, expected)) {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized' },
-      { status: 401 }
-    );
+  const isSecretAuth = timingSafeEqual(authHeader, expected);
+
+  if (!isSecretAuth) {
+    if (isUserRoute && authHeader.startsWith('Bearer eyJ')) {
+      // Let the route handler verify the Supabase JWT
+    } else {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
   }
 
   // ── Rate limiting (H-3) ────────────────────────────────────────────────

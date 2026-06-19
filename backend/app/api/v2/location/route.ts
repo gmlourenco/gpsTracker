@@ -23,6 +23,7 @@ export interface LocationV2Item {
 export interface LocationV2Payload {
   id: string;
   deviceLabel?: string;
+  farmId?: string;
   locations: LocationV2Item[];
 }
 
@@ -77,7 +78,8 @@ export async function POST(request: NextRequest) {
         last_seen_at: new Date().toISOString(),
         tracking_enabled: latest.trackingEnabled,
         app_version: latest.appVersion,
-        ...(latest.markerColor ? { marker_color: latest.markerColor.toUpperCase() } : {})
+        ...(latest.markerColor ? { marker_color: latest.markerColor.toUpperCase() } : {}),
+        ...(payload.farmId ? { farm_id: payload.farmId } : {})
       },
       {
         onConflict: 'id',

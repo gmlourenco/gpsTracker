@@ -5,16 +5,40 @@
  * Uses the get_latest_positions() PostgreSQL function for efficient lookup.
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../lib/supabase';
-import { mapRpcRowsToDevices } from '../../../lib/mappers';
+import { mapRpcRowsToDevicesWithHistory } from '../../../lib/mappers';
 import { DeviceWithLatestLocation } from '../../../types/telemetry';
+import { createClient } from '@supabase/supabase-js';
 
-export async function GET(): Promise<NextResponse> {
-  const supabase = getSupabaseAdmin();
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const { searchParams } = new URL(request.url);
+  const historyParam = searchParams.get('history');
+  const historyCount = historyParam ? parseInt(historyParam, 10) : 0;
+
+  const authHeader = request.headers.get('authorization') || '';
+  let supabase;
+
+  if (authHeader.startsWith('Bearer eyJ')) {
+    supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+      {
+        global: {
+          headers: {
+            Authorization: authHeader,
+          },
+        },
+      }
+    );
+  } else {
+    supabase = getSupabaseAdmin();
+  }
 
   // ── 1. Call optimized RPC ──────────────────────────────────────────────────
-  const { data: rows, error: rpcError } = await supabase.rpc('get_latest_positions');
+  const { data: rows, error: rpcError } = await supabase.rpc('get_positions_with_history', {
+    p_history: isNaN(historyCount) ? 0 : historyCount
+  });
 
   if (rpcError) {
     console.error('[GET /api/positions/last] RPC error:', rpcError);
@@ -33,7 +57,7 @@ export async function GET(): Promise<NextResponse> {
   }
 
   // ── 2. Transform RPC rows ──────────────────────────────────────────────────
-  const devices: DeviceWithLatestLocation[] = mapRpcRowsToDevices(rows);
+  const devices: DeviceWithLatestLocation[] = mapRpcRowsToDevicesWithHistory(rows);
 
   const response = NextResponse.json({
     success: true,

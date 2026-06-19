@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -60,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import com.segurancarural.gpstracker.BuildConfig
 import com.segurancarural.gpstracker.data.dto.DeviceConfigDto
 import com.segurancarural.gpstracker.data.repository.DeviceConfigRepository
+import com.segurancarural.gpstracker.data.repository.FarmRepository
 import com.segurancarural.gpstracker.data.repository.SaveConfigResult
 import com.segurancarural.gpstracker.service.LocationForegroundService
 import com.segurancarural.gpstracker.ui.model.MapTheme
@@ -137,6 +139,11 @@ fun ConfigScreen(
     var isSaving by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf(false) }
 
+    val farmRepository = remember { FarmRepository(context) }
+    var hasFarm by remember { mutableStateOf(farmRepository.hasFarm()) }
+    var inviteCodeInput by remember { mutableStateOf("") }
+    var isFarmLoading by remember { mutableStateOf(false) }
+
     val currentSensitivity = if (selectedSensitivityIdx == 3) {
         "custom_${customGText.trim()}"
     } else {
@@ -204,6 +211,90 @@ fun ConfigScreen(
             color = TextPrimary,
             fontWeight = FontWeight.Bold
         )
+
+        // ── Family Group ───────────────────────────────────────────────────
+        ConfigCard(title = "Grupo Familiar (Fazenda)") {
+            if (hasFarm) {
+                Text(
+                    text = "Você já está conectado a um Grupo Familiar.",
+                    color = AccentGreen,
+                    fontSize = 14.sp
+                )
+            } else {
+                Text(
+                    text = "Crie ou entre em um grupo familiar para compartilhar sua localização.",
+                    color = TextSecondary,
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (isFarmLoading) {
+                    Text("Aguarde...", color = TextSecondary, fontSize = 14.sp)
+                } else {
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isFarmLoading = true
+                                val result = farmRepository.createFarm()
+                                isFarmLoading = false
+                                if (result.isSuccess) {
+                                    hasFarm = true
+                                    Toast.makeText(context, "Grupo criado com sucesso!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Erro: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Criar Novo Grupo", color = Color.White)
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Ou entrar usando um código:", color = TextSecondary, fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = inviteCodeInput,
+                            onValueChange = { inviteCodeInput = it.uppercase() },
+                            placeholder = { Text("CÓDIGO", color = TextSecondary.copy(0.5f)) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                focusedBorderColor = AccentGreen,
+                                unfocusedBorderColor = TextSecondary,
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                if (inviteCodeInput.length >= 6) {
+                                    scope.launch {
+                                        isFarmLoading = true
+                                        val result = farmRepository.joinFarm(inviteCodeInput)
+                                        isFarmLoading = false
+                                        if (result.isSuccess) {
+                                            hasFarm = true
+                                            Toast.makeText(context, "Entrou no grupo!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Erro: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = inviteCodeInput.length >= 6,
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen)
+                        ) {
+                            Text("Entrar", color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
 
         // ── Device identity ────────────────────────────────────────────────
         ConfigCard(title = "Identidade do Dispositivo") {

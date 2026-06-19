@@ -13,4 +13,15 @@ data class DeviceDto(
     @SerialName("app_version") val appVersion: String = "1.0.0",
     @SerialName("last_seen_at") val lastSeenAt: String? = null,
     @SerialName("latestLocation") val latestLocation: LocationDto? = null,
+    @SerialName("previousLocations") val previousLocations: List<PreviousLocationDto>? = null
+)
+
+@Keep
+@Serializable
+data class PreviousLocationDto(
+    @SerialName("lat") val lat: Double,
+    @SerialName("lng") val lng: Double,
+    @SerialName("accuracy") val accuracy: Double = 0.0,
+    @SerialName("heading") val heading: Double = 0.0,
+    @SerialName("created_at") val createdAt: String
 )

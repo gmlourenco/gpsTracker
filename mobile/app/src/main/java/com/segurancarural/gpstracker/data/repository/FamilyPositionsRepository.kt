@@ -1,9 +1,9 @@
 package com.segurancarural.gpstracker.data.repository
 
+import com.segurancarural.gpstracker.data.dto.LastPositionsResponseDto
+import com.segurancarural.gpstracker.data.network.ApiResult
 import com.segurancarural.gpstracker.data.network.ApiRoutes
 import com.segurancarural.gpstracker.data.network.ApiService
-import com.segurancarural.gpstracker.data.network.ApiResult
-import com.segurancarural.gpstracker.data.dto.LastPositionsResponseDto
 import com.segurancarural.gpstracker.ui.model.FamilyDeviceMarker
 import com.segurancarural.gpstracker.util.AppLog
 import com.segurancarural.gpstracker.util.markerInitial
@@ -12,8 +12,9 @@ import kotlinx.coroutines.withContext
 
 class FamilyPositionsRepository {
     private val apiService = ApiService()
-    suspend fun fetchLastPositions(): Result<List<FamilyDeviceMarker>> = withContext(Dispatchers.IO) {
-        val result = apiService.get<LastPositionsResponseDto>(ApiRoutes.POSITIONS_LAST)
+    suspend fun fetchLastPositions(historyCount: Int = 10): Result<List<FamilyDeviceMarker>> = withContext(Dispatchers.IO) {
+        val url = ApiRoutes.positionsLast(historyCount)
+        val result = apiService.get<LastPositionsResponseDto>(url)
         when (result) {
             is ApiResult.Success -> {
                 val response = result.data
@@ -27,6 +28,8 @@ class FamilyPositionsRepository {
                         label = device.label,
                         lat = loc.lat,
                         lng = loc.lng,
+                        accuracy = loc.accuracy,
+                        heading = loc.heading,
                         markerColorHex = device.markerColor.uppercase(),
                         markerLetter = markerInitial(device.label),
                         emergencyState = loc.emergencyState,
@@ -35,6 +38,7 @@ class FamilyPositionsRepository {
                         speed = loc.speed,
                         appVersion = device.appVersion,
                         lastSeenAt = device.lastSeenAt,
+                        previousLocations = device.previousLocations
                     )
                 }
                 AppLog.i("FamilyPositionsRepository", "Loaded ${markers.size} family positions")

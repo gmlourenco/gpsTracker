@@ -14,6 +14,10 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
 
 object ApiClient {
+    // Dynamically set by SettingsViewModel or Auth interceptors
+    var supabaseJwt: String? = null
+    var farmId: String? = null
+
     val httpClient: HttpClient by lazy {
         HttpClient(Android) {
             engine {
@@ -21,7 +25,8 @@ object ApiClient {
                 socketTimeout = 15_000
             }
             defaultRequest {
-                bearerAuth(BuildConfig.DEVICE_API_SECRET)
+                val token = supabaseJwt ?: BuildConfig.DEVICE_API_SECRET
+                bearerAuth(token)
             }
             install(ContentNegotiation) {
                 json(Json {

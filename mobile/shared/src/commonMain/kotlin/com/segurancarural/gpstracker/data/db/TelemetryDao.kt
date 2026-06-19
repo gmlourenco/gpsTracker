@@ -112,6 +112,12 @@ interface TelemetryDao {
     @Query("SELECT * FROM telemetry_queue WHERE createdAtEpochMs >= :sinceMs ORDER BY createdAtEpochMs ASC")
     fun observeRouteHistory(sinceMs: Long): Flow<List<TelemetryRecord>>
 
+    /**
+     * Returns a reactive flow of route history for the map, filtered by explicit time boundaries.
+     */
+    @Query("SELECT * FROM telemetry_queue WHERE createdAtEpochMs >= :startMs AND createdAtEpochMs <= :endMs ORDER BY createdAtEpochMs ASC")
+    fun observeRouteHistoryBounded(startMs: Long, endMs: Long): Flow<List<TelemetryRecord>>
+
     // ── Cleanup ───────────────────────────────────────────────────────────
 
     /**

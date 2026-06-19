@@ -1,15 +1,16 @@
 package com.segurancarural.gpstracker.ui.model
 
+import com.segurancarural.gpstracker.data.dto.PreviousLocationDto
 import com.segurancarural.gpstracker.data.model.TelemetryRecord
 import com.segurancarural.gpstracker.util.DEFAULT_MARKER_COLOR_ARGB
 import com.segurancarural.gpstracker.util.argbToMapLibreHex
 import com.segurancarural.gpstracker.util.markerInitial
 
-/** How many recent GPS points to draw on the personal route line. */
-enum class MapPointLimit(val label: String, val maxPoints: Int?) {
-    LAST_10("10", 10),
-    LAST_100("100", 100),
-    ALL("Tudo", null),
+/** Time-based filter for the personal route history. */
+enum class MapTimeFilter(val label: String) {
+    TODAY("Hoje"),
+    YESTERDAY("Ontem"),
+    THIS_WEEK("Semana"),
 }
 
 enum class FamilyRefreshStatus {
@@ -33,6 +34,8 @@ data class FamilyDeviceMarker(
     val label: String,
     val lat: Double,
     val lng: Double,
+    val accuracy: Double = 0.0,
+    val heading: Double = 0.0,
     val markerColorHex: String,
     val markerLetter: String,
     val emergencyState: Boolean,
@@ -41,6 +44,7 @@ data class FamilyDeviceMarker(
     val speed: Double = 0.0,
     val appVersion: String = "1.0.0",
     val lastSeenAt: String? = null,
+    val previousLocations: List<PreviousLocationDto>? = null,
 )
 
 /** Unified map rendering model for either personal route or family markers. */
