@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '../../../lib/auth-utils';
-import { getSupabaseServerClient } from '../../../lib/supabase';
+import { getSupabaseServerClient, getSupabaseAdmin } from '../../../lib/supabase';
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,9 +22,10 @@ export async function GET(request: NextRequest) {
     }
 
     const isAnonymous = user.is_anonymous === true;
+    const adminSupabase = getSupabaseAdmin();
 
-    // Obter todas as farms a que o utilizador pertence
-    const { data: memberships } = await supabase
+    // Obter todas as farms a que o utilizador pertence using admin client (bypasses RLS issues)
+    const { data: memberships } = await adminSupabase
       .from('farm_members')
       .select('farm_id, role, farms(name)')
       .eq('user_id', user.id);
@@ -40,8 +41,8 @@ export async function GET(request: NextRequest) {
       const userRole = membership.role;
       const farmName = (membership.farms as any)?.name;
 
-      // Get members
-      const { data: membersData } = await supabase
+      // Get members of this farm using admin client
+      const { data: membersData } = await adminSupabase
         .from('farm_members')
         .select('user_id, role')
         .eq('farm_id', farmId);
@@ -49,7 +50,7 @@ export async function GET(request: NextRequest) {
       // Get valid invite code
       let inviteCode = null;
       if (userRole === 'owner' || userRole === 'admin') {
-        const { data: inviteData } = await supabase
+        const { data: inviteData } = await adminSupabase
           .from('farm_invites')
           .select('code, expires_at')
           .eq('farm_id', farmId)
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
           const expiresAt = new Date();
           expiresAt.setDate(expiresAt.getDate() + 7);
 
-          await supabase.from('farm_invites').insert({
+          await adminSupabase.from('farm_invites').insert({
             farm_id: farmId,
             code: newCode,
             expires_at: expiresAt.toISOString(),
@@ -100,3 +101,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }
+

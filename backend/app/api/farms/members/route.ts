@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '../../../lib/auth-utils';
-import { getSupabaseServerClient } from '../../../lib/supabase';
+import { getSupabaseServerClient, getSupabaseAdmin } from '../../../lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,8 +29,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Cannot modify your own role' }, { status: 400 });
     }
 
-    // Check requester's role
-    const { data: requesterMember } = await supabase
+    const adminSupabase = getSupabaseAdmin();
+
+    // Check requester's role using admin client (bypasses RLS issues)
+    const { data: requesterMember } = await adminSupabase
       .from('farm_members')
       .select('role')
       .eq('farm_id', farmId)
@@ -41,8 +43,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
-    // Check target's role
-    const { data: targetMember } = await supabase
+    // Check target's role using admin client
+    const { data: targetMember } = await adminSupabase
       .from('farm_members')
       .select('role')
       .eq('farm_id', farmId)
@@ -61,9 +63,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Admins cannot modify other admins' }, { status: 403 });
     }
 
-    // Execute action
+    // Execute action using admin client
     if (action === 'kick') {
-      const { error: deleteError } = await supabase
+      const { error: deleteError } = await adminSupabase
         .from('farm_members')
         .delete()
         .eq('farm_id', farmId)
@@ -77,7 +79,7 @@ export async function POST(request: NextRequest) {
     if (action === 'demote_viewer') newRole = 'viewer';
 
     if (newRole) {
-      const { error: updateError } = await supabase
+      const { error: updateError } = await adminSupabase
         .from('farm_members')
         .update({ role: newRole })
         .eq('farm_id', farmId)
@@ -93,3 +95,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }
+

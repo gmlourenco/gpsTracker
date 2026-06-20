@@ -156,7 +156,12 @@ fun FamilyGroupsScreen() {
                             DropdownMenuItem(
                                 text = { Text(farm.farmName) },
                                 onClick = {
-                                    selectedFarm = farm
+                                    if (selectedFarm?.farmId != farm.farmId) {
+                                        selectedFarm = farm
+                                        scope.launch {
+                                            farmRepository.syncCurrentDeviceToFarm(farm.farmId)
+                                        }
+                                    }
                                     dropdownExpanded = false
                                 }
                             )
@@ -260,6 +265,10 @@ fun FamilyGroupsScreen() {
                                     isActionLoading = true
                                     val res = farmRepository.createFarm()
                                     if (res.isSuccess) {
+                                        val newFarmId = res.getOrNull()?.farmId
+                                        if (newFarmId != null) {
+                                            farmRepository.syncCurrentDeviceToFarm(newFarmId)
+                                        }
                                         loadFarms()
                                     } else {
                                         errorMessage = res.exceptionOrNull()?.message
@@ -304,6 +313,10 @@ fun FamilyGroupsScreen() {
                                             isActionLoading = true
                                             val res = farmRepository.joinFarm(inviteCodeInput)
                                             if (res.isSuccess) {
+                                                val newFarmId = res.getOrNull()?.farmId
+                                                if (newFarmId != null) {
+                                                    farmRepository.syncCurrentDeviceToFarm(newFarmId)
+                                                }
                                                 inviteCodeInput = ""
                                                 loadFarms()
                                             } else {

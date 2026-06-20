@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '../../../lib/auth-utils';
-import { getSupabaseServerClient } from '../../../lib/supabase';
+import { getSupabaseServerClient, getSupabaseAdmin } from '../../../lib/supabase';
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,21 +22,9 @@ export async function POST(request: NextRequest) {
 
     // 1. If deviceId is provided, we try to claim it and/or upsert its config.
     if (deviceId && config) {
-      // First, check if the device exists and who owns it
-      const { data: existingDevice } = await supabase
-        .from('devices')
-        .select('user_id')
-        .eq('id', deviceId)
-        .single();
+      // Use admin client to allow reclaiming the device if the user logged in with a new account (e.g., from anonymous to Google)
+      const adminSupabase = getSupabaseAdmin();
 
-      if (existingDevice) {
-        // If it belongs to someone else, we shouldn't steal it unless it's anonymous (user_id is null)
-        if (existingDevice.user_id !== null && existingDevice.user_id !== user.id) {
-          return NextResponse.json({ success: false, error: 'Device already claimed by another user' }, { status: 403 });
-        }
-      }
-
-      // Upsert the device using authenticated client
       const devicePayload = {
         id: deviceId,
         user_id: user.id,
@@ -48,7 +36,7 @@ export async function POST(request: NextRequest) {
 
       if (config.farmId) {
         // Garantir que o utilizador pertence à farm que está a reclamar
-        const { data: memberCheck } = await supabase
+        const { data: memberCheck } = await adminSupabase
           .from('farm_members')
           .select('id')
           .eq('farm_id', config.farmId)
@@ -61,7 +49,7 @@ export async function POST(request: NextRequest) {
         (devicePayload as any).farm_id = config.farmId;
       }
 
-      const { error: upsertError } = await supabase
+      const { error: upsertError } = await adminSupabase
         .from('devices')
         .upsert(devicePayload);
 

@@ -25,7 +25,6 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.segurancarural.gpstracker.BuildConfig
 import com.segurancarural.gpstracker.data.model.TelemetryRecord
-import com.segurancarural.gpstracker.data.repository.FamilyPositionsRepository
 import com.segurancarural.gpstracker.data.repository.TelemetryRepository
 import com.segurancarural.gpstracker.data.repository.TrackingStateRepository
 import com.segurancarural.gpstracker.domain.usecase.SubmitLocationUseCase
@@ -40,7 +39,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.time.Instant
 
@@ -661,34 +659,7 @@ class LocationForegroundService : Service() {
     }
 
     private fun startBackgroundEmergencyPolling() {
-        pollingJob?.cancel()
-        pollingJob = serviceScope.launch {
-            val familyRepository = FamilyPositionsRepository()
-            val notifiedSosDevices = mutableSetOf<String>()
-            
-            while (isActive) {
-                val ourSerialNumber = applicationContext.ensureSerialNumber()
-                val result = familyRepository.fetchLastPositions()
-                result.fold(
-                    onSuccess = { markers ->
-                        val emergencyMarkers = markers.filter { it.emergencyState && it.deviceId != ourSerialNumber }
-                        for (marker in emergencyMarkers) {
-                            if (marker.deviceId !in notifiedSosDevices) {
-                                triggerEmergencyNotification(marker)
-                                notifiedSosDevices.add(marker.deviceId)
-                            }
-                        }
-                        // Clean up devices that are no longer in SOS
-                        val currentSosIds = emergencyMarkers.map { it.deviceId }
-                            notifiedSosDevices.retainAll(currentSosIds)
-                        },
-                        onFailure = { error ->
-                            Log.e(TAG, "Failed to poll family positions: ${error.message}")
-                        }
-                    )
-                delay(20_000L) // Poll every 20 seconds
-            }
-        }
+        // Disabled per user request: family positions should only be updated when showing on screen (MapViewModel).
     }
 
     private fun triggerEmergencyNotification(marker: FamilyDeviceMarker) {

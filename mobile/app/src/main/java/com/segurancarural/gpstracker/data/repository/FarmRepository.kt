@@ -4,6 +4,7 @@ import android.content.Context
 import com.segurancarural.gpstracker.data.network.ApiClient
 import com.segurancarural.gpstracker.data.network.ApiRoutes
 import com.segurancarural.gpstracker.util.TRACKING_PREFS_NAME
+import com.segurancarural.gpstracker.util.ensureSerialNumber
 import io.github.jan.supabase.auth.auth
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -144,6 +145,21 @@ class FarmRepository(private val context: Context) {
             Result.failure(e)
         }
     }
+
+    suspend fun syncCurrentDeviceToFarm(farmId: String?): Result<DeviceSyncResponse> {
+        val deviceId = context.ensureSerialNumber()
+        val label = prefs.getString("device_label", "Dispositivo") ?: "Dispositivo"
+        val markerColorArgb = prefs.getInt(com.segurancarural.gpstracker.util.PREF_DEVICE_MARKER_COLOR, com.segurancarural.gpstracker.util.DEFAULT_MARKER_COLOR_ARGB)
+        val markerColor = com.segurancarural.gpstracker.util.argbToMapLibreHex(markerColorArgb)
+        val trackingEnabled = true
+        val appVersion = com.segurancarural.gpstracker.BuildConfig.VERSION_NAME
+
+        ApiClient.farmId = farmId
+        prefs.edit().putString("farm_id", farmId).apply()
+
+        return syncDevices(deviceId, label, markerColor, trackingEnabled, appVersion, farmId)
+    }
+
 
     suspend fun getFarmDetails(): Result<FarmDetailsResponse> {
         return try {
