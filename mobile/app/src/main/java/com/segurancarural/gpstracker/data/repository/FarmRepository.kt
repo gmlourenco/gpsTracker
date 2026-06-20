@@ -200,13 +200,19 @@ data class DeviceDto(
 )
 
 @Serializable
+data class FarmDto(
+    val farmId: String,
+    val farmName: String,
+    val userRole: String,
+    val inviteCode: String? = null,
+    val members: List<FarmMemberDto> = emptyList()
+)
+
+@Serializable
 data class FarmDetailsResponse(
     val success: Boolean,
-    val farmId: String? = null,
-    val farmName: String? = null,
-    val userRole: String? = null,
-    val inviteCode: String? = null,
-    val members: List<FarmMemberDto> = emptyList(),
+    val isAnonymous: Boolean = false,
+    val farms: List<FarmDto> = emptyList(),
     val error: String? = null
 )
 
