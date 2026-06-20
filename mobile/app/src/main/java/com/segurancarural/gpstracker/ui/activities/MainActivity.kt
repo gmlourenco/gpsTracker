@@ -1,7 +1,5 @@
 package com.segurancarural.gpstracker.ui.activities
 
-import com.segurancarural.gpstracker.service.LocationForegroundService
-import com.segurancarural.gpstracker.worker.SyncWorker
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -22,6 +20,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -34,22 +33,24 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import com.segurancarural.gpstracker.BuildConfig
-import com.segurancarural.gpstracker.update.AppUpdateChecker
-import com.segurancarural.gpstracker.update.AppUpdateOffer
-import com.segurancarural.gpstracker.update.ApkUpdateInstaller
-import com.segurancarural.gpstracker.ui.components.AppUpdateDialog
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.segurancarural.gpstracker.BuildConfig
+import com.segurancarural.gpstracker.data.repository.DeviceConfigRepository
+import com.segurancarural.gpstracker.data.repository.FcmTokenRepository
+import com.segurancarural.gpstracker.service.LocationForegroundService
+import com.segurancarural.gpstracker.ui.components.AppUpdateDialog
 import com.segurancarural.gpstracker.ui.screens.ConfigScreen
 import com.segurancarural.gpstracker.ui.screens.HomeScreen
 import com.segurancarural.gpstracker.ui.screens.MapScreen
-import com.segurancarural.gpstracker.data.repository.FcmTokenRepository
-import com.segurancarural.gpstracker.data.repository.DeviceConfigRepository
 import com.segurancarural.gpstracker.ui.theme.SegurancaRuralTheme
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.segurancarural.gpstracker.ui.viewmodel.MapViewModel
+import com.segurancarural.gpstracker.update.ApkUpdateInstaller
+import com.segurancarural.gpstracker.update.AppUpdateChecker
+import com.segurancarural.gpstracker.update.AppUpdateOffer
+import com.segurancarural.gpstracker.worker.SyncWorker
 import kotlinx.coroutines.launch
 
 /**
@@ -222,6 +223,7 @@ class MainActivity : ComponentActivity() {
                                     onAccidentTrigger = { triggerAccidentSos() },
                                 )
                                 AppScreen.MAP -> MapScreen(viewModel = mapViewModel)
+                                AppScreen.FAMILY -> com.segurancarural.gpstracker.ui.screens.FamilyGroupsScreen()
                                 AppScreen.CONFIG -> ConfigScreen(
                                     onUpdateOfferFound = { offer ->
                                         updateOffer = offer
@@ -315,5 +317,6 @@ class MainActivity : ComponentActivity() {
 enum class AppScreen(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
     HOME("Início", Icons.Default.Home),
     MAP("Mapa", Icons.Filled.Map),
+    FAMILY("Família", Icons.Default.Person),
     CONFIG("Config", Icons.Default.Settings),
 }

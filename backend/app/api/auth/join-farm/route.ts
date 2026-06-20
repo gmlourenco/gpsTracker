@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     const { error: memberError } = await adminClient.from('farm_members').insert({
       farm_id: invite.farm_id,
       user_id: userId,
-      role: 'member'
+      role: 'viewer'
     });
 
     if (memberError && memberError.code !== '23505') { // 23505 is unique_violation

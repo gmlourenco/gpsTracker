@@ -8,13 +8,15 @@
  * Response shape: DeviceWithLatestLocation[]
  */
 
-import { NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '../../lib/supabase';
+import { NextRequest, NextResponse } from 'next/server';
+import { getSupabaseServerClient } from '../../lib/supabase';
 import { mapRpcRowsToDevices } from '../../lib/mappers';
 import { DeviceWithLatestLocation } from '../../types/telemetry';
 
-export async function GET(): Promise<NextResponse> {
-  const supabase = getSupabaseAdmin();
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const supabase = await getSupabaseServerClient(request);
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // ── 1. Call optimized RPC (DISTINCT ON, single query) ─────────────────────
   const { data: rows, error: rpcError } = await supabase.rpc('get_latest_positions');

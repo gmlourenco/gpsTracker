@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '../../../lib/supabase';
+import { getSupabaseServerClient } from '../../../lib/supabase';
 import { isValidSerialNumber } from '../../../types/telemetry';
 
 export interface LocationV2Item {
@@ -66,7 +66,13 @@ export async function POST(request: NextRequest) {
   const sorted = [...payload.locations].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   const latest = sorted[sorted.length - 1];
 
-  const supabase = getSupabaseAdmin();
+  const supabase = await getSupabaseServerClient(request);
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+  if (authError || !user) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+  const userId = user.id;
 
   // 1. Upsert device using latest status
   const { error: deviceError } = await supabase
@@ -79,7 +85,8 @@ export async function POST(request: NextRequest) {
         tracking_enabled: latest.trackingEnabled,
         app_version: latest.appVersion,
         ...(latest.markerColor ? { marker_color: latest.markerColor.toUpperCase() } : {}),
-        ...(payload.farmId ? { farm_id: payload.farmId } : {})
+        ...(payload.farmId ? { farm_id: payload.farmId } : {}),
+        ...(userId ? { user_id: userId } : {})
       },
       {
         onConflict: 'id',

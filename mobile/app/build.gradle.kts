@@ -48,6 +48,15 @@ android {
             ?: project.findProperty("device.api.secret")?.toString() 
             ?: "change-me-in-local-properties"
         buildConfigField("String", "DEVICE_API_SECRET", "\"$deviceSecret\"")
+
+        val supabaseUrl = localProps.getProperty("supabase.url") ?: "https://tyacdqcabobwllwicxnw.supabase.co"
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+
+        val supabaseKey = localProps.getProperty("supabase.key") ?: "sb_publishable_3kSlwLruylDjMjWf4DI6ZQ_cQ60Xg32"
+        buildConfigField("String", "SUPABASE_KEY", "\"$supabaseKey\"")
+
+        val googleWebClientId = localProps.getProperty("google.web.client.id") ?: "YOUR_WEB_CLIENT_ID"
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
     }
 
     flavorDimensions.add("environment")
@@ -165,6 +174,7 @@ dependencies {
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.ktor.client.logging)
+    implementation(libs.ktor.client.auth)
     // SLF4J no-op binding — silences "No SLF4J providers found" warnings from Ktor's logging
     implementation("org.slf4j:slf4j-simple:2.0.13")
 
@@ -184,6 +194,12 @@ dependencies {
     // Firebase Cloud Messaging (push notifications)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging.ktx)
+
+    // Supabase
+    implementation(libs.supabase.auth)
+    implementation(libs.supabase.postgrest)
+    implementation(libs.supabase.compose.auth)
+    implementation(libs.supabase.compose.auth.ui)
 
     // Testing
     testImplementation(libs.junit)

@@ -29,6 +29,10 @@ kotlin {
 
             // Room runtime (KMP-compatible)
             implementation(libs.androidx.room.runtime)
+
+            // Supabase
+            implementation(libs.supabase.auth)
+            implementation(libs.supabase.postgrest)
         }
 
         androidMain.dependencies {

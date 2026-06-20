@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '../../lib/supabase';
+import { getSupabaseServerClient } from '../../lib/supabase';
 import {
   getTelemetryValidationErrors,
   validateTelemetryPayload,
@@ -46,7 +46,15 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
   }
 
   const payload = body;
-  const supabase = getSupabaseAdmin();
+  const supabase = await getSupabaseServerClient(request);
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
+    return NextResponse.json(
+      { success: false, error: 'Unauthorized' } as any,
+      { status: 401 }
+    );
+  }
 
   // ── 2. Upsert device ──────────────────────────────────────────────────────
   const { error: deviceError } = await supabase
@@ -54,6 +62,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     .upsert(
       {
         id: payload.serialNumber,
+        user_id: user.id,
         label: payload.deviceLabel,
         marker_color: payload.markerColor?.toUpperCase() ?? '#16A34A',
         last_seen_at: new Date().toISOString(),

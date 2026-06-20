@@ -73,6 +73,9 @@ import com.segurancarural.gpstracker.util.PREF_DEVICE_MARKER_COLOR
 import com.segurancarural.gpstracker.util.argbToMapLibreHex
 import com.segurancarural.gpstracker.util.ensureSerialNumber
 import com.segurancarural.gpstracker.util.markerInitial
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.compose.auth.composable.rememberSignInWithGoogle
+import io.github.jan.supabase.compose.auth.composeAuth
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -214,6 +217,154 @@ fun ConfigScreen(
 
         // ── Family Group ───────────────────────────────────────────────────
         ConfigCard(title = "Grupo Familiar (Fazenda)") {
+            var showCreateConfirmDialog by remember { mutableStateOf(false) }
+
+            var showDeviceSyncDialog by remember { mutableStateOf(false) }
+            var availableDevicesToRestore by remember { mutableStateOf<List<com.segurancarural.gpstracker.data.repository.DeviceDto>>(emptyList()) }
+
+            if (showDeviceSyncDialog) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showDeviceSyncDialog = false },
+                    title = { Text("Restaurar Configurações") },
+                    text = { 
+                        Column {
+                            Text("Encontrámos outros dispositivos na sua conta. Deseja copiar as configurações de um deles para este telemóvel?")
+                            Spacer(modifier = Modifier.height(8.dp))
+                            availableDevicesToRestore.forEach { dev ->
+                                Button(
+                                    onClick = {
+                                        // Restore config
+                                        deviceLabel = dev.label
+                                        try {
+                                            selectedMarkerColorArgb = android.graphics.Color.parseColor(dev.marker_color)
+                                        } catch (e: Exception) {}
+                                        
+                                        if (dev.farm_id != null) {
+                                            com.segurancarural.gpstracker.data.network.ApiClient.farmId = dev.farm_id
+                                            prefs.edit().putString("farm_id", dev.farm_id).apply()
+                                            hasFarm = true
+                                        }
+
+                                        prefs.edit()
+                                            .putString("device_label", deviceLabel)
+                                            .putInt(PREF_DEVICE_MARKER_COLOR, selectedMarkerColorArgb)
+                                            .apply()
+
+                                        Toast.makeText(context, "Configurações restauradas!", Toast.LENGTH_SHORT).show()
+                                        showDeviceSyncDialog = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = CardDark)
+                                ) {
+                                    Text(dev.label, color = TextPrimary)
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = { showDeviceSyncDialog = false }) {
+                            Text("Não, usar configurações atuais")
+                        }
+                    }
+                )
+            }
+
+            val action = com.segurancarural.gpstracker.data.network.SupabaseClient.client.composeAuth.rememberSignInWithGoogle(
+                onResult = { result ->
+                    when (result) {
+                        is io.github.jan.supabase.compose.auth.composable.NativeSignInResult.Success -> {
+                            scope.launch {
+                                isFarmLoading = true
+                                val deviceId = context.ensureSerialNumber()
+                                val syncResult = farmRepository.syncDevices(
+                                    deviceId = deviceId,
+                                    label = deviceLabel,
+                                    markerColor = argbToMapLibreHex(selectedMarkerColorArgb),
+                                    trackingEnabled = true,
+                                    appVersion = BuildConfig.VERSION_NAME,
+                                    farmId = com.segurancarural.gpstracker.data.network.ApiClient.farmId
+                                )
+
+                                if (syncResult.isSuccess) {
+                                    val devices = syncResult.getOrNull()?.devices ?: emptyList()
+                                    val otherDevices = devices.filter { it.id != deviceId }
+                                    if (otherDevices.isNotEmpty()) {
+                                        availableDevicesToRestore = otherDevices
+                                        showDeviceSyncDialog = true
+                                    }
+                                }
+
+                                val hasExistingFarm = syncResult.getOrNull()?.devices?.any { it.farm_id != null } == true
+
+                                if (!hasExistingFarm && !hasFarm) {
+                                    val createResult = farmRepository.createFarm()
+                                    isFarmLoading = false
+                                    if (createResult.isSuccess) {
+                                        hasFarm = true
+                                        Toast.makeText(context, "Grupo criado com sucesso!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Erro ao criar grupo: ${createResult.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                } else {
+                                    isFarmLoading = false
+                                    hasFarm = true
+                                    Toast.makeText(context, "Login efetuado com sucesso!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                        is io.github.jan.supabase.compose.auth.composable.NativeSignInResult.Error -> {
+                            isFarmLoading = false
+                            Toast.makeText(context, "Erro no login: ${result.message}", Toast.LENGTH_LONG).show()
+                        }
+                        is io.github.jan.supabase.compose.auth.composable.NativeSignInResult.ClosedByUser -> {
+                            isFarmLoading = false
+                        }
+                        is io.github.jan.supabase.compose.auth.composable.NativeSignInResult.NetworkError -> {
+                            isFarmLoading = false
+                            Toast.makeText(context, "Erro de rede no login", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
+                fallback = {}
+            )
+
+            if (showCreateConfirmDialog) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showCreateConfirmDialog = false },
+                    title = { Text("Criar Grupo Familiar") },
+                    text = { Text("Tens a certeza que desejas criar um novo Grupo Familiar? Precisarás de iniciar sessão com o Google.") },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = {
+                            showCreateConfirmDialog = false
+                            isFarmLoading = true
+                            // Check if already logged in
+                            val currentUser = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentUserOrNull()
+                            if (currentUser != null && currentUser.identities?.isNotEmpty() == true) {
+                                scope.launch {
+                                    val createResult = farmRepository.createFarm()
+                                    isFarmLoading = false
+                                    if (createResult.isSuccess) {
+                                        hasFarm = true
+                                        Toast.makeText(context, "Grupo criado com sucesso!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Erro: ${createResult.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                }
+                            } else {
+                                action.startFlow()
+                            }
+                        }) {
+                            Text("Sim, Criar")
+                        }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { showCreateConfirmDialog = false }) {
+                            Text("Cancelar")
+                        }
+                    }
+                )
+            }
+
             if (hasFarm) {
                 Text(
                     text = "Você já está conectado a um Grupo Familiar.",
@@ -233,17 +384,7 @@ fun ConfigScreen(
                 } else {
                     Button(
                         onClick = {
-                            scope.launch {
-                                isFarmLoading = true
-                                val result = farmRepository.createFarm()
-                                isFarmLoading = false
-                                if (result.isSuccess) {
-                                    hasFarm = true
-                                    Toast.makeText(context, "Grupo criado com sucesso!", Toast.LENGTH_SHORT).show()
-                                } else {
-                                    Toast.makeText(context, "Erro: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
-                                }
-                            }
+                            showCreateConfirmDialog = true
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
                         modifier = Modifier.fillMaxWidth()

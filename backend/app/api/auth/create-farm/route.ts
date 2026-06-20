@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, supabasePublic } from '../../../lib/supabase';
+import { getSupabaseServerClient, supabasePublic } from '../../../lib/supabase';
 
 function generateCode(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // No I, O, 1, 0
@@ -12,46 +12,45 @@ function generateCode(): string {
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Create anonymous user using supabasePublic
-    const { data: authData, error: authError } = await supabasePublic.auth.signInAnonymously();
-    if (authError || !authData.user || !authData.session) {
-      console.error('Anonymous auth failed:', authError);
-      return NextResponse.json({ success: false, error: 'Failed to create anonymous session' }, { status: 500 });
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return NextResponse.json({ success: false, error: 'Unauthorized: Missing or invalid token' }, { status: 401 });
     }
 
-    const userId = authData.user.id;
-    const adminClient = getSupabaseAdmin();
+    const token = authHeader.replace('Bearer ', '');
+    const supabase = await getSupabaseServerClient(request);
+    
+    // Verify user token
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    
+    if (userError || !user) {
+      console.error('Auth verification failed:', userError);
+      return NextResponse.json({ success: false, error: 'Unauthorized: Invalid token' }, { status: 401 });
+    }
 
-    // 2. Create the farm
-    const { data: farm, error: farmError } = await adminClient
-      .from('farms')
-      .insert({ name: 'Família' })
-      .select('id')
-      .single();
+    if (user.is_anonymous) {
+      return NextResponse.json({ success: false, error: 'Anonymous users cannot create farms. Please log in.' }, { status: 403 });
+    }
 
-    if (farmError || !farm) {
-      console.error('Farm creation failed:', farmError);
+    const userId = user.id;
+
+    // 2. Create the farm and add user as owner using RPC (bypasses RLS chicken-and-egg problem)
+    const { data: newFarmId, error: rpcError } = await supabase
+      .rpc('create_farm_with_owner', { farm_name: 'Família' });
+
+    if (rpcError || !newFarmId) {
+      console.error('Farm creation RPC failed:', rpcError);
       return NextResponse.json({ success: false, error: 'Failed to create farm' }, { status: 500 });
     }
 
-    // 3. Add user as admin
-    const { error: memberError } = await adminClient.from('farm_members').insert({
-      farm_id: farm.id,
-      user_id: userId,
-      role: 'admin'
-    });
-
-    if (memberError) {
-      console.error('Farm member insertion failed:', memberError);
-      return NextResponse.json({ success: false, error: 'Failed to add farm member' }, { status: 500 });
-    }
+    const farm = { id: newFarmId };
 
     // 4. Generate invite code
     const code = generateCode();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
 
-    const { data: invite, error: inviteError } = await adminClient
+    const { data: invite, error: inviteError } = await supabase
       .from('farm_invites')
       .insert({
         farm_id: farm.id,
@@ -69,7 +68,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      session: authData.session,
       farmId: farm.id,
       inviteCode: invite.code
     });

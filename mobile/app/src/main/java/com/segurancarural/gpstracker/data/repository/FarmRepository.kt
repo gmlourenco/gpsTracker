@@ -4,7 +4,9 @@ import android.content.Context
 import com.segurancarural.gpstracker.data.network.ApiClient
 import com.segurancarural.gpstracker.data.network.ApiRoutes
 import com.segurancarural.gpstracker.util.TRACKING_PREFS_NAME
+import io.github.jan.supabase.auth.auth
 import io.ktor.client.call.body
+import io.ktor.client.request.get
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
@@ -41,10 +43,19 @@ class FarmRepository(private val context: Context) {
 
     suspend fun createFarm(): Result<FarmResponse> {
         return try {
+            val token = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentAccessTokenOrNull()
+            if (token != null) {
+                ApiClient.supabaseJwt = token.toString()
+            }
+            
             val response = ApiClient.httpClient.post("${ApiRoutes.BASE}/api/auth/create-farm")
             val data = response.body<FarmResponse>()
-            if (data.success && data.session != null) {
-                saveAuth(data.session.access_token, data.farmId)
+            if (data.success) {
+                val validToken = token?.toString() ?: data.session?.access_token
+                if (validToken.isNullOrEmpty()) {
+                     return Result.failure(Exception("Falha na extração de credenciais seguras."))
+                }
+                saveAuth(validToken, data.farmId)
                 Result.success(data)
             } else {
                 Result.failure(Exception(data.error ?: "Unknown error"))
@@ -56,13 +67,22 @@ class FarmRepository(private val context: Context) {
 
     suspend fun joinFarm(inviteCode: String): Result<FarmResponse> {
         return try {
+            val token = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentAccessTokenOrNull()
+            if (token != null) {
+                ApiClient.supabaseJwt = token.toString()
+            }
+
             val response = ApiClient.httpClient.post("${ApiRoutes.BASE}/api/auth/join-farm") {
                 contentType(ContentType.Application.Json)
                 setBody(JoinFarmRequest(inviteCode))
             }
             val data = response.body<FarmResponse>()
-            if (data.success && data.session != null) {
-                saveAuth(data.session.access_token, data.farmId)
+            if (data.success) {
+                val validToken = token?.toString() ?: data.session?.access_token
+                if (validToken.isNullOrEmpty()) {
+                     return Result.failure(Exception("Falha na extração de credenciais seguras."))
+                }
+                saveAuth(validToken, data.farmId)
                 Result.success(data)
             } else {
                 Result.failure(Exception(data.error ?: "Unknown error"))
@@ -84,4 +104,114 @@ class FarmRepository(private val context: Context) {
             .putString("farm_id", farmId)
             .apply()
     }
+
+    suspend fun syncDevices(
+        deviceId: String,
+        label: String,
+        markerColor: String,
+        trackingEnabled: Boolean,
+        appVersion: String,
+        farmId: String?
+    ): Result<DeviceSyncResponse> {
+        return try {
+            val token = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentAccessTokenOrNull()
+            if (token != null) {
+                ApiClient.supabaseJwt = token.toString()
+            }
+
+            val requestBody = DeviceSyncRequest(
+                deviceId = deviceId,
+                config = DeviceConfigPayload(
+                    label = label,
+                    markerColor = markerColor,
+                    trackingEnabled = trackingEnabled,
+                    appVersion = appVersion,
+                    farmId = farmId
+                )
+            )
+
+            val response = ApiClient.httpClient.post("${ApiRoutes.BASE}/api/devices/sync") {
+                contentType(ContentType.Application.Json)
+                setBody(requestBody)
+            }
+            val data = response.body<DeviceSyncResponse>()
+            if (data.success) {
+                Result.success(data)
+            } else {
+                Result.failure(Exception(data.error ?: "Failed to sync devices"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun getFarmDetails(): Result<FarmDetailsResponse> {
+        return try {
+            val token = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentAccessTokenOrNull()
+            if (token != null) {
+                ApiClient.supabaseJwt = token.toString()
+            }
+
+            val response = ApiClient.httpClient.get("${ApiRoutes.BASE}/api/farms/details")
+            if (response.status.value !in 200..299) {
+                return Result.failure(Exception("HTTP Error: ${response.status.value}"))
+            }
+            val data = response.body<FarmDetailsResponse>()
+            if (data.success) {
+                Result.success(data)
+            } else {
+                Result.failure(Exception(data.error ?: "Unknown error"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
+
+@Serializable
+data class DeviceSyncRequest(
+    val deviceId: String,
+    val config: DeviceConfigPayload
+)
+
+@Serializable
+data class DeviceConfigPayload(
+    val label: String,
+    val markerColor: String,
+    val trackingEnabled: Boolean,
+    val appVersion: String,
+    val farmId: String? = null
+)
+
+@Serializable
+data class DeviceSyncResponse(
+    val success: Boolean,
+    val devices: List<DeviceDto> = emptyList(),
+    val error: String? = null
+)
+
+@Serializable
+data class DeviceDto(
+    val id: String,
+    val label: String,
+    val marker_color: String,
+    val tracking_enabled: Boolean,
+    val farm_id: String? = null
+)
+
+@Serializable
+data class FarmDetailsResponse(
+    val success: Boolean,
+    val farmId: String? = null,
+    val farmName: String? = null,
+    val userRole: String? = null,
+    val inviteCode: String? = null,
+    val members: List<FarmMemberDto> = emptyList(),
+    val error: String? = null
+)
+
+@Serializable
+data class FarmMemberDto(
+    val user_id: String,
+    val role: String
+)

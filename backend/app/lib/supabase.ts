@@ -10,6 +10,8 @@
  */
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!;
@@ -53,4 +55,38 @@ export function getSupabaseAdmin(): SupabaseClient {
     },
   });
   return _adminClient;
+}
+
+/**
+ * Authenticated Server Client — uses the publishable key and user session.
+ * Automatically applies RLS based on the user's cookies or Authorization header.
+ */
+export async function getSupabaseServerClient(request?: Request) {
+  const cookieStore = await cookies();
+  const authHeader = request?.headers.get('authorization');
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : undefined;
+  
+  return createServerClient(
+    supabaseUrl,
+    supabasePublishableKey,
+    {
+      global: {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      },
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // Ignore error in server components
+          }
+        },
+      },
+    }
+  );
 }

@@ -23,6 +23,8 @@ class TelemetryRepository(private val context: Context) {
     private val dao = (appContext as GpsTrackerApplication).database.telemetryDao()
     private val apiService = ApiService()
 
+    fun getUnsyncedCountFlow() = dao.observeUnsyncedCount()
+
     suspend fun submitLocation(record: TelemetryRecord) = withContext(Dispatchers.IO) {
         if (!shouldUploadOverCurrentNetwork(appContext)) {
             AppLog.d("TelemetryRepository", "Mobile data sync disabled — queueing locally")

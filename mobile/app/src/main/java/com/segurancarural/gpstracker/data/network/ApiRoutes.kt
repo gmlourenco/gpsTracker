@@ -3,7 +3,7 @@ package com.segurancarural.gpstracker.data.network
 import com.segurancarural.gpstracker.BuildConfig
 
 object ApiRoutes {
-    val BASE get() = BuildConfig.BACKEND_BASE_URL
+    val BASE get() = BuildConfig.BACKEND_BASE_URL.trimEnd('/')
 
     val LOCATION_V2    = "$BASE/api/v2/location"
     val EMERGENCY      = "$BASE/api/emergency"

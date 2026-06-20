@@ -57,6 +57,10 @@ class AccidentDetector(
     }
 
     fun start() {
+        if (sensitivity.lowercase() == "off") {
+            Log.i(TAG, "Sensor de acidente explicitamente desligado nas configurações.")
+            return
+        }
         if (accelerometer == null) {
             Log.e(TAG, "Accelerometer not available on this device!")
             return

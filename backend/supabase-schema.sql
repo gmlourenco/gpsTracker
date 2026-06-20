@@ -36,7 +36,8 @@ CREATE TABLE public.devices (
     last_seen_at    TIMESTAMPTZ,                                   -- Updated on every telemetry ingest
     tracking_enabled BOOLEAN      NOT NULL DEFAULT TRUE,
     app_version     VARCHAR(20)   NOT NULL DEFAULT '1.0.0',
-    fcm_token       TEXT                                           -- FCM push token
+    fcm_token       TEXT,                                          -- FCM push token
+    user_id         UUID          REFERENCES auth.users(id) ON DELETE SET NULL
 );
 
 COMMENT ON TABLE public.devices IS 'Registered GPS tracker devices identified by stable serialNumber (ANDROID_ID).';
@@ -167,6 +168,14 @@ CREATE TABLE IF NOT EXISTS public.farm_members (
 ALTER TABLE public.farms        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.farm_members  ENABLE ROW LEVEL SECURITY;
 
+CREATE TABLE IF NOT EXISTS public.farm_invites (
+  code TEXT PRIMARY KEY,
+  farm_id UUID NOT NULL REFERENCES public.farms(id) ON DELETE CASCADE,
+  created_by UUID NOT NULL REFERENCES auth.users(id),
+  expires_at TIMESTAMPTZ NOT NULL
+);
+ALTER TABLE public.farm_invites ENABLE ROW LEVEL SECURITY;
+
 -- Link devices to farms (nullable for backwards compatibility during migration)
 DO $$
 BEGIN
@@ -187,42 +196,40 @@ END $$;
 -- farm-scoped variants. The policies below are intentionally broad
 -- so the migration does NOT break the existing single-family setup.
 
--- Devices: Farm members can view devices in their farm(s)
-CREATE POLICY "Farm members: view their devices"
+-- Devices: Farm members can view devices in their farm(s) or their own
+CREATE POLICY "Farm members: view shared devices"
     ON public.devices FOR SELECT TO authenticated
     USING (
-        farm_id IN (
-            SELECT farm_id FROM public.farm_members
-            WHERE user_id = auth.uid()
-        )
+        user_id = auth.uid() OR
+        user_id IN (
+            SELECT fm2.user_id 
+            FROM public.farm_members fm1
+            JOIN public.farm_members fm2 ON fm1.farm_id = fm2.farm_id
+            WHERE fm1.user_id = auth.uid()
+        ) OR
+        user_id IS NULL -- Legacy fallback
     );
 
--- Devices: Only farm owners/admins can manage (insert/update/delete) devices
-CREATE POLICY "Farm admins: manage devices"
+-- Devices: Only device owner can manage their own device (or claim legacy devices)
+CREATE POLICY "Users: manage their own devices"
     ON public.devices FOR ALL TO authenticated
-    USING (
-        farm_id IN (
-            SELECT farm_id FROM public.farm_members
-            WHERE user_id = auth.uid()
-              AND role IN ('owner', 'admin')
-        )
-    )
-    WITH CHECK (
-        farm_id IN (
-            SELECT farm_id FROM public.farm_members
-            WHERE user_id = auth.uid()
-              AND role IN ('owner', 'admin')
-        )
-    );
+    USING (user_id = auth.uid() OR user_id IS NULL)
+    WITH CHECK (user_id = auth.uid());
 
--- Locations: Farm members can view locations for devices in their farm(s)
-CREATE POLICY "Farm members: view device locations"
+-- Locations: Farm members can view locations for shared devices
+CREATE POLICY "Farm members: view shared device locations"
     ON public.locations FOR SELECT TO authenticated
     USING (
         device_id IN (
-            SELECT d.id FROM public.devices d
-            JOIN public.farm_members fm ON fm.farm_id = d.farm_id
-            WHERE fm.user_id = auth.uid()
+            SELECT id FROM public.devices
+            WHERE user_id = auth.uid() OR
+                  user_id IN (
+                      SELECT fm2.user_id 
+                      FROM public.farm_members fm1
+                      JOIN public.farm_members fm2 ON fm1.farm_id = fm2.farm_id
+                      WHERE fm1.user_id = auth.uid()
+                  ) OR
+                  user_id IS NULL
         )
     );
 
@@ -230,6 +237,13 @@ CREATE POLICY "Farm members: view device locations"
 CREATE POLICY "Service role: insert locations"
     ON public.locations FOR INSERT TO service_role
     WITH CHECK (true);
+
+-- Locations: Authenticated users can insert locations for their own devices
+CREATE POLICY "Users: insert locations for their devices"
+    ON public.locations FOR INSERT TO authenticated
+    WITH CHECK (device_id IN (
+        SELECT id FROM public.devices WHERE user_id = auth.uid()
+    ));
 
 -- Farms: members can see their own farms
 CREATE POLICY "Farm members can view their farms"
@@ -272,6 +286,24 @@ CREATE POLICY "Farm owners can manage memberships"
             WHERE user_id = auth.uid() AND role = 'owner'
         )
     );
+
+CREATE POLICY "Invites creation" ON public.farm_invites FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "Invites view" ON public.farm_invites FOR SELECT TO authenticated USING (true);
+
+-- RPC for bootstrapping farms with RLS bypass
+CREATE OR REPLACE FUNCTION public.create_farm_with_owner(farm_name TEXT)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  new_farm_id UUID;
+BEGIN
+  INSERT INTO public.farms (name) VALUES (farm_name) RETURNING id INTO new_farm_id;
+  INSERT INTO public.farm_members (farm_id, user_id, role) VALUES (new_farm_id, auth.uid(), 'owner');
+  RETURN new_farm_id;
+END;
+$$;
 
 -- ============================================================
 -- 7b. POSTGIS SPATIAL COLUMN & GEOFENCING

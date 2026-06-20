@@ -216,16 +216,8 @@ class LocationForegroundService : Service() {
     private fun startTracking() {
         TrackingStateRepository.setTracking(true)
 
-        // Acquire wake lock to keep CPU awake while tracking is active
-        try {
-            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SegurancaRural::TrackingWakeLock").apply {
-                acquire(12 * 60 * 60 * 1000L) // 12-hour max (full work day)
-            }
-            Log.i(TAG, "WakeLock acquired successfully")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to acquire WakeLock: ${e.message}")
-        }
+        // Abusive Wakelock removed: Do not hold massive wakelocks continuously.
+        // Relying on Foreground Service TYPE_LOCATION instead.
 
         // Start as foreground service with sticky notification
         val notification = buildNotification()
