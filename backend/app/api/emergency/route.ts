@@ -16,7 +16,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServerClient } from '../../lib/supabase';
+import { getAuthenticatedUser } from '../../lib/auth-utils';
+import { getSupabaseServerClient, getSupabaseAdmin } from '../../lib/supabase';
 import { validateEmergencyPayload, ApiResponse } from '../../types/telemetry';
 import { sendEmergencyNotifications } from '../../lib/notifications';
 import { sendSosPushToAll } from '../../lib/fcm';
@@ -46,27 +47,42 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
   }
 
   const payload = body;
-  const supabase = await getSupabaseServerClient(request);
-  
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return NextResponse.json(
-      { success: false, error: 'Unauthorized' } as any,
-      { status: 401 }
-    );
+  const authHeader = request.headers.get('authorization');
+  const isDevice = authHeader === `Bearer ${process.env.DEVICE_API_SECRET}`;
+
+  let supabase;
+  let userId: string | null = null;
+
+  if (isDevice) {
+    supabase = getSupabaseAdmin();
+  } else {
+    supabase = await getSupabaseServerClient(request);
+    const { data: { user }, error: authError } = await getAuthenticatedUser(request, supabase);
+    if (authError || !user) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' } as any,
+        { status: 401 }
+      );
+    }
+    userId = user.id;
   }
 
   // ── 2. Upsert device ──────────────────────────────────────────────────────
+  const deviceUpdatePayload: any = {
+    id: payload.serialNumber,
+    label: payload.deviceLabel,
+    last_seen_at: new Date().toISOString(),
+    app_version: payload.appVersion,
+  };
+  
+  if (userId) {
+    deviceUpdatePayload.user_id = userId;
+  }
+
   const { error: deviceError } = await supabase
     .from('devices')
     .upsert(
-      {
-        id: payload.serialNumber,
-        user_id: user.id,
-        label: payload.deviceLabel,
-        last_seen_at: new Date().toISOString(),
-        app_version: payload.appVersion,
-      },
+      deviceUpdatePayload,
       { onConflict: 'id', ignoreDuplicates: false }
     );
 

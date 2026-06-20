@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthenticatedUser } from '../../../lib/auth-utils';
 import { getSupabaseServerClient } from '../../../lib/supabase';
 
 export async function POST(request: NextRequest) {
@@ -10,7 +11,7 @@ export async function POST(request: NextRequest) {
 
     const token = authHeader.replace('Bearer ', '');
     const supabase = await getSupabaseServerClient(request);
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const { data: { user }, error: userError } = await getAuthenticatedUser(request, supabase);
 
     if (userError || !user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });

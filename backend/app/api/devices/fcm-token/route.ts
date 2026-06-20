@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServerClient } from '../../../lib/supabase';
+import { getSupabaseAdmin } from '../../../lib/supabase';
 
 export async function PATCH(request: NextRequest) {
 
@@ -30,7 +30,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   // ── 3. Update device record ───────────────────────────────────────────────
-  const supabase = await getSupabaseServerClient(request);
+  const supabase = getSupabaseAdmin();
 
   const { data, error } = await supabase
     .from('devices')

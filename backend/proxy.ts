@@ -49,7 +49,7 @@ function checkRateLimit(identifier: string): boolean {
 
 // ── Middleware ───────────────────────────────────────────────────────────────
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow public endpoints without auth
@@ -76,12 +76,11 @@ export function middleware(request: NextRequest) {
     );
   }
 
-  const isUserRoute = pathname.startsWith('/api/auth') || pathname.startsWith('/api/positions');
   const expected = `Bearer ${deviceSecret}`;
   const isSecretAuth = timingSafeEqual(authHeader, expected);
 
   if (!isSecretAuth) {
-    if (isUserRoute && authHeader.startsWith('Bearer eyJ')) {
+    if (authHeader.startsWith('Bearer eyJ')) {
       // Let the route handler verify the Supabase JWT
     } else {
       return NextResponse.json(

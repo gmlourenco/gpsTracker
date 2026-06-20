@@ -221,6 +221,7 @@ fun ConfigScreen(
 
             var showDeviceSyncDialog by remember { mutableStateOf(false) }
             var availableDevicesToRestore by remember { mutableStateOf<List<com.segurancarural.gpstracker.data.repository.DeviceDto>>(emptyList()) }
+            var isLoggedIn by remember { mutableStateOf(com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentSessionOrNull() != null) }
 
             if (showDeviceSyncDialog) {
                 androidx.compose.material3.AlertDialog(
@@ -275,6 +276,7 @@ fun ConfigScreen(
                         is io.github.jan.supabase.compose.auth.composable.NativeSignInResult.Success -> {
                             scope.launch {
                                 isFarmLoading = true
+                                isLoggedIn = true
                                 val deviceId = context.ensureSerialNumber()
                                 val syncResult = farmRepository.syncDevices(
                                     deviceId = deviceId,
@@ -332,26 +334,20 @@ fun ConfigScreen(
                 androidx.compose.material3.AlertDialog(
                     onDismissRequest = { showCreateConfirmDialog = false },
                     title = { Text("Criar Grupo Familiar") },
-                    text = { Text("Tens a certeza que desejas criar um novo Grupo Familiar? Precisarás de iniciar sessão com o Google.") },
+                    text = { Text("Tens a certeza que desejas criar um novo Grupo Familiar?") },
                     confirmButton = {
                         androidx.compose.material3.TextButton(onClick = {
                             showCreateConfirmDialog = false
                             isFarmLoading = true
-                            // Check if already logged in
-                            val currentUser = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentUserOrNull()
-                            if (currentUser != null && currentUser.identities?.isNotEmpty() == true) {
-                                scope.launch {
-                                    val createResult = farmRepository.createFarm()
-                                    isFarmLoading = false
-                                    if (createResult.isSuccess) {
-                                        hasFarm = true
-                                        Toast.makeText(context, "Grupo criado com sucesso!", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, "Erro: ${createResult.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
-                                    }
+                            scope.launch {
+                                val createResult = farmRepository.createFarm()
+                                isFarmLoading = false
+                                if (createResult.isSuccess) {
+                                    hasFarm = true
+                                    Toast.makeText(context, "Grupo criado com sucesso!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Erro: ${createResult.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                                 }
-                            } else {
-                                action.startFlow()
                             }
                         }) {
                             Text("Sim, Criar")
@@ -365,12 +361,59 @@ fun ConfigScreen(
                 )
             }
 
-            if (hasFarm) {
+            if (!isLoggedIn) {
                 Text(
-                    text = "Você já está conectado a um Grupo Familiar.",
-                    color = AccentGreen,
+                    text = "A nova versão exige autenticação segura. Inicie sessão para gerir a sua Família e Dispositivos.",
+                    color = TextSecondary,
                     fontSize = 14.sp
                 )
+                Spacer(modifier = Modifier.height(16.dp))
+                if (isFarmLoading) {
+                    Text("A iniciar sessão...", color = TextSecondary, fontSize = 14.sp)
+                } else {
+                    Button(
+                        onClick = { action.startFlow() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4)), // Google Blue
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Iniciar Sessão com o Google", color = Color.White)
+                    }
+                }
+            } else if (hasFarm) {
+                val userEmail = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentSessionOrNull()?.user?.email ?: "Sessão Ativa"
+                Text(
+                    text = "Autenticado como: $userEmail",
+                    color = AccentGreen,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Você já está conectado a um Grupo Familiar seguro.",
+                    color = TextSecondary,
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = {
+                        scope.launch {
+                            try {
+                                com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.signOut()
+                            } catch (e: Exception) {
+                                // Ignore
+                            }
+                            com.segurancarural.gpstracker.data.network.ApiClient.farmId = null
+                            prefs.edit().remove("farm_id").remove("supabase_jwt").apply()
+                            hasFarm = false
+                            isLoggedIn = false
+                            Toast.makeText(context, "Sessão terminada", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CardDark),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Sair e Terminar Sessão", color = TextPrimary)
+                }
             } else {
                 Text(
                     text = "Crie ou entre em um grupo familiar para compartilhar sua localização.",

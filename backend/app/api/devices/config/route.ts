@@ -6,7 +6,8 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServerClient } from '../../../lib/supabase';
+import { getAuthenticatedUser } from '../../../lib/auth-utils';
+import { getSupabaseServerClient, getSupabaseAdmin } from '../../../lib/supabase';
 import { isValidSerialNumber } from '../../../types/telemetry';
 
 const VALID_MAP_TYPES = ['SATELLITE', 'DARK', 'LIGHT'] as const;
@@ -23,9 +24,18 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const supabase = await getSupabaseServerClient(request);
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  const authHeader = request.headers.get('authorization');
+  const isDevice = authHeader === `Bearer ${process.env.DEVICE_API_SECRET}`;
+
+  let supabase;
+  if (isDevice) {
+    supabase = getSupabaseAdmin();
+  } else {
+    supabase = await getSupabaseServerClient(request);
+    const { data: { user }, error: authError } = await getAuthenticatedUser(request, supabase);
+    if (authError || !user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { data, error } = await supabase
     .from('devices')
     .select('*')
@@ -148,9 +158,18 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const supabase = await getSupabaseServerClient(request);
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  const authHeader = request.headers.get('authorization');
+  const isDevice = authHeader === `Bearer ${process.env.DEVICE_API_SECRET}`;
+
+  let supabase;
+  if (isDevice) {
+    supabase = getSupabaseAdmin();
+  } else {
+    supabase = await getSupabaseServerClient(request);
+    const { data: { user }, error: authError } = await getAuthenticatedUser(request, supabase);
+    if (authError || !user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
+
   const { error } = await supabase.from('devices').upsert(
     updatePayload,
     { onConflict: 'id', ignoreDuplicates: false }

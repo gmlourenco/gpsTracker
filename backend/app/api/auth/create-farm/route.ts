@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthenticatedUser } from '../../../lib/auth-utils';
 import { getSupabaseServerClient, supabasePublic } from '../../../lib/supabase';
 
 function generateCode(): string {
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest) {
     const supabase = await getSupabaseServerClient(request);
     
     // Verify user token
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    const { data: { user }, error: userError } = await getAuthenticatedUser(request, supabase);
     
     if (userError || !user) {
       console.error('Auth verification failed:', userError);

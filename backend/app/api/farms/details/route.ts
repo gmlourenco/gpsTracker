@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAuthenticatedUser } from '../../../lib/auth-utils';
 import { getSupabaseServerClient } from '../../../lib/supabase';
 
 export async function GET(request: NextRequest) {
@@ -9,8 +10,12 @@ export async function GET(request: NextRequest) {
     }
 
     const token = authHeader.replace('Bearer ', '');
+    console.log("DEBUG /api/farms/details -> Before getSupabaseServerClient");
     const supabase = await getSupabaseServerClient(request);
-    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    console.log("DEBUG /api/farms/details -> Before getUser");
+    const { data: { user }, error: userError } = await getAuthenticatedUser(request, supabase);
+
+    console.log("DEBUG /api/farms/details -> userError:", userError, "user:", user);
 
     if (userError || !user || user.is_anonymous) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });

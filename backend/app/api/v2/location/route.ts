@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseServerClient } from '../../../lib/supabase';
+import { getAuthenticatedUser } from '../../../lib/auth-utils';
+import { getSupabaseServerClient, getSupabaseAdmin } from '../../../lib/supabase';
 import { isValidSerialNumber } from '../../../types/telemetry';
 
 export interface LocationV2Item {
@@ -66,13 +67,23 @@ export async function POST(request: NextRequest) {
   const sorted = [...payload.locations].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   const latest = sorted[sorted.length - 1];
 
-  const supabase = await getSupabaseServerClient(request);
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  const authHeader = request.headers.get('authorization');
+  const isDevice = authHeader === `Bearer ${process.env.DEVICE_API_SECRET}`;
 
-  if (authError || !user) {
-    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  let supabase;
+  let userId: string | null = null;
+
+  if (isDevice) {
+    supabase = getSupabaseAdmin();
+  } else {
+    supabase = await getSupabaseServerClient(request);
+    const { data: { user }, error: authError } = await getAuthenticatedUser(request, supabase);
+
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    userId = user.id;
   }
-  const userId = user.id;
 
   // 1. Upsert device using latest status
   const { error: deviceError } = await supabase

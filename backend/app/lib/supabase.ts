@@ -66,12 +66,15 @@ export async function getSupabaseServerClient(request?: Request) {
   const authHeader = request?.headers.get('authorization');
   const token = authHeader?.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : undefined;
   
+  // Do NOT forward our internal device secret to Supabase as it's not a valid JWT
+  const isDeviceSecret = token === process.env.DEVICE_API_SECRET;
+  
   return createServerClient(
     supabaseUrl,
     supabasePublishableKey,
     {
       global: {
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        headers: (token && !isDeviceSecret) ? { Authorization: `Bearer ${token}` } : undefined,
       },
       cookies: {
         getAll() {
