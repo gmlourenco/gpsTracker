@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     const userId = user.id;
 
     // Read custom name from body if provided
-    let farmName = 'Família';
+    let farmName = '';
     try {
       const body = await request.json();
       if (body && typeof body.name === 'string' && body.name.trim() !== '') {
@@ -44,6 +44,10 @@ export async function POST(request: NextRequest) {
       }
     } catch (e) {
       // Fallback if no body was provided
+    }
+
+    if (!farmName) {
+      return NextResponse.json({ success: false, error: 'O nome da família é obrigatório.' }, { status: 400 });
     }
 
     // 2. Create the farm and add user as owner using RPC (bypasses RLS chicken-and-egg problem)

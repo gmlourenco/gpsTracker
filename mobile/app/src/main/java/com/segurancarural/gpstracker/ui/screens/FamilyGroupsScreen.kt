@@ -74,6 +74,7 @@ fun FamilyGroupsScreen() {
     var showAddFamilySection by remember { mutableStateOf(false) }
     var inviteCodeInput by remember { mutableStateOf("") }
     var newFarmNameInput by remember { mutableStateOf("") }
+    var createError by remember { mutableStateOf(false) }
 
     fun loadFarms() {
         scope.launch {
@@ -262,7 +263,10 @@ fun FamilyGroupsScreen() {
                         } else {
                             OutlinedTextField(
                                 value = newFarmNameInput,
-                                onValueChange = { newFarmNameInput = it },
+                                onValueChange = { 
+                                    newFarmNameInput = it 
+                                    createError = false
+                                },
                                 placeholder = { Text("Nome da Família (Ex: Família Silva)") },
                                 modifier = Modifier.fillMaxWidth(),
                                 singleLine = true,
@@ -276,24 +280,35 @@ fun FamilyGroupsScreen() {
                         }
                         Button(
                             onClick = {
-                                scope.launch {
-                                    isActionLoading = true
-                                    val res = farmRepository.createFarm(newFarmNameInput.trim().takeIf { it.isNotBlank() })
-                                    if (res.isSuccess) {
-                                        val newFarmId = res.getOrNull()?.farmId
-                                        if (newFarmId != null) {
-                                            farmRepository.syncCurrentDeviceToFarm(newFarmId)
+                                if (newFarmNameInput.trim().isBlank()) {
+                                    createError = true
+                                    android.widget.Toast.makeText(context, "O nome da família é obrigatório.", android.widget.Toast.LENGTH_SHORT).show()
+                                } else {
+                                    scope.launch {
+                                        isActionLoading = true
+                                        createError = false
+                                        val res = farmRepository.createFarm(newFarmNameInput.trim())
+                                        if (res.isSuccess) {
+                                            val newFarmId = res.getOrNull()?.farmId
+                                            if (newFarmId != null) {
+                                                farmRepository.syncCurrentDeviceToFarm(newFarmId)
+                                            }
+                                            newFarmNameInput = ""
+                                            loadFarms()
+                                        } else {
+                                            createError = true
+                                            val errMsg = res.exceptionOrNull()?.message ?: "Erro ao criar família"
+                                            android.widget.Toast.makeText(context, errMsg, android.widget.Toast.LENGTH_LONG).show()
                                         }
-                                        newFarmNameInput = ""
-                                        loadFarms()
-                                    } else {
-                                        errorMessage = res.exceptionOrNull()?.message
+                                        isActionLoading = false
                                     }
-                                    isActionLoading = false
                                 }
                             },
                             enabled = !isAnonymous && !isActionLoading,
-                            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (createError) Color(0xFFDC2626) else AccentGreen,
+                                disabledContainerColor = (if (createError) Color(0xFFDC2626) else AccentGreen).copy(alpha = 0.5f)
+                            ),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             if (isActionLoading && !isAnonymous) {
