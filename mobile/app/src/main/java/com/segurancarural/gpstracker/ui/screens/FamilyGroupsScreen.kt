@@ -73,6 +73,7 @@ fun FamilyGroupsScreen() {
     
     var showAddFamilySection by remember { mutableStateOf(false) }
     var inviteCodeInput by remember { mutableStateOf("") }
+    var newFarmNameInput by remember { mutableStateOf("") }
 
     fun loadFarms() {
         scope.launch {
@@ -193,7 +194,7 @@ fun FamilyGroupsScreen() {
                                     IconButton(onClick = {
                                         val sendIntent = Intent().apply {
                                             action = Intent.ACTION_SEND
-                                            putExtra(Intent.EXTRA_TEXT, "Junta-te ao meu Grupo Familiar na app Segurança Rural com o código: ${farm.inviteCode}")
+                                            putExtra(Intent.EXTRA_TEXT, "Junta-te ao meu Grupo Familiar ${farm.farmName} na app Segurança Rural com o código: ${farm.inviteCode}")
                                             type = "text/plain"
                                         }
                                         context.startActivity(Intent.createChooser(sendIntent, "Partilhar código"))
@@ -258,17 +259,32 @@ fun FamilyGroupsScreen() {
                         Text("Criar Nova Família", color = TextPrimary, fontWeight = FontWeight.Bold)
                         if (isAnonymous) {
                             Text("Para criar uma família precisas de ter feito login com a tua conta (Google). Como estás num acesso anónimo/convidado, só podes juntar-te a famílias existentes.", color = TextSecondary, fontSize = 12.sp)
+                        } else {
+                            OutlinedTextField(
+                                value = newFarmNameInput,
+                                onValueChange = { newFarmNameInput = it },
+                                placeholder = { Text("Nome da Família (Ex: Família Silva)") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    unfocusedContainerColor = SurfaceDark,
+                                    focusedContainerColor = SurfaceDark,
+                                    unfocusedTextColor = TextPrimary,
+                                    focusedTextColor = TextPrimary
+                                )
+                            )
                         }
                         Button(
                             onClick = {
                                 scope.launch {
                                     isActionLoading = true
-                                    val res = farmRepository.createFarm()
+                                    val res = farmRepository.createFarm(newFarmNameInput.trim().takeIf { it.isNotBlank() })
                                     if (res.isSuccess) {
                                         val newFarmId = res.getOrNull()?.farmId
                                         if (newFarmId != null) {
                                             farmRepository.syncCurrentDeviceToFarm(newFarmId)
                                         }
+                                        newFarmNameInput = ""
                                         loadFarms()
                                     } else {
                                         errorMessage = res.exceptionOrNull()?.message

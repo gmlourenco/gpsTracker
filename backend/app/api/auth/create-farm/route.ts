@@ -35,9 +35,20 @@ export async function POST(request: NextRequest) {
 
     const userId = user.id;
 
+    // Read custom name from body if provided
+    let farmName = 'Família';
+    try {
+      const body = await request.json();
+      if (body && typeof body.name === 'string' && body.name.trim() !== '') {
+        farmName = body.name.trim();
+      }
+    } catch (e) {
+      // Fallback if no body was provided
+    }
+
     // 2. Create the farm and add user as owner using RPC (bypasses RLS chicken-and-egg problem)
     const { data: newFarmId, error: rpcError } = await supabase
-      .rpc('create_farm_with_owner', { farm_name: 'Família' });
+      .rpc('create_farm_with_owner', { farm_name: farmName });
 
     if (rpcError || !newFarmId) {
       console.error('Farm creation RPC failed:', rpcError);

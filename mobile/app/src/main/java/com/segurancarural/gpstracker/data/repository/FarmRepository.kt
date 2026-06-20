@@ -18,6 +18,9 @@ import kotlinx.serialization.Serializable
 data class JoinFarmRequest(val inviteCode: String)
 
 @Serializable
+data class CreateFarmRequest(val name: String)
+
+@Serializable
 data class FarmResponse(
     val success: Boolean,
     val session: SupabaseSession? = null,
@@ -42,14 +45,19 @@ class FarmRepository(private val context: Context) {
         ApiClient.farmId = prefs.getString("farm_id", null)
     }
 
-    suspend fun createFarm(): Result<FarmResponse> {
+    suspend fun createFarm(name: String? = null): Result<FarmResponse> {
         return try {
             val token = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentAccessTokenOrNull()
             if (token != null) {
                 ApiClient.supabaseJwt = token.toString()
             }
             
-            val response = ApiClient.httpClient.post("${ApiRoutes.BASE}/api/auth/create-farm")
+            val response = ApiClient.httpClient.post("${ApiRoutes.BASE}/api/auth/create-farm") {
+                if (!name.isNullOrBlank()) {
+                    contentType(ContentType.Application.Json)
+                    setBody(CreateFarmRequest(name))
+                }
+            }
             val data = response.body<FarmResponse>()
             if (data.success) {
                 val validToken = token?.toString() ?: data.session?.access_token
