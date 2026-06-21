@@ -74,7 +74,7 @@ android {
             }
             val backendUrl = localProps.getProperty("backend.base.url.dev") 
                 ?: localProps.getProperty("backend.base.url")
-                ?: "https://gps-tracker-kprhmq8jb-gmlourencos-projects.vercel.app/"
+                ?: "https://gps-tracker-jgkkfb7yw-gmlourencos-projects.vercel.app/"
             buildConfigField("String", "BACKEND_BASE_URL", "\"$backendUrl\"")
         }
         create("pre") {

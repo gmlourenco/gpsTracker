@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -50,6 +51,7 @@ import com.segurancarural.gpstracker.ui.viewmodel.MapViewModel
 import com.segurancarural.gpstracker.update.ApkUpdateInstaller
 import com.segurancarural.gpstracker.update.AppUpdateChecker
 import com.segurancarural.gpstracker.update.AppUpdateOffer
+import com.segurancarural.gpstracker.util.ensureSerialNumber
 import com.segurancarural.gpstracker.worker.SyncWorker
 import kotlinx.coroutines.launch
 
@@ -138,17 +140,22 @@ class MainActivity : ComponentActivity() {
             FcmTokenRepository(this@MainActivity).refreshTokenIfNeeded()
         }
 
-        // Load device configurations from backend on launch to restore settings if reinstalled
-        lifecycleScope.launch {
-            DeviceConfigRepository(this@MainActivity).loadConfigFromBackend()
-        }
-
         setContent {
             SegurancaRuralTheme {
+                val configRepository = remember { DeviceConfigRepository(this@MainActivity) }
+                var importPromptDevices by remember { mutableStateOf<List<com.segurancarural.gpstracker.data.dto.AvailableDeviceDto>?>(null) }
+
                 val mapViewModel: MapViewModel = viewModel()
                 var currentScreen by rememberSaveable { mutableStateOf(AppScreen.HOME) }
                 var updateOffer by remember { mutableStateOf<AppUpdateOffer?>(null) }
                 var hasCheckedAndDismissedOnLaunch by rememberSaveable { mutableStateOf(false) }
+
+                LaunchedEffect(Unit) {
+                    val result = configRepository.loadConfigFromBackend()
+                    if (result is com.segurancarural.gpstracker.data.repository.ConfigLoadResult.PromptImport) {
+                        importPromptDevices = result.availableDevices
+                    }
+                }
 
                 // React to notification clicks/intent updates
                 val currentIntent by activityIntentState
@@ -193,6 +200,78 @@ class MainActivity : ComponentActivity() {
                                 hasCheckedAndDismissedOnLaunch = true
                             }
                         },
+                    )
+                }
+
+                importPromptDevices?.let { devices ->
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { /* Block dismiss */ },
+                        title = { Text("Novo Dispositivo Detetado") },
+                        text = {
+                            androidx.compose.foundation.layout.Column {
+                                Text("Deseja importar as configurações de um dispositivo antigo para este novo?")
+                                androidx.compose.foundation.layout.Spacer(modifier = Modifier.padding(8.dp))
+                                androidx.compose.foundation.lazy.LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+                                    items(
+                                        count = devices.size,
+                                        itemContent = { index ->
+                                            val device = devices[index]
+                                            androidx.compose.material3.Card(
+                                                modifier = Modifier.padding(vertical = 4.dp),
+                                                onClick = {
+                                                    lifecycleScope.launch {
+                                                        val res = configRepository.loadConfigFromBackend(device.serial)
+                                                        if (res is com.segurancarural.gpstracker.data.repository.ConfigLoadResult.Success) {
+                                                            val prefs = getSharedPreferences("tracking_prefs", MODE_PRIVATE)
+                                                            val newConfig = com.segurancarural.gpstracker.data.dto.DeviceConfigDto(
+                                                                serialNumber = this@MainActivity.ensureSerialNumber(),
+                                                                deviceLabel = prefs.getString("device_label", "Dispositivo") ?: "Dispositivo",
+                                                                markerColor = prefs.getString("marker_color", "#16A34A") ?: "#16A34A",
+                                                                trackingIntervalMs = prefs.getLong("tracking_interval_ms", 60000),
+                                                                trackingDistanceM = prefs.getFloat("tracking_distance_m", 200f),
+                                                                defaultMapType = prefs.getString("default_map_type", "SATELLITE") ?: "SATELLITE",
+                                                                accidentSensorSensitivity = prefs.getString("accident_sensor_sensitivity", "medium") ?: "medium",
+                                                                configUpdatedAt = System.currentTimeMillis()
+                                                            )
+                                                            configRepository.saveConfigToBackend(newConfig)
+                                                            importPromptDevices = null
+                                                        }
+                                                    }
+                                                }
+                                            ) {
+                                                androidx.compose.foundation.layout.Column(modifier = Modifier.padding(16.dp)) {
+                                                    Text(device.name, style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+                                                    Text(device.serial, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        },
+                        confirmButton = {},
+                        dismissButton = {
+                            androidx.compose.material3.TextButton(
+                                onClick = {
+                                    lifecycleScope.launch {
+                                        val newConfig = com.segurancarural.gpstracker.data.dto.DeviceConfigDto(
+                                            serialNumber = this@MainActivity.ensureSerialNumber(),
+                                            deviceLabel = "Dispositivo",
+                                            markerColor = "#16A34A",
+                                            trackingIntervalMs = 60000,
+                                            trackingDistanceM = 200f,
+                                            defaultMapType = "SATELLITE",
+                                            accidentSensorSensitivity = "medium",
+                                            configUpdatedAt = System.currentTimeMillis()
+                                        )
+                                        configRepository.saveConfigToBackend(newConfig)
+                                        importPromptDevices = null
+                                    }
+                                }
+                            ) {
+                                Text("Não, usar padrão")
+                            }
+                        }
                     )
                 }
 

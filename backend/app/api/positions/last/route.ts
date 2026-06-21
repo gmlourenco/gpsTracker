@@ -35,7 +35,44 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     supabase = getSupabaseAdmin();
   }
 
-  // ── 1. Call optimized RPC ──────────────────────────────────────────────────
+  // ── 1. Explicit Backend Access Check (Defense in Depth) ───────────────────
+  let allowedDeviceIds: Set<string> | null = null;
+  
+  if (authHeader.startsWith('Bearer eyJ')) {
+    const adminSupabase = getSupabaseAdmin();
+    // Get user from the JWT to determine their id securely
+    const { data: userData } = await supabase.auth.getUser();
+    if (userData?.user) {
+      const user = userData.user;
+      allowedDeviceIds = new Set<string>();
+      
+      // A. User's own devices and legacy/unassigned devices
+      const { data: directDevices } = await adminSupabase
+        .from('devices')
+        .select('id')
+        .or(`user_id.eq.${user.id},and(user_id.is.null,farm_id.is.null)`);
+      
+      if (directDevices) directDevices.forEach(d => allowedDeviceIds!.add(d.id));
+
+      // B. Devices from the user's families (farms)
+      const { data: userFarms } = await adminSupabase
+        .from('farm_members')
+        .select('farm_id')
+        .eq('user_id', user.id);
+        
+      if (userFarms && userFarms.length > 0) {
+        const farmIds = userFarms.map(f => f.farm_id);
+        const { data: farmDevices } = await adminSupabase
+          .from('devices')
+          .select('id')
+          .in('farm_id', farmIds);
+          
+        if (farmDevices) farmDevices.forEach(d => allowedDeviceIds!.add(d.id));
+      }
+    }
+  }
+
+  // ── 2. Call optimized RPC (RLS applies here as well) ──────────────────────
   const { data: rows, error: rpcError } = await supabase.rpc('get_positions_with_history', {
     p_history: isNaN(historyCount) ? 0 : historyCount
   });
@@ -56,8 +93,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     });
   }
 
-  // ── 2. Transform RPC rows ──────────────────────────────────────────────────
-  const devices: DeviceWithLatestLocation[] = mapRpcRowsToDevicesWithHistory(rows);
+  // ── 3. Transform RPC rows ──────────────────────────────────────────────────
+  let devices: DeviceWithLatestLocation[] = mapRpcRowsToDevicesWithHistory(rows);
+
+  // ── 4. Apply Explicit Backend Filter ───────────────────────────────────────
+  if (allowedDeviceIds !== null) {
+    devices = devices.filter(d => allowedDeviceIds!.has(d.id));
+  }
 
   const response = NextResponse.json({
     success: true,
