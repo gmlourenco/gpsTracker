@@ -74,16 +74,24 @@ class SyncEngine(
                 var historySyncedCount = 0
                 var errorCount = 0
 
+                // ── Recover stuck records ────────────────────────────────────────────────
+                val recovered = dao.resetSyncingToPending()
+                if (recovered > 0) {
+                    Log.w(TAG, "Recovered $recovered stuck SYNCING records to PENDING")
+                }
+
                 // ── Phase 1: Emergency / SOS (LIFO) ──────────────────────────────
                 val emergencyRecords = dao.getEmergencyRecords()
                 if (emergencyRecords.isNotEmpty()) {
                     Log.w(TAG, "Phase 1: Flushing ${emergencyRecords.size} SOS records (LIFO)")
                     for (record in emergencyRecords) {
+                        dao.markSyncing(listOf(record.id))
                         val success = transmitToEmergency(record)
                         if (success) {
                             dao.markSynced(listOf(record.id))
                             emergencySyncedCount++
                         } else {
+                            dao.resetSyncingToPending() // Revert immediately
                             errorCount++
                             // Do not break — try remaining emergency records
                         }
@@ -94,11 +102,13 @@ class SyncEngine(
                 val latestRecord = dao.getLatestUnsynced()
                 if (latestRecord != null) {
                     Log.d(TAG, "Phase 2: Sending latest position (id=${latestRecord.id})")
+                    dao.markSyncing(listOf(latestRecord.id))
                     val success = transmitBatchToLocation(listOf(latestRecord))
                     if (success) {
                         dao.markSynced(listOf(latestRecord.id))
                         latestWasSynced = true
                     } else {
+                        dao.resetSyncingToPending()
                         errorCount++
                     }
                 }
@@ -113,12 +123,14 @@ class SyncEngine(
                     }
 
                     Log.d(TAG, "Phase 3: Transmitting batch of ${batch.size} records in a single V2 request (FIFO)")
+                    val successIds = batch.map { it.id }
+                    dao.markSyncing(successIds)
                     val success = transmitBatchToLocation(batch)
                     if (success) {
-                        val successIds = batch.map { it.id }
                         dao.markSynced(successIds)
                         historySyncedCount += batch.size
                     } else {
+                        dao.resetSyncingToPending()
                         errorCount++
                         // Stop batching on first failure to avoid out-of-order gaps
                         hasMore = false

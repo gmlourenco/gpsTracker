@@ -28,7 +28,7 @@ class TelemetryRepository(private val context: Context) {
     suspend fun submitLocation(record: TelemetryRecord) = withContext(Dispatchers.IO) {
         if (!shouldUploadOverCurrentNetwork(appContext)) {
             AppLog.d("TelemetryRepository", "Mobile data sync disabled — queueing locally")
-            dao.insert(record.copy(synced = false))
+            dao.insert(record.copy(syncState = 0))
             return@withContext
         }
 
@@ -49,23 +49,23 @@ class TelemetryRepository(private val context: Context) {
                 }
                 if (isLogicalSuccess) {
                     AppLog.i("TelemetryRepository", "Location sent successfully: $body")
-                    dao.insert(record.copy(synced = true))
+                    dao.insert(record.copy(syncState = 2))
                 } else {
                     AppLog.w("TelemetryRepository", "Location push response was not a logical success (possibly captive portal): $body")
-                    dao.insert(record.copy(synced = false))
+                    dao.insert(record.copy(syncState = 0))
                 }
             }
             is ApiResult.HttpError -> {
                 AppLog.e("TelemetryRepository", "Network push failed: ${result.code} — ${result.message}")
-                dao.insert(record.copy(synced = false))
+                dao.insert(record.copy(syncState = 0))
             }
             is ApiResult.NetworkError -> {
                 AppLog.w("TelemetryRepository", "Network exception: ${result.exception.message}", result.exception)
-                dao.insert(record.copy(synced = false))
+                dao.insert(record.copy(syncState = 0))
             }
             is ApiResult.Unauthorized -> {
                 AppLog.e("TelemetryRepository", "Unauthorized push attempt")
-                dao.insert(record.copy(synced = false))
+                dao.insert(record.copy(syncState = 0))
             }
         }
     }

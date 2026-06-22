@@ -141,6 +141,14 @@ class LocationForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Android 14+ Compliance: Explicitly construct and call startForeground immediately
+        val notification = buildNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+
         when (intent?.action) {
             ACTION_STOP -> {
                 stopTracking()
@@ -217,13 +225,8 @@ class LocationForegroundService : Service() {
         // Abusive Wakelock removed: Do not hold massive wakelocks continuously.
         // Relying on Foreground Service TYPE_LOCATION instead.
 
-        // Start as foreground service with sticky notification
-        val notification = buildNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
+        // Start as foreground service with sticky notification (already handled in onStartCommand)
+        updateNotification()
 
         registerLocationCallback()
         requestLocationUpdates()
@@ -637,6 +640,31 @@ class LocationForegroundService : Service() {
     private fun updateNotification() {
         val manager = getSystemService(NotificationManager::class.java)
         manager.notify(NOTIFICATION_ID, buildNotification())
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        Log.w(TAG, "onTaskRemoved called - App swiped away")
+        if (TrackingStateRepository.isTracking.value) {
+            val restartIntent = Intent(applicationContext, this.javaClass).apply {
+                setPackage(packageName)
+            }
+            val pendingIntent = PendingIntent.getService(
+                this,
+                1,
+                restartIntent,
+                PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            alarmManager.set(
+                AlarmManager.ELAPSED_REALTIME,
+                android.os.SystemClock.elapsedRealtime() + 1000,
+                pendingIntent
+            )
+            Log.i(TAG, "Scheduled alarm to restart tracking service")
+        } else {
+            stopSelf()
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

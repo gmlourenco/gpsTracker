@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '../../../lib/auth-utils';
 import { getSupabaseServerClient, getSupabaseAdmin } from '../../../lib/supabase';
+import { timingSafeEqual } from 'crypto';
 import { isValidSerialNumber } from '../../../types/telemetry';
 
 const VALID_MAP_TYPES = ['SATELLITE', 'DARK', 'LIGHT'] as const;
@@ -24,8 +25,9 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const authHeader = request.headers.get('authorization');
-  const isDevice = authHeader === `Bearer ${process.env.DEVICE_API_SECRET}`;
+  const authHeader = request.headers.get('authorization') || '';
+  const expected = `Bearer ${process.env.DEVICE_API_SECRET}`;
+  const isDevice = authHeader.length === expected.length && timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
 
   let supabase;
   let user = null;
@@ -209,8 +211,9 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const authHeader = request.headers.get('authorization');
-  const isDevice = authHeader === `Bearer ${process.env.DEVICE_API_SECRET}`;
+  const authHeader = request.headers.get('authorization') || '';
+  const expected = `Bearer ${process.env.DEVICE_API_SECRET}`;
+  const isDevice = authHeader.length === expected.length && timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
 
   let supabase;
   let user = null;

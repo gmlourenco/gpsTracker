@@ -10,7 +10,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '../../../lib/supabase';
 
+import { timingSafeEqual } from 'crypto';
+
 export async function PATCH(request: NextRequest) {
+  const authHeader = request.headers.get('authorization') || '';
+  const expected = `Bearer ${process.env.DEVICE_API_SECRET}`;
+  
+  if (authHeader.length !== expected.length || !timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected))) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+  }
 
   // ── 2. Parse body ─────────────────────────────────────────────────────────
   let body: unknown;

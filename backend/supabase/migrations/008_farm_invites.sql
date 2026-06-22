@@ -54,7 +54,7 @@ BEGIN
 
     -- Add the current user to the farm
     INSERT INTO public.farm_members (farm_id, user_id, role)
-    VALUES (v_farm_id, auth.uid(), 'member')
+    VALUES (v_farm_id, auth.uid(), 'viewer')
     ON CONFLICT (farm_id, user_id) DO NOTHING;
 
     RETURN v_farm_id;

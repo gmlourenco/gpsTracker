@@ -45,6 +45,10 @@ class AccidentDetector(
     private var lastGyroTimestamp: Long = 0L
     private var totalRotationRad = 0f
 
+    // Low-Pass Filter variables
+    private val alpha = 0.8f
+    private val gravity = FloatArray(3)
+
     // Map sensitivity to G-force threshold in m/s^2 (G * 9.8)
     private val threshold: Float = when {
         sensitivity.startsWith("custom_", ignoreCase = true) -> {
@@ -69,10 +73,10 @@ class AccidentDetector(
             handlerThread = HandlerThread("AccidentSensor").apply { start() }
             handler = Handler(handlerThread!!.looper)
             
-            // SENSOR_DELAY_GAME (~20ms sampling interval)
-            sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME, handler)
+            // SENSOR_DELAY_NORMAL (~200ms sampling interval, huge battery saving vs GAME)
+            sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL, handler)
             gyroscope?.let {
-                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, handler)
+                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, handler)
             }
             isListening = true
             consecutiveOverThresholdCount = 0
@@ -88,6 +92,7 @@ class AccidentDetector(
             handler = null
             isListening = false
             consecutiveOverThresholdCount = 0
+            gravity.fill(0f)
             Log.i(TAG, "Accident sensor stopped")
         }
     }
@@ -101,9 +106,15 @@ class AccidentDetector(
     }
 
     private fun processAccelerometer(event: SensorEvent) {
-        val x = event.values[0]
-        val y = event.values[1]
-        val z = event.values[2]
+        // Isolate the force of gravity with the low-pass filter to ignore tractor engine vibration
+        gravity[0] = alpha * gravity[0] + (1 - alpha) * event.values[0]
+        gravity[1] = alpha * gravity[1] + (1 - alpha) * event.values[1]
+        gravity[2] = alpha * gravity[2] + (1 - alpha) * event.values[2]
+
+        // Remove the gravity contribution with the high-pass filter
+        val x = event.values[0] - gravity[0]
+        val y = event.values[1] - gravity[1]
+        val z = event.values[2] - gravity[2]
 
         val magnitude = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
 

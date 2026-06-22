@@ -11,6 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { timingSafeEqual } from 'crypto';
 import { getAuthenticatedUser } from '../../lib/auth-utils';
 import { getSupabaseServerClient, getSupabaseAdmin } from '../../lib/supabase';
 import {
@@ -47,8 +48,9 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
   }
 
   const payload = body;
-  const authHeader = request.headers.get('authorization');
-  const isDevice = authHeader === `Bearer ${process.env.DEVICE_API_SECRET}`;
+  const authHeader = request.headers.get('authorization') || '';
+  const expected = `Bearer ${process.env.DEVICE_API_SECRET}`;
+  const isDevice = authHeader.length === expected.length && timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
 
   let supabase;
   let userId: string | null = null;

@@ -32,7 +32,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
     );
   } else {
-    supabase = getSupabaseAdmin();
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
 
   // ── 1. Explicit Backend Access Check (Defense in Depth) ───────────────────

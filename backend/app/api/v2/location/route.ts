@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '../../../lib/auth-utils';
 import { getSupabaseServerClient, getSupabaseAdmin } from '../../../lib/supabase';
 import { isValidSerialNumber } from '../../../types/telemetry';
+import { timingSafeEqual } from 'crypto';
 
 export interface LocationV2Item {
   timestamp: string;
@@ -46,6 +47,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'locations must be a non-empty array' }, { status: 400 });
   }
 
+  const MAX_BATCH_SIZE = 100;
+  if (payload.locations.length > MAX_BATCH_SIZE) {
+    return NextResponse.json({ success: false, error: `Batch size exceeds maximum of ${MAX_BATCH_SIZE}` }, { status: 400 });
+  }
+
   // Validate each location item
   for (let i = 0; i < payload.locations.length; i++) {
     const loc = payload.locations[i];
@@ -58,6 +64,9 @@ export async function POST(request: NextRequest) {
     if (!loc.gps || typeof loc.gps.lat !== 'number' || typeof loc.gps.lng !== 'number' || typeof loc.gps.accuracy !== 'number') {
       return NextResponse.json({ success: false, error: `Invalid gps details at index ${i}` }, { status: 400 });
     }
+    if (loc.gps.lat < -90 || loc.gps.lat > 90 || loc.gps.lng < -180 || loc.gps.lng > 180) {
+      return NextResponse.json({ success: false, error: `Coordinates out of bounds at index ${i}` }, { status: 400 });
+    }
     if (typeof loc.emergencyState !== 'boolean' || typeof loc.trackingEnabled !== 'boolean') {
       return NextResponse.json({ success: false, error: `Invalid tracking/emergency states at index ${i}` }, { status: 400 });
     }
@@ -67,8 +76,9 @@ export async function POST(request: NextRequest) {
   const sorted = [...payload.locations].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   const latest = sorted[sorted.length - 1];
 
-  const authHeader = request.headers.get('authorization');
-  const isDevice = authHeader === `Bearer ${process.env.DEVICE_API_SECRET}`;
+  const authHeader = request.headers.get('authorization') || '';
+  const expected = `Bearer ${process.env.DEVICE_API_SECRET}`;
+  const isDevice = authHeader.length === expected.length && timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
 
   let supabase;
   let userId: string | null = null;

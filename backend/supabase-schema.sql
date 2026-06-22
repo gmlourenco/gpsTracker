@@ -47,6 +47,7 @@ CREATE TABLE public.locations (
     device_id       TEXT          NOT NULL REFERENCES public.devices(id) ON DELETE CASCADE,
     lat             NUMERIC(9,6)  NOT NULL,                        -- Latitude
     lng             NUMERIC(9,6)  NOT NULL,                        -- Longitude
+    geom            geometry(Point, 4326),                         -- PostGIS Spatial Column
     accuracy        REAL          NOT NULL,                        -- GPS accuracy radius in metres
     speed           REAL          NOT NULL DEFAULT 0,             -- Speed in km/h
     heading         REAL          NOT NULL DEFAULT 0,             -- Compass bearing 0–360°
@@ -64,6 +65,26 @@ CREATE TABLE public.locations (
 COMMENT ON TABLE public.locations IS 'Telemetry records and locations sent by registered tracker devices.';
 
 -- ============================================================
+-- 3b. POSTGIS AUTO-SYNC TRIGGER
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.sync_location_geom()
+RETURNS trigger AS $$
+BEGIN
+  IF NEW.lat IS NOT NULL AND NEW.lng IS NOT NULL THEN
+    -- PostGIS functions must be prefixed with 'extensions.' if installed in extensions schema
+    NEW.geom := extensions.ST_SetSRID(extensions.ST_MakePoint(NEW.lng, NEW.lat), 4326);
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trigger_sync_location_geom
+BEFORE INSERT OR UPDATE OF lat, lng
+ON public.locations
+FOR EACH ROW
+EXECUTE FUNCTION public.sync_location_geom();
+
+-- ============================================================
 -- 4. RECREATE INDEXES
 -- ============================================================
 -- Covering index: avoids heap lookups for "latest position per device" queries
@@ -77,6 +98,9 @@ CREATE INDEX IF NOT EXISTS idx_locations_emergency
 
 CREATE INDEX IF NOT EXISTS idx_locations_device_latest
     ON public.locations(device_id, synced_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_locations_geom 
+    ON public.locations USING GIST(geom);
 
 -- ============================================================
 -- 4b. OPTIMIZED QUERY: Latest position per device
@@ -165,14 +189,18 @@ CREATE TABLE IF NOT EXISTS public.farm_members (
     UNIQUE (farm_id, user_id)
 );
 
+CREATE INDEX IF NOT EXISTS idx_farm_members_user ON public.farm_members(user_id);
+
 ALTER TABLE public.farms        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.farm_members  ENABLE ROW LEVEL SECURITY;
 
 CREATE TABLE IF NOT EXISTS public.farm_invites (
-  code TEXT PRIMARY KEY,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   farm_id UUID NOT NULL REFERENCES public.farms(id) ON DELETE CASCADE,
-  created_by UUID NOT NULL REFERENCES auth.users(id),
-  expires_at TIMESTAMPTZ NOT NULL
+  code TEXT NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by UUID NOT NULL REFERENCES auth.users(id)
 );
 ALTER TABLE public.farm_invites ENABLE ROW LEVEL SECURITY;
 
@@ -287,8 +315,38 @@ CREATE POLICY "Farm owners can manage memberships"
         )
     );
 
-CREATE POLICY "Invites creation" ON public.farm_invites FOR INSERT TO authenticated WITH CHECK (true);
-CREATE POLICY "Invites view" ON public.farm_invites FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Farm owners and admins can read invites"
+  ON public.farm_invites FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.farm_members
+      WHERE farm_members.farm_id = farm_invites.farm_id
+        AND farm_members.user_id = auth.uid()
+        AND farm_members.role IN ('owner', 'admin')
+    )
+  );
+
+CREATE POLICY "Farm owners and admins can create invites"
+  ON public.farm_invites FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.farm_members
+      WHERE farm_members.farm_id = farm_invites.farm_id
+        AND farm_members.user_id = auth.uid()
+        AND farm_members.role IN ('owner', 'admin')
+    )
+  );
+
+CREATE POLICY "Farm owners and admins can delete invites"
+  ON public.farm_invites FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.farm_members
+      WHERE farm_members.farm_id = farm_invites.farm_id
+        AND farm_members.user_id = auth.uid()
+        AND farm_members.role IN ('owner', 'admin')
+    )
+  );
 
 -- RPC for bootstrapping farms with RLS bypass
 CREATE OR REPLACE FUNCTION public.create_farm_with_owner(farm_name TEXT)
