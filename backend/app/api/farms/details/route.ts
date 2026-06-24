@@ -9,13 +9,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    console.log("DEBUG /api/farms/details -> Before getSupabaseServerClient");
     const supabase = await getSupabaseServerClient(request);
-    console.log("DEBUG /api/farms/details -> Before getUser");
     const { data: { user }, error: userError } = await getAuthenticatedUser(request, supabase);
-
-    console.log("DEBUG /api/farms/details -> userError:", userError, "user:", user);
 
     if (userError || !user) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
@@ -24,76 +19,136 @@ export async function GET(request: NextRequest) {
     const isAnonymous = user.is_anonymous === true;
     const adminSupabase = getSupabaseAdmin();
 
-    // Obter todas as farms a que o utilizador pertence using admin client (bypasses RLS issues)
+    // ── 1. Get all farm memberships for this user ────────────────
     const { data: memberships } = await adminSupabase
       .from('farm_members')
-      .select('farm_id, role, farms(name)')
+      .select('farm_id, role, is_creator, is_master_admin, is_admin, is_authenticated, farms(name)')
       .eq('user_id', user.id);
 
     if (!memberships || memberships.length === 0) {
-      return NextResponse.json({ success: true, isAnonymous, farms: [] });
+      return NextResponse.json({ success: true, isAnonymous, currentUserId: user.id, farms: [] });
     }
 
-    const farmsData = [];
+    const farmIds = memberships.map(m => m.farm_id);
 
-    for (const membership of memberships) {
-      const farmId = membership.farm_id;
-      const userRole = membership.role;
-      const farmName = (membership.farms as any)?.name;
+    // ── 2. Batch: get ALL members for ALL farms ──────────────────
+    const { data: allMembers } = await adminSupabase
+      .from('farm_members')
+      .select('farm_id, user_id, role, is_creator, is_master_admin, is_admin, is_authenticated, display_name')
+      .in('farm_id', farmIds);
 
-      // Get members of this farm using admin client
-      const { data: membersData } = await adminSupabase
-        .from('farm_members')
-        .select('user_id, role')
-        .eq('farm_id', farmId);
+    // ── 3. Batch: get ALL active invites for ALL farms ───────────
+    const { data: allInvites } = await adminSupabase
+      .from('farm_invites')
+      .select('farm_id, code, expires_at, max_uses, uses_count, is_active')
+      .in('farm_id', farmIds)
+      .eq('is_active', true)
+      .gte('expires_at', new Date().toISOString())
+      .order('expires_at', { ascending: false });
 
-      // Get valid invite code
-      let inviteCode = null;
-      if (userRole === 'owner' || userRole === 'admin') {
-        const { data: inviteData } = await adminSupabase
-          .from('farm_invites')
-          .select('code, expires_at')
-          .eq('farm_id', farmId)
-          .gte('expires_at', new Date().toISOString())
-          .order('expires_at', { ascending: false })
-          .limit(1)
-          .single();
-        
-        inviteCode = inviteData?.code;
-
-        // If no valid invite code, generate one
-        if (!inviteCode) {
-          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-          let newCode = '';
-          for (let i = 0; i < 6; i++) {
-            newCode += chars.charAt(Math.floor(Math.random() * chars.length));
-          }
-          const expiresAt = new Date();
-          expiresAt.setDate(expiresAt.getDate() + 7);
-
-          await adminSupabase.from('farm_invites').insert({
-            farm_id: farmId,
-            code: newCode,
-            expires_at: expiresAt.toISOString(),
-            created_by: user.id
+    // ── 4. Batch: get display info from auth.users ───────────────
+    // Collect all unique user IDs across all farms
+    const allUserIds = [...new Set((allMembers ?? []).map(m => m.user_id))];
+    
+    // Get user metadata (Google name, etc.) from auth.users via admin
+    const { data: authUsers } = await adminSupabase.auth.admin.listUsers();
+    const userMetaMap = new Map<string, { googleName?: string | null; email?: string | null }>();
+    if (authUsers?.users) {
+      for (const au of authUsers.users) {
+        if (allUserIds.includes(au.id)) {
+          const meta = au.user_metadata || {};
+          userMetaMap.set(au.id, {
+            googleName: meta.full_name || meta.name || null,
+            email: au.email || null,
           });
-          inviteCode = newCode;
         }
       }
+    }
 
-      farmsData.push({
+    // ── 5. Batch: get device labels for display name fallback ────
+    const { data: allDevices } = await adminSupabase
+      .from('devices')
+      .select('user_id, label')
+      .in('user_id', allUserIds);
+
+    const deviceLabelMap = new Map<string, string>();
+    (allDevices ?? []).forEach(d => {
+      if (d.user_id && !deviceLabelMap.has(d.user_id)) {
+        deviceLabelMap.set(d.user_id, d.label);
+      }
+    });
+
+    // ── 6. Group data by farm ────────────────────────────────────
+    const membersByFarm = new Map<string, typeof allMembers>();
+    (allMembers ?? []).forEach(m => {
+      const list = membersByFarm.get(m.farm_id) || [];
+      list.push(m);
+      membersByFarm.set(m.farm_id, list);
+    });
+
+    const invitesByFarm = new Map<string, { code: string; expiresAt: string; maxUses: number; usesCount: number }>();
+    (allInvites ?? []).forEach(inv => {
+      if (!invitesByFarm.has(inv.farm_id)) {
+        invitesByFarm.set(inv.farm_id, {
+          code: inv.code,
+          expiresAt: inv.expires_at,
+          maxUses: inv.max_uses,
+          usesCount: inv.uses_count,
+        });
+      }
+    });
+
+    // ── 7. Build response ────────────────────────────────────────
+    const farmsData = memberships.map(membership => {
+      const farmId = membership.farm_id;
+      const farmName = (membership.farms as any)?.name;
+      const canSeeInvite = membership.is_admin || membership.is_master_admin || membership.is_creator;
+      const invite = canSeeInvite ? invitesByFarm.get(farmId) : null;
+
+      const members = (membersByFarm.get(farmId) || []).map(m => {
+        const meta = userMetaMap.get(m.user_id);
+        const deviceLabel = deviceLabelMap.get(m.user_id);
+        
+        // Display name: "GoogleName - DeviceLabel" with fallbacks
+        let displayName = m.display_name; // explicit override first
+        if (!displayName) {
+          const parts = [meta?.googleName, deviceLabel].filter(Boolean);
+          displayName = parts.length > 0 ? parts.join(' - ') : null;
+        }
+
+        return {
+          userId: m.user_id,
+          displayName,
+          isCreator: m.is_creator ?? false,
+          isMasterAdmin: m.is_master_admin ?? false,
+          isAdmin: m.is_admin ?? false,
+          isAuthenticated: m.is_authenticated ?? true,
+          role: m.role, // Keep legacy field for backward compat
+        };
+      });
+
+      return {
         farmId,
         farmName,
-        userRole,
-        inviteCode,
-        members: membersData || []
-      });
-    }
+        userRole: membership.role, // Legacy compat
+        myTags: {
+          isCreator: membership.is_creator ?? false,
+          isMasterAdmin: membership.is_master_admin ?? false,
+          isAdmin: membership.is_admin ?? false,
+          isAuthenticated: membership.is_authenticated ?? true,
+        },
+        inviteCode: invite?.code ?? null,
+        inviteExpiresAt: invite?.expiresAt ?? null,
+        inviteUsesRemaining: invite ? (invite.maxUses - invite.usesCount) : null,
+        members,
+      };
+    });
 
     return NextResponse.json({
       success: true,
       isAnonymous,
-      farms: farmsData
+      currentUserId: user.id,
+      farms: farmsData,
     });
 
   } catch (error) {
@@ -101,4 +156,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }
-

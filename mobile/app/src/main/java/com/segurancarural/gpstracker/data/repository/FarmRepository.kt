@@ -190,6 +190,23 @@ class FarmRepository(private val context: Context) {
             Result.failure(e)
         }
     }
+
+    suspend fun manageMember(farmId: String, targetUserId: String, action: String): Result<MemberActionResponse> {
+        return try {
+            val token = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentAccessTokenOrNull()
+            if (token != null) ApiClient.supabaseJwt = token.toString()
+
+            val response = ApiClient.httpClient.post("${ApiRoutes.BASE}/api/farms/members") {
+                contentType(ContentType.Application.Json)
+                setBody(MemberActionRequest(farmId, targetUserId, action))
+            }
+            val data = response.body<MemberActionResponse>()
+            if (data.success) Result.success(data)
+            else Result.failure(Exception(data.error ?: "Unknown error"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 
 @Serializable
@@ -224,24 +241,67 @@ data class DeviceDto(
 )
 
 @Serializable
+data class FarmMemberDto(
+    val userId: String = "",
+    val displayName: String? = null,
+    val isCreator: Boolean = false,
+    val isMasterAdmin: Boolean = false,
+    val isAdmin: Boolean = false,
+    val isAuthenticated: Boolean = true,
+    // Legacy compat — old API returns this, new API also includes it
+    val role: String = "viewer",
+    // Old field name compat (backend may still send snake_case)
+    @kotlinx.serialization.SerialName("user_id")
+    val userIdLegacy: String? = null,
+) {
+    val resolvedUserId: String get() = userId.ifEmpty { userIdLegacy ?: "" }
+}
+
+@Serializable
+data class MyTagsDto(
+    val isCreator: Boolean = false,
+    val isMasterAdmin: Boolean = false,
+    val isAdmin: Boolean = false,
+    val isAuthenticated: Boolean = true,
+)
+
+@Serializable
 data class FarmDto(
     val farmId: String,
     val farmName: String,
-    val userRole: String,
+    val userRole: String = "viewer", // Legacy compat
+    val myTags: MyTagsDto = MyTagsDto(),
     val inviteCode: String? = null,
-    val members: List<FarmMemberDto> = emptyList()
-)
+    val inviteExpiresAt: String? = null,
+    val inviteUsesRemaining: Int? = null,
+    val members: List<FarmMemberDto> = emptyList(),
+) {
+    val canInvite: Boolean get() = myTags.isAdmin || myTags.isMasterAdmin || myTags.isCreator
+    val canKick: Boolean get() = myTags.isAdmin || myTags.isMasterAdmin
+    val canPromote: Boolean get() = myTags.isAdmin || myTags.isMasterAdmin
+    val canPromoteMaster: Boolean get() = myTags.isMasterAdmin
+}
 
 @Serializable
 data class FarmDetailsResponse(
     val success: Boolean,
     val isAnonymous: Boolean = false,
+    val currentUserId: String? = null,
     val farms: List<FarmDto> = emptyList(),
-    val error: String? = null
+    val error: String? = null,
+)
+
+// Request DTOs for member management
+@Serializable
+data class MemberActionRequest(
+    val farmId: String,
+    val targetUserId: String,
+    val action: String, // "kick", "promote_admin", "demote_admin", "promote_master_admin", "demote_master_admin"
 )
 
 @Serializable
-data class FarmMemberDto(
-    val user_id: String,
-    val role: String
+data class MemberActionResponse(
+    val success: Boolean,
+    val message: String? = null,
+    val error: String? = null,
 )
