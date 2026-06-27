@@ -25,7 +25,6 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.segurancarural.gpstracker.BuildConfig
 import com.segurancarural.gpstracker.data.model.TelemetryRecord
-import com.segurancarural.gpstracker.data.repository.TelemetryRepository
 import com.segurancarural.gpstracker.data.repository.TrackingStateRepository
 import com.segurancarural.gpstracker.domain.usecase.SubmitLocationUseCase
 import com.segurancarural.gpstracker.receiver.HeartbeatReceiver
@@ -40,6 +39,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 import java.time.Instant
 
 private const val TAG = "LocationFgService"
@@ -63,7 +64,9 @@ private const val NOTIFICATION_ID = 1001
  * Start/stop the service from [MainActivity] or [BootReceiver].
  * Toggle SOS mode via [ACTION_SOS_ACTIVATE] / [ACTION_SOS_DEACTIVATE] intents.
  */
-class LocationForegroundService : Service() {
+class LocationForegroundService : Service(), KoinComponent {
+
+    private val submitLocationUseCase: SubmitLocationUseCase by inject()
 
     companion object {
         const val ACTION_START = "com.segurancarural.gpstracker.action.START_TRACKING"
@@ -541,8 +544,6 @@ class LocationForegroundService : Service() {
     }
 
     private fun storeRecord(record: TelemetryRecord) {
-        val repository = TelemetryRepository(applicationContext)
-        val submitLocationUseCase = SubmitLocationUseCase(repository)
         serviceScope.launch {
             submitLocationUseCase(record)
             Log.d(TAG, "Submitted record (emergency=${record.emergencyState}, accuracy=${record.accuracy}m)")

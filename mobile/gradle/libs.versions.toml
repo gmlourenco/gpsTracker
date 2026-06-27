@@ -3,6 +3,7 @@ agp = "9.2.1"
 kotlin = "2.2.10"
 ksp = "2.3.2"
 supabase = "3.0.3"
+koin = "4.0.0"
 
 # AndroidX Core
 coreKtx = "1.17.0"
@@ -113,6 +114,11 @@ supabase-compose-auth-ui = { group = "io.github.jan-tennert.supabase", name = "c
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+
+# Koin Injection
+koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
+koin-android = { module = "io.insert-koin:koin-android", version.ref = "koin" }
+koin-compose = { module = "io.insert-koin:koin-androidx-compose", version.ref = "koin" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

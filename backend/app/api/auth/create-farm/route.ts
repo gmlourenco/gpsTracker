@@ -1,15 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '../../../lib/auth-utils';
 import { getSupabaseServerClient, supabasePublic } from '../../../lib/supabase';
-
-function generateCode(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // No I, O, 1, 0
-  let result = '';
-  for (let i = 0; i < 6; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
-}
+import { generateInviteCode } from '../../../lib/invite-utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -61,8 +53,8 @@ export async function POST(request: NextRequest) {
 
     const farm = { id: newFarmId };
 
-    // 4. Generate invite code
-    const code = generateCode();
+    // 4. Generate invite code securely (P3/A5/A9)
+    const code = generateInviteCode(8);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
 

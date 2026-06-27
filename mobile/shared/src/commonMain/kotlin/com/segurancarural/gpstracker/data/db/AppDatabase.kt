@@ -24,7 +24,7 @@ expect object AppDatabaseConstructor : RoomDatabaseConstructor<AppDatabase> {
 @ConstructedBy(AppDatabaseConstructor::class)
 @Database(
     entities = [TelemetryRecord::class],
-    version = 3,
+    version = 4,
     exportSchema = true  // Schema exported to /shared/schemas/ for migration tracking
 )
 abstract class AppDatabase : RoomDatabase() {

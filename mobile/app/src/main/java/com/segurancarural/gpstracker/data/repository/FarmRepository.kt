@@ -39,6 +39,8 @@ data class SupabaseSession(
 class FarmRepository(private val context: Context) {
     private val prefs = context.getSharedPreferences(TRACKING_PREFS_NAME, Context.MODE_PRIVATE)
 
+    val currentFarmId: String? get() = prefs.getString("farm_id", null)
+
     init {
         // Load on init
         ApiClient.supabaseJwt = prefs.getString("supabase_jwt", null)

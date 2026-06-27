@@ -18,7 +18,7 @@ android {
         minSdk = 26           // Android 8.0 — minimum for reliable ForegroundService + FusedLocation
         targetSdk = 36
 
-        val version = project.findProperty("versionName")?.toString() ?: "0.5.0"
+        val version = project.findProperty("versionName")?.toString() ?: "0.6.0"
         versionName = version
         versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: run {
             try {
@@ -74,7 +74,7 @@ android {
             }
             val backendUrl = localProps.getProperty("backend.base.url.dev") 
                 ?: localProps.getProperty("backend.base.url")
-                ?: "https://gps-tracker-jgkkfb7yw-gmlourencos-projects.vercel.app/"
+                ?: "https://gps-tracker-6653in3w9-gmlourencos-projects.vercel.app/"
             buildConfigField("String", "BACKEND_BASE_URL", "\"$backendUrl\"")
         }
         create("pre") {
@@ -141,6 +141,10 @@ kotlin {
 dependencies {
     // Shared KMP module
     implementation(project(":shared"))
+
+    // Dependency Injection via Koin
+    implementation(libs.koin.android)
+    implementation(libs.koin.compose)
 
     // AndroidX Core
     implementation(libs.androidx.core.ktx)

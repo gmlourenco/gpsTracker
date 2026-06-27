@@ -7,6 +7,9 @@ import android.os.Build
 
 import com.segurancarural.gpstracker.data.db.AppDatabase
 import com.segurancarural.gpstracker.data.db.createAppDatabase
+import com.segurancarural.gpstracker.di.appModule
+import org.koin.android.ext.koin.androidContext
+import org.koin.core.context.startKoin
 
 class GpsTrackerApplication : Application() {
 
@@ -18,6 +21,11 @@ class GpsTrackerApplication : Application() {
         super.onCreate()
         com.segurancarural.gpstracker.util.OfflineLogger.init(this)
         createNotificationChannels()
+
+        startKoin {
+            androidContext(this@GpsTrackerApplication)
+            modules(appModule)
+        }
     }
 
     private fun createNotificationChannels() {

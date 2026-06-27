@@ -139,3 +139,15 @@ CREATE POLICY "Privileged members can delete invites"
       AND fm.user_id = auth.uid()
       AND (fm.is_admin OR fm.is_master_admin OR fm.is_creator)
   ));
+
+-- ── 8. Secure RPC Metadata helper (A1 Optimization) ──
+CREATE OR REPLACE FUNCTION public.get_users_metadata(p_user_ids UUID[])
+RETURNS TABLE (id UUID, email VARCHAR(255), raw_user_meta_data JSONB)
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  RETURN QUERY
+  SELECT u.id, u.email, u.raw_user_meta_data
+  FROM auth.users u
+  WHERE u.id = ANY(p_user_ids);
+END;
+$$;

@@ -47,6 +47,12 @@ interface TelemetryDao {
     suspend fun resetSyncingToPending(): Int
 
     /**
+     * Revert specific records that were syncing back to pending (on transmission failure).
+     */
+    @Query("UPDATE telemetry_queue SET syncState = 0 WHERE id IN (:ids)")
+    suspend fun resetSyncingToPendingByIds(ids: List<Long>): Int
+
+    /**
      * Permanently delete all records that have been marked as synced.
      * Called periodically to keep the local DB lean.
      */

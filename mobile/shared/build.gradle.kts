@@ -27,6 +27,9 @@ kotlin {
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.ktor.client.logging)
 
+            // Koin core (KMP)
+            implementation(libs.koin.core)
+
             // Room runtime (KMP-compatible)
             implementation(libs.androidx.room.runtime)
 

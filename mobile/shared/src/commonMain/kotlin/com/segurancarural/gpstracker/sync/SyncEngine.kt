@@ -91,7 +91,7 @@ class SyncEngine(
                             dao.markSynced(listOf(record.id))
                             emergencySyncedCount++
                         } else {
-                            dao.resetSyncingToPending() // Revert immediately
+                            dao.resetSyncingToPendingByIds(listOf(record.id)) // Revert immediately
                             errorCount++
                             // Do not break — try remaining emergency records
                         }
@@ -108,7 +108,7 @@ class SyncEngine(
                         dao.markSynced(listOf(latestRecord.id))
                         latestWasSynced = true
                     } else {
-                        dao.resetSyncingToPending()
+                        dao.resetSyncingToPendingByIds(listOf(latestRecord.id))
                         errorCount++
                     }
                 }
@@ -130,7 +130,7 @@ class SyncEngine(
                         dao.markSynced(successIds)
                         historySyncedCount += batch.size
                     } else {
-                        dao.resetSyncingToPending()
+                        dao.resetSyncingToPendingByIds(successIds)
                         errorCount++
                         // Stop batching on first failure to avoid out-of-order gaps
                         hasMore = false
