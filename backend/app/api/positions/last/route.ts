@@ -46,21 +46,27 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const user = userData.user;
       allowedDeviceIds = new Set<string>();
       
-      // A. User's own devices and legacy/unassigned devices
-      const { data: directDevices } = await adminSupabase
-        .from('devices')
-        .select('id')
-        .or(`user_id.eq.${user.id},and(user_id.is.null,farm_id.is.null)`);
-      
-      if (directDevices) directDevices.forEach(d => allowedDeviceIds!.add(d.id));
-
-      // B. Devices from the user's families (farms)
+      // Check if user has any families first
       const { data: userFarms } = await adminSupabase
         .from('farm_members')
         .select('farm_id')
         .eq('user_id', user.id);
         
-      if (userFarms && userFarms.length > 0) {
+      const hasFamilies = userFarms && userFarms.length > 0;
+
+      // A. User's own devices (and unassigned ONLY if they have no families)
+      let query = adminSupabase.from('devices').select('id');
+      if (hasFamilies) {
+        query = query.eq('user_id', user.id);
+      } else {
+        query = query.or(`user_id.eq.${user.id},and(user_id.is.null,farm_id.is.null)`);
+      }
+      
+      const { data: directDevices } = await query;
+      if (directDevices) directDevices.forEach(d => allowedDeviceIds!.add(d.id));
+
+      // B. Devices from the user's families (farms)
+      if (hasFamilies) {
         const farmIds = userFarms.map(f => f.farm_id);
         const { data: farmDevices } = await adminSupabase
           .from('devices')
