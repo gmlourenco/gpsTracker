@@ -1,0 +1,50 @@
+name: iosApp
+options:
+  bundleIdPrefix: com.segurancarural
+  deploymentTarget:
+    iOS: "16.0"
+
+targets:
+  iosApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources: [iosApp]
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.segurancarural.gpstracker
+      PRODUCT_NAME: SegurancaRural
+      INFOPLIST_FILE: iosApp/Info.plist
+      ENABLE_USER_SCRIPT_SANDBOXING: NO
+      SWIFT_VERSION: "5.0"
+      DEVELOPMENT_TEAM: "" # To be filled locally by the user
+      OTHER_LDFLAGS:
+        - -ObjC
+    preBuildScripts:
+      - name: Compile Kotlin KMP shared module
+        script: |
+          cd "$SRCROOT/.."
+          ./gradlew :shared:embedAndSignAppleFrameworkForXcode
+    dependencies:
+      # MapLibre
+      - package: Mapbox
+    info:
+      path: iosApp/Info.plist
+      properties:
+        CFBundleName: SegurancaRural
+        CFBundleDisplayName: Seg. Rural
+        UILaunchScreen:
+          UILaunchScreen: {}
+        UIBackgroundModes:
+          - location
+          - fetch
+          - processing
+        NSLocationWhenInUseUsageDescription: Precisamos da sua localização para o rastreio da fazenda.
+        NSLocationAlwaysAndWhenInUseUsageDescription: Precisamos da localização em background para enviar os pontos para a fazenda.
+        NSLocationAlwaysUsageDescription: Precisamos da localização em background para enviar os pontos para a fazenda.
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.segurancarural.gpstracker.sync
+
+packages:
+  Mapbox:
+    url: https://github.com/maplibre/maplibre-gl-native-distribution
+    version: 6.2.1

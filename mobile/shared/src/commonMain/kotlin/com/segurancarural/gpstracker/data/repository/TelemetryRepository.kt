@@ -1,16 +1,13 @@
 package com.segurancarural.gpstracker.data.repository
 
-import android.content.Context
-import com.segurancarural.gpstracker.GpsTrackerApplication
+import com.segurancarural.gpstracker.Platform
+import com.segurancarural.gpstracker.data.db.TelemetryDao
 import com.segurancarural.gpstracker.data.model.TelemetryRecord
 import com.segurancarural.gpstracker.data.network.ApiResult
 import com.segurancarural.gpstracker.data.network.ApiRoutes
 import com.segurancarural.gpstracker.data.network.ApiService
 import com.segurancarural.gpstracker.sync.toLocationV2Json
-import com.segurancarural.gpstracker.util.AppLog
-import com.segurancarural.gpstracker.util.argbToMapLibreHex
-import com.segurancarural.gpstracker.util.deviceMarkerColorArgb
-import com.segurancarural.gpstracker.util.shouldUploadOverCurrentNetwork
+import com.segurancarural.gpstracker.util.KmpLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -18,23 +15,22 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-class TelemetryRepository(private val context: Context) {
-    private val appContext = context.applicationContext
-    private val dao = (appContext as GpsTrackerApplication).database.telemetryDao()
+class TelemetryRepository(private val dao: TelemetryDao) {
     private val apiService = ApiService()
 
     fun getUnsyncedCountFlow() = dao.observeUnsyncedCount()
 
-    suspend fun submitLocation(record: TelemetryRecord) = withContext(Dispatchers.IO) {
-        if (!shouldUploadOverCurrentNetwork(appContext)) {
-            AppLog.d("TelemetryRepository", "Mobile data sync disabled — queueing locally")
+    suspend fun submitLocation(record: TelemetryRecord) = withContext(Dispatchers.Default) {
+        if (!Platform.dependencies.shouldUploadOverCurrentNetwork()) {
+            KmpLogger.d("TelemetryRepository", "Mobile data sync disabled — queueing locally")
             dao.insert(record.copy(syncState = 0))
             return@withContext
         }
 
-        val payload = listOf(record).toLocationV2Json(argbToMapLibreHex(appContext.deviceMarkerColorArgb()))
-        AppLog.i("TelemetryRepository", "Preparing to send location update...")
-        AppLog.d("TelemetryRepository", "Payload: $payload")
+        val markerColorHex = Platform.dependencies.getDeviceMarkerColorHex()
+        val payload = listOf(record).toLocationV2Json(markerColorHex = markerColorHex)
+        KmpLogger.i("TelemetryRepository", "Preparing to send location update...")
+        KmpLogger.d("TelemetryRepository", "Payload: $payload")
 
         val result = apiService.postRaw(ApiRoutes.LOCATION_V2, payload)
 
@@ -48,23 +44,23 @@ class TelemetryRepository(private val context: Context) {
                     false
                 }
                 if (isLogicalSuccess) {
-                    AppLog.i("TelemetryRepository", "Location sent successfully: $body")
+                    KmpLogger.i("TelemetryRepository", "Location sent successfully: $body")
                     dao.insert(record.copy(syncState = 2))
                 } else {
-                    AppLog.w("TelemetryRepository", "Location push response was not a logical success (possibly captive portal): $body")
+                    KmpLogger.w("TelemetryRepository", "Location push response was not a logical success (possibly captive portal): $body")
                     dao.insert(record.copy(syncState = 0))
                 }
             }
             is ApiResult.HttpError -> {
-                AppLog.e("TelemetryRepository", "Network push failed: ${result.code} — ${result.message}")
+                KmpLogger.e("TelemetryRepository", "Network push failed: ${result.code} — ${result.message}", null)
                 dao.insert(record.copy(syncState = 0))
             }
             is ApiResult.NetworkError -> {
-                AppLog.w("TelemetryRepository", "Network exception: ${result.exception.message}", result.exception)
+                KmpLogger.w("TelemetryRepository", "Network exception: ${result.exception.message}")
                 dao.insert(record.copy(syncState = 0))
             }
             is ApiResult.Unauthorized -> {
-                AppLog.e("TelemetryRepository", "Unauthorized push attempt")
+                KmpLogger.e("TelemetryRepository", "Unauthorized push attempt", null)
                 dao.insert(record.copy(syncState = 0))
             }
         }

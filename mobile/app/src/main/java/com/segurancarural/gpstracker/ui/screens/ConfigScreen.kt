@@ -142,7 +142,7 @@ fun ConfigScreen(
     var isSaving by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf(false) }
 
-    val farmRepository = remember { FarmRepository(context) }
+    val farmRepository = remember { FarmRepository() }
     var hasFarm by remember { mutableStateOf(farmRepository.hasFarm()) }
     var inviteCodeInput by remember { mutableStateOf("") }
     var isFarmLoading by remember { mutableStateOf(false) }
@@ -220,7 +220,7 @@ fun ConfigScreen(
             var showCreateConfirmDialog by remember { mutableStateOf(false) }
 
             var showDeviceSyncDialog by remember { mutableStateOf(false) }
-            var availableDevicesToRestore by remember { mutableStateOf<List<com.segurancarural.gpstracker.data.repository.DeviceDto>>(emptyList()) }
+            var availableDevicesToRestore by remember { mutableStateOf<List<com.segurancarural.gpstracker.data.dto.DeviceDto>>(emptyList()) }
             var isLoggedIn by remember { mutableStateOf(com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentSessionOrNull() != null) }
 
             if (showDeviceSyncDialog) {
@@ -237,12 +237,12 @@ fun ConfigScreen(
                                         // Restore config
                                         deviceLabel = dev.label
                                         try {
-                                            selectedMarkerColorArgb = android.graphics.Color.parseColor(dev.marker_color)
+                                            selectedMarkerColorArgb = android.graphics.Color.parseColor(dev.markerColor)
                                         } catch (e: Exception) {}
                                         
-                                        if (dev.farm_id != null) {
-                                            com.segurancarural.gpstracker.data.network.ApiClient.farmId = dev.farm_id
-                                            prefs.edit().putString("farm_id", dev.farm_id).apply()
+                                        if (dev.farmId != null) {
+                                            com.segurancarural.gpstracker.data.network.ApiClient.farmId = dev.farmId
+                                            prefs.edit().putString("farm_id", dev.farmId).apply()
                                             hasFarm = true
                                         }
 
@@ -296,7 +296,7 @@ fun ConfigScreen(
                                     }
                                 }
 
-                                val hasExistingFarm = syncResult.getOrNull()?.devices?.any { it.farm_id != null } == true
+                                val hasExistingFarm = syncResult.getOrNull()?.devices?.any { it.farmId != null } == true
 
                                 if (!hasExistingFarm && !hasFarm) {
                                     val createResult = farmRepository.createFarm()

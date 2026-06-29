@@ -1,10 +1,8 @@
 package com.segurancarural.gpstracker.data.repository
 
-import android.content.Context
+import com.segurancarural.gpstracker.Platform
 import com.segurancarural.gpstracker.data.network.ApiClient
 import com.segurancarural.gpstracker.data.network.ApiRoutes
-import com.segurancarural.gpstracker.util.TRACKING_PREFS_NAME
-import com.segurancarural.gpstracker.util.ensureSerialNumber
 import io.github.jan.supabase.auth.auth
 import io.ktor.client.call.body
 import io.ktor.client.request.get
@@ -36,15 +34,14 @@ data class SupabaseSession(
     val expires_in: Int
 )
 
-class FarmRepository(private val context: Context) {
-    private val prefs = context.getSharedPreferences(TRACKING_PREFS_NAME, Context.MODE_PRIVATE)
-
-    val currentFarmId: String? get() = prefs.getString("farm_id", null)
+class FarmRepository() {
+    
+    val currentFarmId: String? get() = Platform.dependencies.getFarmId()
 
     init {
         // Load on init
-        ApiClient.supabaseJwt = prefs.getString("supabase_jwt", null)
-        ApiClient.farmId = prefs.getString("farm_id", null)
+        ApiClient.supabaseJwt = Platform.dependencies.getSupabaseJwt()
+        ApiClient.farmId = Platform.dependencies.getFarmId()
     }
 
     suspend fun createFarm(name: String? = null): Result<FarmResponse> {
@@ -104,16 +101,14 @@ class FarmRepository(private val context: Context) {
     }
 
     fun hasFarm(): Boolean {
-        return prefs.getString("farm_id", null) != null
+        return Platform.dependencies.getFarmId() != null
     }
 
     private fun saveAuth(jwt: String, farmId: String?) {
         ApiClient.supabaseJwt = jwt
         ApiClient.farmId = farmId
-        prefs.edit()
-            .putString("supabase_jwt", jwt)
-            .putString("farm_id", farmId)
-            .apply()
+        Platform.dependencies.setSupabaseJwt(jwt)
+        Platform.dependencies.setFarmId(farmId)
     }
 
     suspend fun syncDevices(
@@ -157,15 +152,14 @@ class FarmRepository(private val context: Context) {
     }
 
     suspend fun syncCurrentDeviceToFarm(farmId: String?): Result<DeviceSyncResponse> {
-        val deviceId = context.ensureSerialNumber()
-        val label = prefs.getString("device_label", "Dispositivo") ?: "Dispositivo"
-        val markerColorArgb = prefs.getInt(com.segurancarural.gpstracker.util.PREF_DEVICE_MARKER_COLOR, com.segurancarural.gpstracker.util.DEFAULT_MARKER_COLOR_ARGB)
-        val markerColor = com.segurancarural.gpstracker.util.argbToMapLibreHex(markerColorArgb)
+        val deviceId = Platform.dependencies.ensureSerialNumber()
+        val label = Platform.dependencies.getDeviceLabel()
+        val markerColor = Platform.dependencies.getDeviceMarkerColorHex() ?: "#0000FF"
         val trackingEnabled = true
-        val appVersion = com.segurancarural.gpstracker.BuildConfig.VERSION_NAME
+        val appVersion = Platform.dependencies.getAppVersion()
 
         ApiClient.farmId = farmId
-        prefs.edit().putString("farm_id", farmId).apply()
+        Platform.dependencies.setFarmId(farmId)
 
         return syncDevices(deviceId, label, markerColor, trackingEnabled, appVersion, farmId)
     }
@@ -229,17 +223,8 @@ data class DeviceConfigPayload(
 @Serializable
 data class DeviceSyncResponse(
     val success: Boolean,
-    val devices: List<DeviceDto> = emptyList(),
+    val devices: List<com.segurancarural.gpstracker.data.dto.DeviceDto> = emptyList(),
     val error: String? = null
-)
-
-@Serializable
-data class DeviceDto(
-    val id: String,
-    val label: String,
-    val marker_color: String,
-    val tracking_enabled: Boolean,
-    val farm_id: String? = null
 )
 
 @Serializable

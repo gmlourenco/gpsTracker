@@ -18,7 +18,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val preSosCountdown: StateFlow<Int> = TrackingStateRepository.preSosCountdown
     val lastAccuracy: StateFlow<Float?> = TrackingStateRepository.lastAccuracy
 
-    private val telemetryRepository = TelemetryRepository(application)
+    private val telemetryRepository = TelemetryRepository((application as com.segurancarural.gpstracker.GpsTrackerApplication).database.telemetryDao())
     private val networkMonitor = NetworkMonitor(application)
 
     val unsyncedCount: StateFlow<Int> = telemetryRepository.getUnsyncedCountFlow()

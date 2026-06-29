@@ -49,7 +49,7 @@ class SyncWorker(
 
         // Try syncing any pending offline requests first
         try {
-            OfflineRequestManager.processQueue(context)
+            OfflineRequestManager.processQueue()
         } catch (e: Exception) {
             Log.e(TAG, "Failed to process offline queue: ${e.message}", e)
         }

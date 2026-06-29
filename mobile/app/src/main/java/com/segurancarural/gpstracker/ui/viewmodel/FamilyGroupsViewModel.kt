@@ -50,7 +50,7 @@ data class PendingMemberAction(
 }
 
 class FamilyGroupsViewModel(application: Application) : AndroidViewModel(application) {
-    private val farmRepository = FarmRepository(application)
+    private val farmRepository = FarmRepository()
 
     private val _uiState = MutableStateFlow(FamilyGroupsUiState())
     val uiState: StateFlow<FamilyGroupsUiState> = _uiState.asStateFlow()

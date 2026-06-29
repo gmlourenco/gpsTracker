@@ -1,15 +1,4 @@
-# Build a signed release APK and publish to GitHub Releases.
-# Trigger manually with a version, or push changes to app-release.json on main.
-#
-# Required GitHub secrets (Settings → Secrets → Actions):
-#   ANDROID_KEYSTORE_BASE64  — base64-encoded .jks / .keystore file
-#   ANDROID_KEYSTORE_PASSWORD
-#   ANDROID_KEY_ALIAS
-#   ANDROID_KEY_PASSWORD
-#
-# After release: set Vercel env APP_LATEST_VERSION and APP_DOWNLOAD_URL to the new asset URL.
-
-name: Android Release
+name: Mobile Release
 
 on:
   workflow_dispatch:
@@ -25,7 +14,7 @@ on:
 
 jobs:
   release:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     permissions:
       contents: write
 
@@ -71,7 +60,7 @@ jobs:
         run: |
           if [ -n "$GOOGLE_SERVICES_BASE64" ]; then
             echo "Decoding google-services.json from Base64 secret..."
-            echo "$GOOGLE_SERVICES_BASE64" | base64 -d > mobile/app/google-services.json
+            echo "$GOOGLE_SERVICES_BASE64" | base64 --decode > mobile/app/google-services.json
           elif [ -n "$GOOGLE_SERVICES_JSON" ]; then
             echo "Writing google-services.json from JSON secret..."
             echo "$GOOGLE_SERVICES_JSON" > mobile/app/google-services.json
@@ -89,9 +78,9 @@ jobs:
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > mobile/release.keystore
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > mobile/release.keystore
 
-      - name: Assemble release APK
+      - name: Assemble Android release APK
         working-directory: mobile
         env:
           VERSION_NAME: ${{ steps.version.outputs.version }}
@@ -114,10 +103,22 @@ jobs:
             ./gradlew :app:assembleProdRelease -PversionName="$VERSION_NAME" --stacktrace
           fi
 
-      - name: Rename APK
+      - name: Assemble iOS KMP Shared Framework
+        working-directory: mobile
+        run: |
+          echo "Building iOS shared framework..."
+          # Builds the release framework for iOS ARM64 (devices)
+          ./gradlew :shared:linkReleaseFrameworkIosArm64 --stacktrace
+
+      - name: Package artifacts
         run: |
           APK=$(find mobile/app/build/outputs/apk -name '*.apk' | head -1)
           cp "$APK" "mobile/seguranca-rural-${{ steps.version.outputs.version }}.apk"
+          
+          # Zip the iOS Framework
+          cd mobile/shared/build/bin/iosArm64/releaseFramework
+          zip -r "${{ github.workspace }}/mobile/seguranca-rural-ios-shared-${{ steps.version.outputs.version }}.zip" shared.framework
+          cd ${{ github.workspace }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -125,12 +126,18 @@ jobs:
           tag_name: v${{ steps.version.outputs.version }}
           name: Segurança Rural v${{ steps.version.outputs.version }}
           body: |
-            ## Segurança Rural Android v${{ steps.version.outputs.version }}
-
+            ## Segurança Rural v${{ steps.version.outputs.version }}
+            
+            **Android:**
             Download `seguranca-rural-*.apk` and install on the device (keeps existing settings).
+            
+            **iOS (Engine Only):**
+            The `seguranca-rural-ios-shared-*.zip` contains the compiled Kotlin Multiplatform framework for iOS devices (ARM64). The actual iOS UI wrapper (`iosApp`) is still under development.
 
             **Vercel:** set `APP_LATEST_VERSION=${{ steps.version.outputs.version }}` and
             `APP_DOWNLOAD_URL` to this release asset URL.
-          files: mobile/seguranca-rural-${{ steps.version.outputs.version }}.apk
+          files: |
+            mobile/seguranca-rural-${{ steps.version.outputs.version }}.apk
+            mobile/seguranca-rural-ios-shared-${{ steps.version.outputs.version }}.zip
           draft: false
           generate_release_notes: true

@@ -1,22 +1,19 @@
 package com.segurancarural.gpstracker.data.repository
 
 import android.content.Context
-import com.segurancarural.gpstracker.BuildConfig
+import com.google.firebase.messaging.FirebaseMessaging
+import com.segurancarural.gpstracker.data.network.ApiResult
 import com.segurancarural.gpstracker.data.network.ApiRoutes
 import com.segurancarural.gpstracker.data.network.ApiService
-import com.segurancarural.gpstracker.data.network.ApiResult
 import com.segurancarural.gpstracker.util.AppLog
 import com.segurancarural.gpstracker.util.ensureSerialNumber
-import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.tasks.await
-import kotlinx.coroutines.tasks.await
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.put
 
 /**
  * Handles FCM token lifecycle:
@@ -53,12 +50,11 @@ class FcmTokenRepository(private val context: Context) {
                 }
                 if (isLogicalSuccess) {
                     AppLog.i("FcmTokenRepository", "FCM token uploaded successfully")
-                    OfflineRequestManager.clearPending(context, "FCM_TOKEN")
+                    OfflineRequestManager.clearPending("FCM_TOKEN")
                     true
                 } else {
                     AppLog.w("FcmTokenRepository", "FCM token upload response was not a logical success (possibly captive portal). Queueing.")
                     OfflineRequestManager.enqueue(
-                        context = context,
                         serviceType = "FCM_TOKEN",
                         url = url,
                         method = "PATCH",
@@ -71,7 +67,6 @@ class FcmTokenRepository(private val context: Context) {
                 if (result.code >= 500) {
                     AppLog.e("FcmTokenRepository", "Server error (HTTP ${result.code}) when uploading FCM token. Queueing.")
                     OfflineRequestManager.enqueue(
-                        context = context,
                         serviceType = "FCM_TOKEN",
                         url = url,
                         method = "PATCH",
@@ -85,7 +80,6 @@ class FcmTokenRepository(private val context: Context) {
             is ApiResult.NetworkError -> {
                 AppLog.w("FcmTokenRepository", "Network error when uploading FCM token: ${result.exception.message}. Queueing.")
                 OfflineRequestManager.enqueue(
-                    context = context,
                     serviceType = "FCM_TOKEN",
                     url = url,
                     method = "PATCH",

@@ -5,14 +5,14 @@ import com.segurancarural.gpstracker.data.network.ApiResult
 import com.segurancarural.gpstracker.data.network.ApiRoutes
 import com.segurancarural.gpstracker.data.network.ApiService
 import com.segurancarural.gpstracker.ui.model.FamilyDeviceMarker
-import com.segurancarural.gpstracker.util.AppLog
+import com.segurancarural.gpstracker.util.KmpLogger
 import com.segurancarural.gpstracker.util.markerInitial
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class FamilyPositionsRepository {
     private val apiService = ApiService()
-    suspend fun fetchLastPositions(historyCount: Int = 10): Result<List<FamilyDeviceMarker>> = withContext(Dispatchers.IO) {
+    suspend fun fetchLastPositions(historyCount: Int = 10): Result<List<FamilyDeviceMarker>> = withContext(Dispatchers.Default) {
         val url = ApiRoutes.positionsLast(historyCount)
         val result = apiService.get<LastPositionsResponseDto>(url)
         when (result) {
@@ -41,19 +41,19 @@ class FamilyPositionsRepository {
                         previousLocations = device.previousLocations
                     )
                 }
-                AppLog.i("FamilyPositionsRepository", "Loaded ${markers.size} family positions")
+                KmpLogger.i("FamilyPositionsRepository", "Loaded ${markers.size} family positions")
                 Result.success(markers)
             }
             is ApiResult.HttpError -> {
-                AppLog.e("FamilyPositionsRepository", "Fetch failed: ${result.code} - ${result.message}")
+                KmpLogger.e("FamilyPositionsRepository", "Fetch failed: ${result.code} - ${result.message}", null)
                 Result.failure(Exception("HTTP Error: ${result.code}"))
             }
             is ApiResult.NetworkError -> {
-                AppLog.w("FamilyPositionsRepository", "Fetch exception: ${result.exception.message}", result.exception)
+                KmpLogger.w("FamilyPositionsRepository", "Fetch exception: ${result.exception.message}")
                 Result.failure(result.exception)
             }
             is ApiResult.Unauthorized -> {
-                AppLog.e("FamilyPositionsRepository", "Unauthorized fetch attempt")
+                KmpLogger.e("FamilyPositionsRepository", "Unauthorized fetch attempt", null)
                 Result.failure(Exception("Unauthorized"))
             }
         }

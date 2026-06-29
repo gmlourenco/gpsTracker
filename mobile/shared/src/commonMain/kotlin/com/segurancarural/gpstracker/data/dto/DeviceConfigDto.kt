@@ -1,10 +1,8 @@
 package com.segurancarural.gpstracker.data.dto
 
-import androidx.annotation.Keep
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-@Keep
 @Serializable
 data class DeviceConfigDto(
     @SerialName("serialNumber") val serialNumber: String,
@@ -17,14 +15,12 @@ data class DeviceConfigDto(
     @SerialName("configUpdatedAt") val configUpdatedAt: Long = -1
 )
 
-@Keep
 @Serializable
 data class AvailableDeviceDto(
     @SerialName("serial") val serial: String,
     @SerialName("name") val name: String
 )
 
-@Keep
 @Serializable
 data class DeviceConfigResponseDto(
     @SerialName("success") val success: Boolean,

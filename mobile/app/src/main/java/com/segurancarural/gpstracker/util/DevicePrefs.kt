@@ -22,11 +22,7 @@ fun Context.deviceLabel(): String =
 fun Context.deviceMarkerColorArgb(): Int =
     trackingPrefs().getInt(PREF_DEVICE_MARKER_COLOR, DEFAULT_MARKER_COLOR_ARGB)
 
-/** First letter shown inside the map marker circle. */
-fun markerInitial(label: String): String {
-    val trimmed = label.trim()
-    return if (trimmed.isEmpty()) "?" else trimmed.first().uppercaseChar().toString()
-}
+
 
 /** `#RRGGBB` for MapLibre style properties. */
 fun argbToMapLibreHex(argb: Int): String {

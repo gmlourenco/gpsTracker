@@ -24,7 +24,7 @@ val appModule = module {
     single<HttpClient> { ApiClient.httpClient }
     
     // Repositories & Use Cases
-    single { FarmRepository(get()) }
+    single { FarmRepository() }
     single { TelemetryRepository(get()) }
     single { SubmitLocationUseCase(get()) }
     

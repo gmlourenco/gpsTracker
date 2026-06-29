@@ -15,11 +15,11 @@ import kotlinx.coroutines.withContext
 
 class ApiService(@PublishedApi internal val client: HttpClient = ApiClient.httpClient) {
 
-    suspend inline fun <reified T> get(url: String): ApiResult<T> = withContext(Dispatchers.IO) {
+    suspend inline fun <reified T> get(url: String): ApiResult<T> = withContext(Dispatchers.Default) {
         execute { client.get(url) }
     }
 
-    suspend inline fun <reified T> post(url: String, body: String): ApiResult<T> = withContext(Dispatchers.IO) {
+    suspend inline fun <reified T> post(url: String, body: String): ApiResult<T> = withContext(Dispatchers.Default) {
         execute {
             client.post(url) {
                 contentType(ContentType.Application.Json)
@@ -28,7 +28,7 @@ class ApiService(@PublishedApi internal val client: HttpClient = ApiClient.httpC
         }
     }
 
-    suspend inline fun <reified T> patch(url: String, body: String): ApiResult<T> = withContext(Dispatchers.IO) {
+    suspend inline fun <reified T> patch(url: String, body: String): ApiResult<T> = withContext(Dispatchers.Default) {
         execute {
             client.patch(url) {
                 contentType(ContentType.Application.Json)
@@ -40,7 +40,7 @@ class ApiService(@PublishedApi internal val client: HttpClient = ApiClient.httpC
     /**
      * Post raw string body and return only success/failure (no deserialized body needed).
      */
-    suspend fun postRaw(url: String, body: String): ApiResult<String> = withContext(Dispatchers.IO) {
+    suspend fun postRaw(url: String, body: String): ApiResult<String> = withContext(Dispatchers.Default) {
         try {
             val response = client.post(url) {
                 contentType(ContentType.Application.Json)
@@ -60,7 +60,7 @@ class ApiService(@PublishedApi internal val client: HttpClient = ApiClient.httpC
     /**
      * Patch raw string body and return only success/failure.
      */
-    suspend fun patchRaw(url: String, body: String): ApiResult<String> = withContext(Dispatchers.IO) {
+    suspend fun patchRaw(url: String, body: String): ApiResult<String> = withContext(Dispatchers.Default) {
         try {
             val response = client.patch(url) {
                 contentType(ContentType.Application.Json)

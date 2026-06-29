@@ -49,10 +49,10 @@ class DeviceConfigRepository(private val context: Context) {
                 if (response.success) {
                     if (response.promptImport == true && !response.availableDevices.isNullOrEmpty()) {
                         AppLog.i("DeviceConfigRepository", "Backend requested import prompt")
-                        return@withContext ConfigLoadResult.PromptImport(response.availableDevices)
+                        return@withContext ConfigLoadResult.PromptImport(response.availableDevices!!)
                     } else if (response.config != null) {
                         AppLog.i("DeviceConfigRepository", "Config loaded from backend successfully")
-                        context.saveConfigToPrefs(response.config.copy(serialNumber = context.ensureSerialNumber()))
+                        context.saveConfigToPrefs(response.config!!.copy(serialNumber = context.ensureSerialNumber()))
                         // Notify running service of config reload
                         try {
                             context.startService(
@@ -134,14 +134,13 @@ class DeviceConfigRepository(private val context: Context) {
         when (result) {
             is ApiResult.Success -> {
                 AppLog.i("DeviceConfigRepository", "Config successfully saved to backend")
-                OfflineRequestManager.clearPending(context, "CONFIG")
+                OfflineRequestManager.clearPending("CONFIG")
                 SaveConfigResult.SUCCESS
             }
             is ApiResult.HttpError -> {
                 if (result.code >= 500) {
                     AppLog.e("DeviceConfigRepository", "Server error (HTTP ${result.code}) when saving config. Queueing.")
                     OfflineRequestManager.enqueue(
-                        context = context,
                         serviceType = "CONFIG",
                         url = url,
                         method = "POST",
@@ -156,7 +155,6 @@ class DeviceConfigRepository(private val context: Context) {
             is ApiResult.NetworkError -> {
                 AppLog.w("DeviceConfigRepository", "Network error when saving config: ${result.exception.message}")
                 OfflineRequestManager.enqueue(
-                    context = context,
                     serviceType = "CONFIG",
                     url = url,
                     method = "POST",

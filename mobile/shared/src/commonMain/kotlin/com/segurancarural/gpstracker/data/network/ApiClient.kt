@@ -1,10 +1,9 @@
 package com.segurancarural.gpstracker.data.network
 
-import com.segurancarural.gpstracker.BuildConfig
-import com.segurancarural.gpstracker.util.AppLog
+import com.segurancarural.gpstracker.util.KmpLogger
 import io.github.jan.supabase.auth.auth
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.android.Android
+import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.providers.BearerTokens
 import io.ktor.client.plugins.auth.providers.bearer
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -20,26 +19,22 @@ object ApiClient {
     var farmId: String? = null
 
     val httpClient: HttpClient by lazy {
-        HttpClient(Android) {
-            engine {
-                connectTimeout = 10_000
-                socketTimeout = 15_000
-            }
-            install(io.ktor.client.plugins.auth.Auth) {
+        HttpClient {
+            install(Auth) {
                 bearer {
                     loadTokens {
-                        val session = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentSessionOrNull()
-                        val defaultToken = supabaseJwt ?: BuildConfig.DEVICE_API_SECRET
+                        val session = SupabaseClient.client.auth.currentSessionOrNull()
+                        val defaultToken = supabaseJwt ?: SharedConfig.DEVICE_API_SECRET
                         BearerTokens(session?.accessToken ?: defaultToken, session?.refreshToken ?: "")
                     }
                     refreshTokens {
                         try {
-                            com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.refreshCurrentSession()
-                            val newSession = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentSessionOrNull()
-                            val defaultToken = supabaseJwt ?: BuildConfig.DEVICE_API_SECRET
+                            SupabaseClient.client.auth.refreshCurrentSession()
+                            val newSession = SupabaseClient.client.auth.currentSessionOrNull()
+                            val defaultToken = supabaseJwt ?: SharedConfig.DEVICE_API_SECRET
                             BearerTokens(newSession?.accessToken ?: defaultToken, newSession?.refreshToken ?: "")
                         } catch (e: Exception) {
-                            com.segurancarural.gpstracker.util.AppLog.e("KtorAuth", "Failed to refresh session: ${e.message}")
+                            KmpLogger.e("KtorAuth", "Failed to refresh session: ${e.message}", e)
                             null
                         }
                     }
@@ -51,11 +46,11 @@ object ApiClient {
                     isLenient = true
                 })
             }
-            if (BuildConfig.DEBUG) {
+            if (SharedConfig.IS_DEBUG) {
                 install(Logging) {
                     logger = object : Logger {
                         override fun log(message: String) {
-                            AppLog.d("Ktor", message)
+                            KmpLogger.d("Ktor", message)
                         }
                     }
                     level = LogLevel.HEADERS
