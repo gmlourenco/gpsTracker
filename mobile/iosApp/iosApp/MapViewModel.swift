@@ -2,10 +2,29 @@ import Foundation
 import shared
 import Combine
 import CoreLocation
+import UIKit
+
+struct SwiftFamilyMarker: Identifiable {
+    let id: String
+    let lat: Double
+    let lng: Double
+    let uiColor: UIColor
+    let markerLetter: String
+    let label: String
+    
+    init(from marker: FamilyDeviceMarker) {
+        self.id = marker.deviceId
+        self.lat = marker.lat
+        self.lng = marker.lng
+        self.uiColor = marker.uiColor
+        self.markerLetter = marker.markerLetter
+        self.label = marker.label
+    }
+}
 
 @MainActor
 class MapViewModel: ObservableObject {
-    @Published var familyMarkers: [FamilyDeviceMarker] = []
+    @Published var familyMarkers: [SwiftFamilyMarker] = []
     @Published var isLoading = false
     @Published var errorMessage: String? = nil
     
@@ -16,17 +35,8 @@ class MapViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            // In KMP, suspend functions returning Result<T> are exposed to Swift.
-            // Since Swift can't natively unpack kotlin.Result without helpers, 
-            // we can call it and check if it's success.
-            let result = try await repository.fetchLastPositions(historyCount: 10)
-            
-            // Kotlin Result maps to a class in Swift, we can check its state
-            if let markers = result.getOrNull() as? [FamilyDeviceMarker] {
-                self.familyMarkers = markers
-            } else if let error = result.exceptionOrNull() {
-                self.errorMessage = error.message ?? "Erro ao carregar posições."
-            }
+            let markers = try await KoinIOSKt.fetchFamilyPositions(historyCount: 10)
+            self.familyMarkers = markers.map { SwiftFamilyMarker(from: $0) }
         } catch {
             self.errorMessage = error.localizedDescription
         }

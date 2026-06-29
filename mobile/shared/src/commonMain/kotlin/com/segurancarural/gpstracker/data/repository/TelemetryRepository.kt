@@ -20,6 +20,7 @@ class TelemetryRepository(private val dao: TelemetryDao) {
 
     fun getUnsyncedCountFlow() = dao.observeUnsyncedCount()
 
+    @Throws(Exception::class)
     suspend fun submitLocation(record: TelemetryRecord) = withContext(Dispatchers.Default) {
         if (!Platform.dependencies.shouldUploadOverCurrentNetwork()) {
             KmpLogger.d("TelemetryRepository", "Mobile data sync disabled — queueing locally")

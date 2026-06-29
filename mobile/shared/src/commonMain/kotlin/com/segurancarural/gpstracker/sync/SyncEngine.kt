@@ -62,6 +62,7 @@ class SyncEngine(
      * Executes the full 3-phase flush. Returns [SyncResult] summarising
      * how many records were synced and any errors encountered.
      */
+    @Throws(Exception::class)
     suspend fun flush(): SyncResult {
         if (!syncMutex.tryLock()) {
             Log.w(TAG, "Sync already in progress, skipping")

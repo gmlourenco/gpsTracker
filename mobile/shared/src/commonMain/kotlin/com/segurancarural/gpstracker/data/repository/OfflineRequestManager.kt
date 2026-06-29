@@ -79,6 +79,7 @@ object OfflineRequestManager {
         }
     }
 
+    @Throws(Exception::class)
     suspend fun processQueue() = withContext(Dispatchers.Default) {
         val queue = loadQueue()
         if (queue.isEmpty()) return@withContext

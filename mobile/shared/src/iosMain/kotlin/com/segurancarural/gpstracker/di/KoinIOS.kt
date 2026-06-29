@@ -1,5 +1,6 @@
 package com.segurancarural.gpstracker.di
 
+
 import com.segurancarural.gpstracker.IosPlatformDependencies
 import com.segurancarural.gpstracker.Platform
 import com.segurancarural.gpstracker.data.db.AppDatabase
@@ -8,6 +9,7 @@ import com.segurancarural.gpstracker.data.network.SharedConfig
 import com.segurancarural.gpstracker.data.repository.FamilyPositionsRepository
 import com.segurancarural.gpstracker.data.repository.OfflineRequestManager
 import com.segurancarural.gpstracker.data.repository.TelemetryRepository
+import com.segurancarural.gpstracker.ui.model.FamilyDeviceMarker
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
 import org.koin.core.context.startKoin
@@ -31,6 +33,11 @@ fun getTelemetryRepository(): TelemetryRepository {
 
 fun getFamilyPositionsRepository(): FamilyPositionsRepository {
     return KoinHelper.getFamilyPositionsRepository()
+}
+
+@Throws(Exception::class)
+suspend fun fetchFamilyPositions(historyCount: Int = 10): List<FamilyDeviceMarker> {
+    return getFamilyPositionsRepository().fetchLastPositions(historyCount).getOrThrow()
 }
 
 fun getOfflineRequestManager(): OfflineRequestManager {

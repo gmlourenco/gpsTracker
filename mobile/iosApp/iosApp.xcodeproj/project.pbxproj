@@ -8,10 +8,14 @@
 
 /* Begin PBXBuildFile section */
 		0086067C6F85F29A3D9CAB2C /* MapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8464F253A6ED1DFD5F4BF7EA /* MapView.swift */; };
-		1C81D6F669B7BB6D2FFCCEB3 /* Mapbox in Frameworks */ = {isa = PBXBuildFile; productRef = 022226D6BFCC252B0D451B5E /* Mapbox */; };
 		307C2654CD5972A25FB7FD87 /* iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668CECA83ACC03A83C85A623 /* iOSApp.swift */; };
 		442A6729F9737D308E000359 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ABB3E4CE4380CDAF78906B6 /* LocationService.swift */; };
 		56B0305B5D3847FC6B326502 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE8509E5A49E4A5CAAEB3ADB /* ContentView.swift */; };
+		A2ABD3CD2FF2ABAE00606A9C /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2ABD3CC2FF2ABAE00606A9C /* SettingsView.swift */; };
+		A2ABD3CF2FF2ABCC00606A9C /* FamilyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2ABD3CE2FF2ABCC00606A9C /* FamilyView.swift */; };
+		A2ABD3D12FF2AE9C00606A9C /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2ABD3D02FF2AE9C00606A9C /* HomeView.swift */; };
+		A2ABD3D32FF2B8AD00606A9C /* AppColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2ABD3D22FF2B8AD00606A9C /* AppColors.swift */; };
+		A2ABD3D72FF2BBF500606A9C /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2ABD3D52FF2BB6C00606A9C /* Assets.xcassets */; };
 		FB2EFDB2E9A9D2B895FCDBD5 /* MapViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44F91D1C4E7AD328874A56F4 /* MapViewModel.swift */; };
 /* End PBXBuildFile section */
 
@@ -19,8 +23,13 @@
 		44F91D1C4E7AD328874A56F4 /* MapViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapViewModel.swift; sourceTree = "<group>"; };
 		668CECA83ACC03A83C85A623 /* iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSApp.swift; sourceTree = "<group>"; };
 		8464F253A6ED1DFD5F4BF7EA /* MapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapView.swift; sourceTree = "<group>"; };
-		86038AE1032E284E79B32AD6 /* iosApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		86038AE1032E284E79B32AD6 /* SegurancaRural.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SegurancaRural.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9ABB3E4CE4380CDAF78906B6 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
+		A2ABD3CC2FF2ABAE00606A9C /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A2ABD3CE2FF2ABCC00606A9C /* FamilyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyView.swift; sourceTree = "<group>"; };
+		A2ABD3D02FF2AE9C00606A9C /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		A2ABD3D22FF2B8AD00606A9C /* AppColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColors.swift; sourceTree = "<group>"; };
+		A2ABD3D52FF2BB6C00606A9C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		C117AD187833E2513BD2F553 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		CE8509E5A49E4A5CAAEB3ADB /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -30,7 +39,6 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1C81D6F669B7BB6D2FFCCEB3 /* Mapbox in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -40,6 +48,11 @@
 		1DB4B685CAEE8BEFEBBAEF94 /* iosApp */ = {
 			isa = PBXGroup;
 			children = (
+				A2ABD3D52FF2BB6C00606A9C /* Assets.xcassets */,
+				A2ABD3D22FF2B8AD00606A9C /* AppColors.swift */,
+				A2ABD3D02FF2AE9C00606A9C /* HomeView.swift */,
+				A2ABD3CE2FF2ABCC00606A9C /* FamilyView.swift */,
+				A2ABD3CC2FF2ABAE00606A9C /* SettingsView.swift */,
 				CE8509E5A49E4A5CAAEB3ADB /* ContentView.swift */,
 				C117AD187833E2513BD2F553 /* Info.plist */,
 				668CECA83ACC03A83C85A623 /* iOSApp.swift */,
@@ -61,7 +74,7 @@
 		94C98B8B3A2BFC1966447269 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				86038AE1032E284E79B32AD6 /* iosApp.app */,
+				86038AE1032E284E79B32AD6 /* SegurancaRural.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -76,6 +89,7 @@
 				68DB54B8CEE6587C95BEAE29 /* Compile Kotlin KMP shared module */,
 				297B59D9CE634556D6007C40 /* Sources */,
 				EF8A6E9BFD470986D9D5C9B5 /* Frameworks */,
+				A2ABD3D62FF2BBEA00606A9C /* Resources */,
 			);
 			buildRules = (
 			);
@@ -83,10 +97,9 @@
 			);
 			name = iosApp;
 			packageProductDependencies = (
-				022226D6BFCC252B0D451B5E /* Mapbox */,
 			);
 			productName = iosApp;
-			productReference = 86038AE1032E284E79B32AD6 /* iosApp.app */;
+			productReference = 86038AE1032E284E79B32AD6 /* SegurancaRural.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -96,12 +109,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1430;
-				TargetAttributes = {
-					78B53CC79860CBFC2F5543C6 = {
-						DevelopmentTeam = "";
-					};
-				};
+				LastUpgradeCheck = 2660;
 			};
 			buildConfigurationList = FF7CA1CA754D017066F1822F /* Build configuration list for PBXProject "iosApp" */;
 			developmentRegion = en;
@@ -113,7 +121,6 @@
 			mainGroup = 38B69C3F79CD97858CF7B609;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				80076D90A7FE34AABA9D364A /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 94C98B8B3A2BFC1966447269 /* Products */;
@@ -124,6 +131,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A2ABD3D62FF2BBEA00606A9C /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A2ABD3D72FF2BBF500606A9C /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
 		68DB54B8CEE6587C95BEAE29 /* Compile Kotlin KMP shared module */ = {
@@ -151,11 +169,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A2ABD3D32FF2B8AD00606A9C /* AppColors.swift in Sources */,
+				A2ABD3CD2FF2ABAE00606A9C /* SettingsView.swift in Sources */,
 				56B0305B5D3847FC6B326502 /* ContentView.swift in Sources */,
 				442A6729F9737D308E000359 /* LocationService.swift in Sources */,
 				0086067C6F85F29A3D9CAB2C /* MapView.swift in Sources */,
 				FB2EFDB2E9A9D2B895FCDBD5 /* MapViewModel.swift in Sources */,
+				A2ABD3D12FF2AE9C00606A9C /* HomeView.swift in Sources */,
 				307C2654CD5972A25FB7FD87 /* iOSApp.swift in Sources */,
+				A2ABD3CF2FF2ABCC00606A9C /* FamilyView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -212,6 +234,7 @@
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 				SWIFT_VERSION = 5.0;
@@ -275,6 +298,7 @@
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
@@ -286,7 +310,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = BSK5S25Q29;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = iosApp/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -294,9 +318,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-ObjC",
-				);
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.segurancarural.gpstracker;
 				PRODUCT_NAME = SegurancaRural;
 				SDKROOT = iphoneos;
@@ -310,7 +332,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = BSK5S25Q29;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = iosApp/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -318,9 +340,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-ObjC",
-				);
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.segurancarural.gpstracker;
 				PRODUCT_NAME = SegurancaRural;
 				SDKROOT = iphoneos;
@@ -351,25 +371,6 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
-
-/* Begin XCRemoteSwiftPackageReference section */
-		80076D90A7FE34AABA9D364A /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/maplibre/maplibre-gl-native-distribution";
-			requirement = {
-				kind = exactVersion;
-				version = 6.2.1;
-			};
-		};
-/* End XCRemoteSwiftPackageReference section */
-
-/* Begin XCSwiftPackageProductDependency section */
-		022226D6BFCC252B0D451B5E /* Mapbox */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 80076D90A7FE34AABA9D364A /* XCRemoteSwiftPackageReference "maplibre-gl-native-distribution" */;
-			productName = Mapbox;
-		};
-/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 242FB5348943441C388468CE /* Project object */;
 }

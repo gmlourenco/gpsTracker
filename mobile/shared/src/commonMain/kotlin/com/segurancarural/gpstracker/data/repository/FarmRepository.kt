@@ -44,6 +44,7 @@ class FarmRepository() {
         ApiClient.farmId = Platform.dependencies.getFarmId()
     }
 
+    @Throws(Exception::class)
     suspend fun createFarm(name: String? = null): Result<FarmResponse> {
         return try {
             val token = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentAccessTokenOrNull()
@@ -73,6 +74,7 @@ class FarmRepository() {
         }
     }
 
+    @Throws(Exception::class)
     suspend fun joinFarm(inviteCode: String): Result<FarmResponse> {
         return try {
             val token = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentAccessTokenOrNull()
@@ -111,6 +113,7 @@ class FarmRepository() {
         Platform.dependencies.setFarmId(farmId)
     }
 
+    @Throws(Exception::class)
     suspend fun syncDevices(
         deviceId: String,
         label: String,
@@ -151,6 +154,7 @@ class FarmRepository() {
         }
     }
 
+    @Throws(Exception::class)
     suspend fun syncCurrentDeviceToFarm(farmId: String?): Result<DeviceSyncResponse> {
         val deviceId = Platform.dependencies.ensureSerialNumber()
         val label = Platform.dependencies.getDeviceLabel()
@@ -165,6 +169,7 @@ class FarmRepository() {
     }
 
 
+    @Throws(Exception::class)
     suspend fun getFarmDetails(): Result<FarmDetailsResponse> {
         return try {
             val token = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentAccessTokenOrNull()
@@ -187,6 +192,7 @@ class FarmRepository() {
         }
     }
 
+    @Throws(Exception::class)
     suspend fun manageMember(farmId: String, targetUserId: String, action: String): Result<MemberActionResponse> {
         return try {
             val token = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentAccessTokenOrNull()

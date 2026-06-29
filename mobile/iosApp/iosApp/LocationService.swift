@@ -9,6 +9,13 @@ class LocationService: NSObject, CLLocationManagerDelegate, ObservableObject {
     private let locationManager = CLLocationManager()
     private let batteryThreshold: Float = 0.20 // 20%
     
+    // Cached dependencies and unchanging properties to reduce bridging overhead
+    private lazy var telemetryRepository = KoinIOSKt.getTelemetryRepository()
+    private let deviceSerialNumber: String = UIDevice.current.identifierForVendor?.uuidString ?? "ios-device"
+    private let deviceName: String = UIDevice.current.name
+    private let appVersion: String = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
+    private let dateFormatter = ISO8601DateFormatter()
+    
     @Published var isTracking = false
     @Published var isHighAccuracyMode = false
     
@@ -76,26 +83,45 @@ class LocationService: NSObject, CLLocationManagerDelegate, ObservableObject {
         let batteryLevel = UIDevice.current.batteryLevel
         let isCharging = UIDevice.current.batteryState == .charging || UIDevice.current.batteryState == .full
         
-        // Create TelemetryRecord
+        let timestampStr = dateFormatter.string(from: location.timestamp)
+        
+        // Break up expressions to help Swift type checker
+        let lat = location.coordinate.latitude
+        let lng = location.coordinate.longitude
+        let accuracy = Float(location.horizontalAccuracy)
+        let speed = Float(max(0, location.speed))
+        let heading = Float(max(0, location.course))
+        let batteryLv = batteryLevel < 0 ? Int32(100) : Int32(batteryLevel * 100)
+        let nowMs = Int64(Date().timeIntervalSince1970 * 1000)
+        
+        // Create TelemetryRecord using the correct KMP generated init
+        // Uses cached device information properties to avoid repeated ObjC bridging overhead
         let record = TelemetryRecord(
-            id: UUID().uuidString,
-            timestamp: Int64(location.timestamp.timeIntervalSince1970 * 1000),
-            lat: location.coordinate.latitude,
-            lng: location.coordinate.longitude,
-            altitude: location.altitude,
-            accuracy: Float(location.horizontalAccuracy),
-            speed: Float(max(0, location.speed)),
-            heading: Float(max(0, location.course)),
-            batteryLevel: batteryLevel < 0 ? 100 : Int32(batteryLevel * 100),
+            id: 0,
+            serialNumber: deviceSerialNumber,
+            deviceLabel: deviceName,
+            timestamp: timestampStr,
+            batteryLevel: batteryLv,
             batteryCharging: isCharging,
-            emergencyState: 0, // 0 = Normal
-            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown",
+            lat: lat,
+            lng: lng,
+            accuracy: accuracy,
+            speed: speed,
+            heading: heading,
+            emergencyState: false,
+            trackingEnabled: true,
+            networkType: "UNKNOWN",
+            appVersion: appVersion,
+            createdAtEpochMs: nowMs,
             syncState: 0
         )
         
-        Task {
+        // Fetch repo outside the detached task (on main thread) to ensure lazy var thread safety
+        let repo = self.telemetryRepository
+        
+        // Use detached Task on background priority to avoid blocking UI MainActor thread
+        Task.detached(priority: .background) {
             do {
-                let repo = KoinIOSKt.getTelemetryRepository()
                 try await repo.submitLocation(record: record)
                 print("LocationService: Successfully passed location to KMP TelemetryRepository")
             } catch {

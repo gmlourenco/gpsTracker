@@ -12,6 +12,7 @@ import kotlinx.coroutines.withContext
 
 class FamilyPositionsRepository {
     private val apiService = ApiService()
+    @Throws(Exception::class)
     suspend fun fetchLastPositions(historyCount: Int = 10): Result<List<FamilyDeviceMarker>> = withContext(Dispatchers.Default) {
         val url = ApiRoutes.positionsLast(historyCount)
         val result = apiService.get<LastPositionsResponseDto>(url)

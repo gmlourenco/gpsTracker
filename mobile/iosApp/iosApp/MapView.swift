@@ -45,7 +45,7 @@ struct MapView: View {
                     }
                 }
             }
-            .ignoresSafeArea()
+            .ignoresSafeArea(edges: .top)
             
             // Loading indicator and errors
             VStack {
@@ -102,13 +102,6 @@ struct MapView: View {
                 await viewModel.fetchPositions()
             }
         }
-    }
-}
-
-// Make FamilyDeviceMarker identifiable for MapAnnotation
-extension FamilyDeviceMarker: Identifiable {
-    public var id: String {
-        return self.deviceId
     }
 }
 
