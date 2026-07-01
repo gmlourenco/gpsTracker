@@ -1,12 +1,11 @@
 import SwiftUI
 import Combine
-
-
+import shared
 
 // MARK: - ViewModel
 @MainActor
 class HomeViewModel: ObservableObject {
-    @Published var isTracking: Bool = true
+    @Published var isTracking: Bool = false
     @Published var isSosActive: Bool = false
     @Published var isPreSosActive: Bool = false
     @Published var preSosCountdown: Int = 15
@@ -17,9 +16,44 @@ class HomeViewModel: ObservableObject {
     @Published var userInputCode: String = ""
     
     private var countdownTimer: AnyCancellable?
+    private var cancellables = Set<AnyCancellable>()
+    private var flowWatcher: shared.Closeable?
+    private var sosWatcher: shared.Closeable?
     
     init() {
         generateNewCode()
+        
+        // Bind to LocationService tracking state
+        LocationService.shared.$isTracking
+            .receive(on: RunLoop.main)
+            .assign(to: &$isTracking)
+            
+        // Observe KMP CFlow for offline sync count
+        let repo = KoinIOSKt.getTelemetryRepository()
+        let cflow = CFlowKt.asCFlow(repo.getUnsyncedCountFlow())
+        flowWatcher = cflow.watch { [weak self] (count: Any?) in
+            guard let self = self, let intCount = count as? Int else { return }
+            DispatchQueue.main.async {
+                self.isOnline = (intCount == 0)
+            }
+        }
+        
+        sosWatcher = TrackingStateRepository.shared.observeIsSosActive().watch { [weak self] active in
+            guard let active = active?.boolValue else { return }
+            DispatchQueue.main.async {
+                withAnimation {
+                    self?.isSosActive = active
+                }
+            }
+        }
+    }
+    
+    func toggleTracking(isOn: Bool) {
+        if isOn {
+            LocationService.shared.startTracking()
+        } else {
+            LocationService.shared.stopTracking()
+        }
     }
     
     func generateNewCode() {
@@ -33,18 +67,14 @@ class HomeViewModel: ObservableObject {
             generateNewCode()
             showDeactivateSheet = true
         } else {
-            withAnimation {
-                isSosActive = true
-            }
+            TrackingStateRepository.shared.setSosActive(active: true)
         }
     }
     
     func confirmDeactivation() {
         if userInputCode == verificationCode {
-            withAnimation {
-                isSosActive = false
-                showDeactivateSheet = false
-            }
+            TrackingStateRepository.shared.setSosActive(active: false)
+            showDeactivateSheet = false
         }
     }
     
@@ -72,8 +102,8 @@ class HomeViewModel: ObservableObject {
         countdownTimer?.cancel()
         withAnimation {
             isPreSosActive = false
-            isSosActive = true
         }
+        TrackingStateRepository.shared.setSosActive(active: true)
     }
 }
 
@@ -323,7 +353,10 @@ struct HomeView: View {
                             .foregroundColor(AppColors.textSecondary)
                     }
                     Spacer()
-                    Toggle("", isOn: $viewModel.isTracking)
+                    Toggle("", isOn: Binding(
+                        get: { viewModel.isTracking },
+                        set: { viewModel.toggleTracking(isOn: $0) }
+                    ))
                         .toggleStyle(SwitchToggleStyle(tint: AppColors.onlineGreen))
                         .labelsHidden()
                 }

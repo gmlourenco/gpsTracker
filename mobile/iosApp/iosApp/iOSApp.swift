@@ -5,17 +5,23 @@ import BackgroundTasks
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
         // Init Koin
-        let supabaseUrl = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_URL") as? String ?? ""
-        let supabaseKey = Bundle.main.object(forInfoDictionaryKey: "SUPABASE_KEY") as? String ?? ""
-        let deviceApiSecret = Bundle.main.object(forInfoDictionaryKey: "DEVICE_API_SECRET") as? String ?? ""
-        let backendBaseUrl = Bundle.main.object(forInfoDictionaryKey: "BACKEND_BASE_URL") as? String ?? ""
+        let supabaseUrl = Environment.supabaseUrl
+        let supabaseKey = Environment.supabaseKey
+        let deviceApiSecret = Environment.deviceApiSecret
+        let backendBaseUrl = Environment.backendBaseUrl
+        let isDebug = Environment.isDebug
+        
+        print("DEBUG KMP SECRETS:")
+        print("SUPABASE_URL: \(supabaseUrl)")
+        print("BACKEND_BASE_URL: \(backendBaseUrl)")
+        print("DEVICE_API_SECRET length: \(deviceApiSecret.count)")
         
         KoinIOSKt.doInitKoin(
             supabaseUrl: supabaseUrl,
             supabaseKey: supabaseKey,
             deviceApiSecret: deviceApiSecret,
             backendBaseUrl: backendBaseUrl,
-            isDebug: true
+            isDebug: isDebug
         )
         
         // Register Background Task
@@ -31,10 +37,13 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         scheduleNextSync()
         
         let offlineManager = KoinIOSKt.getOfflineRequestManager()
+        let syncEngine = KoinIOSKt.getSyncEngine()
         
         let syncTask = Task { [weak task] in
             do {
                 try await offlineManager.processQueue()
+                let syncResult = try await syncEngine.flush()
+                print("SyncEngine flush complete. SOS: \(syncResult.emergencySynced), Latest: \(syncResult.latestSynced), History: \(syncResult.historySynced), Errors: \(syncResult.errors)")
                 task?.setTaskCompleted(success: true)
             } catch {
                 print("Failed background sync: \(error)")
@@ -43,7 +52,6 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         }
         
         task.expirationHandler = { [weak task] in
-            #warning("CRITICAL: Swift Task cancellation does not propagate to Kotlin Coroutines. Integrate SKIE plugin in KMP shared module to prevent memory leaks here.")
             syncTask.cancel()
             task?.setTaskCompleted(success: false)
         }

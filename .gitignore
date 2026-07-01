@@ -34,3 +34,20 @@ google-services.json
 
 # Android Profiling
 *.hprof
+
+# iOS Secrets
+Secrets.xcconfig
+GoogleService-Info.plist
+
+# Environment variables
+.env
+.env.*
+*.env
+
+# Xcode user-specific configuration
+xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+
+# Auto-generated Environment configurations
+mobile/iosApp/iosApp/Environment.swift

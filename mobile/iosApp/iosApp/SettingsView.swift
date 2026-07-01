@@ -28,7 +28,21 @@ struct ConfigCard<Content: View>: View {
     }
 }
 
+extension View {
+    func getRootViewController() -> UIViewController {
+        guard let screen = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+            return UIViewController()
+        }
+        guard let root = screen.windows.first?.rootViewController else {
+            return UIViewController()
+        }
+        return root
+    }
+}
+
 struct SettingsView: View {
+    @StateObject private var authVM = AuthViewModel()
+    
     // AppStorage variables
     @AppStorage("device_label") private var deviceLabel: String = "Dispositivo"
     @AppStorage("tracking_distance_m") private var trackingDistanceM: Double = 200.0
@@ -53,18 +67,41 @@ struct SettingsView: View {
                 // Grupo Familiar
                 ConfigCard(title: "Grupo Familiar") {
                     VStack(spacing: 12) {
-                        Button(action: {
-                            // Mock Google Login
-                        }) {
-                            HStack {
-                                Image(systemName: "g.circle.fill")
-                                Text("Login com Google")
+                        if authVM.isAuthenticated {
+                            Button(action: {
+                                authVM.signOut()
+                            }) {
+                                HStack {
+                                    Image(systemName: "arrow.right.circle.fill")
+                                    Text("Terminar Sessão")
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.red)
+                                .foregroundColor(.white)
+                                .cornerRadius(8)
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color(hex: "#3B82F6"))
-                            .foregroundColor(.white)
-                            .cornerRadius(8)
+                        } else {
+                            Button(action: {
+                                authVM.signIn(presenting: getRootViewController())
+                            }) {
+                                HStack {
+                                    Image(systemName: "g.circle.fill")
+                                    Text(authVM.isLoading ? "A carregar..." : "Login com Google")
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color(hex: "#3B82F6"))
+                                .foregroundColor(.white)
+                                .cornerRadius(8)
+                            }
+                            .disabled(authVM.isLoading)
+                        }
+                        
+                        if let error = authVM.errorMessage {
+                            Text(error)
+                                .foregroundColor(.red)
+                                .font(.caption)
                         }
                         
                         HStack(spacing: 12) {

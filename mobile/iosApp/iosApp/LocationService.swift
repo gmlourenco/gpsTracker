@@ -2,6 +2,7 @@ import Foundation
 import CoreLocation
 import shared
 import UIKit
+import Network
 
 class LocationService: NSObject, CLLocationManagerDelegate, ObservableObject {
     static let shared = LocationService()
@@ -19,6 +20,12 @@ class LocationService: NSObject, CLLocationManagerDelegate, ObservableObject {
     @Published var isTracking = false
     @Published var isHighAccuracyMode = false
     
+    private var isSosActive = false
+    private var isSosObserver: shared.Closeable?
+    
+    private let monitor = NWPathMonitor()
+    private var networkType: String = "UNKNOWN"
+    
     private override init() {
         super.init()
         locationManager.delegate = self
@@ -30,18 +37,43 @@ class LocationService: NSObject, CLLocationManagerDelegate, ObservableObject {
         
         NotificationCenter.default.addObserver(self, selector: #selector(batteryLevelDidChange), name: UIDevice.batteryLevelDidChangeNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(batteryStateDidChange), name: UIDevice.batteryStateDidChangeNotification, object: nil)
+        
+        monitor.pathUpdateHandler = { [weak self] path in
+            if path.status == .satisfied {
+                if path.usesInterfaceType(.wifi) {
+                    self?.networkType = "WIFI"
+                } else if path.usesInterfaceType(.cellular) {
+                    self?.networkType = "CELLULAR"
+                } else {
+                    self?.networkType = "OTHER"
+                }
+            } else {
+                self?.networkType = "NONE"
+            }
+        }
+        let queue = DispatchQueue(label: "NetworkMonitor")
+        monitor.start(queue: queue)
+        
+        isSosObserver = TrackingStateRepository.shared.observeIsSosActive().watch { [weak self] active in
+            self?.isSosActive = active?.boolValue ?? false
+            if self?.isSosActive == true {
+                self?.updateTrackingMode()
+            }
+        }
     }
     
     func startTracking() {
         locationManager.requestAlwaysAuthorization()
         isTracking = true
         updateTrackingMode()
+        AccidentDetector.shared.start()
     }
     
     func stopTracking() {
         locationManager.stopUpdatingLocation()
         locationManager.stopMonitoringSignificantLocationChanges()
         isTracking = false
+        AccidentDetector.shared.stop()
     }
     
     @objc private func batteryLevelDidChange() {
@@ -56,7 +88,7 @@ class LocationService: NSObject, CLLocationManagerDelegate, ObservableObject {
         let batteryLevel = UIDevice.current.batteryLevel
         let isCharging = UIDevice.current.batteryState == .charging || UIDevice.current.batteryState == .full
         
-        let shouldBeHighAccuracy = isCharging || (batteryLevel > batteryThreshold) || (batteryLevel < 0) // <0 means unknown/simulator
+        let shouldBeHighAccuracy = isCharging || (batteryLevel > batteryThreshold) || (batteryLevel < 0) || isSosActive // <0 means unknown/simulator
         
         if shouldBeHighAccuracy {
             if !isHighAccuracyMode {
@@ -79,6 +111,12 @@ class LocationService: NSObject, CLLocationManagerDelegate, ObservableObject {
     
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
+        
+        // Filter out highly inaccurate locations (equivalent to Android)
+        if location.horizontalAccuracy > 250 && !self.isSosActive {
+            print("LocationService: Ignored low accuracy location (\(location.horizontalAccuracy)m)")
+            return
+        }
         
         let batteryLevel = UIDevice.current.batteryLevel
         let isCharging = UIDevice.current.batteryState == .charging || UIDevice.current.batteryState == .full
@@ -108,9 +146,9 @@ class LocationService: NSObject, CLLocationManagerDelegate, ObservableObject {
             accuracy: accuracy,
             speed: speed,
             heading: heading,
-            emergencyState: false,
+            emergencyState: self.isSosActive,
             trackingEnabled: true,
-            networkType: "UNKNOWN",
+            networkType: self.networkType,
             appVersion: appVersion,
             createdAtEpochMs: nowMs,
             syncState: 0

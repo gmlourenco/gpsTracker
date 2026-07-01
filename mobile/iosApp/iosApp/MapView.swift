@@ -13,7 +13,7 @@ struct MapView: View {
     
     var body: some View {
         ZStack {
-            Map(coordinateRegion: $region, annotationItems: viewModel.familyMarkers) { marker in
+            Map(coordinateRegion: $region, showsUserLocation: true, annotationItems: viewModel.familyMarkers) { marker in
                 MapAnnotation(coordinate: CLLocationCoordinate2D(latitude: marker.lat, longitude: marker.lng)) {
                     VStack(spacing: 0) {
                         // Custom Marker View
@@ -97,6 +97,8 @@ struct MapView: View {
                 }
             }
         }
+        .toolbarBackground(.visible, for: .tabBar)
+        .toolbarBackground(AppColors.surfaceDark, for: .tabBar)
         .onAppear {
             Task {
                 await viewModel.fetchPositions()

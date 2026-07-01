@@ -1,4 +1,5 @@
 import SwiftUI
+import shared
 
 // MARK: - Models
 enum FamilyRole: String {
@@ -9,6 +10,7 @@ enum FamilyRole: String {
 
 struct FamilyMember: Identifiable {
     let id = UUID()
+    let userId: String
     let name: String
     let initial: String
     let colorHex: String
@@ -19,43 +21,90 @@ struct FamilyMember: Identifiable {
 // MARK: - ViewModel
 @MainActor
 class FamilyViewModel: ObservableObject {
-    @Published var members: [FamilyMember] = [
-        FamilyMember(name: "Gonçalo Lourenço", initial: "G", colorHex: "#3B82F6", role: .creator, isCurrentUser: true),
-        FamilyMember(name: "Maria Silva", initial: "M", colorHex: "#EC4899", role: .admin, isCurrentUser: false),
-        FamilyMember(name: "João Pedro", initial: "J", colorHex: "#F59E0B", role: .member, isCurrentUser: false),
-        FamilyMember(name: "Ana Rita", initial: "A", colorHex: "#10B981", role: .member, isCurrentUser: false)
-    ]
+    @Published var members: [FamilyMember] = []
+    @Published var isLoading = false
+    @Published var errorMessage: String? = nil
     
-    @Published var selectedFarmName: String = "Farm Principal"
-    @Published var inviteCode: String = "X7K9P2"
+    @Published var selectedFarmName: String = "Carregando..."
+    @Published var inviteCode: String = ""
     @Published var showAddJoinSection: Bool = false
     @Published var newFarmName: String = ""
     @Published var newInviteCode: String = ""
     
-    let availableFarms = ["Farm Principal", "Férias 2026", "Família Alargada"]
+    @Published var availableFarms: [String] = []
+    
+    private var currentFarmId: String = ""
+    
+    init() {
+        loadFarms()
+    }
+    
+    func loadFarms() {
+        Task {
+            do {
+                let response = try await KoinIOSKt.fetchMyFarms()
+                if response.success, !response.farms.isEmpty {
+                    let farm = response.farms.first!
+                    self.currentFarmId = farm.farmId
+                    self.selectedFarmName = farm.farmName
+                    self.inviteCode = farm.inviteCode ?? ""
+                    self.availableFarms = response.farms.map { $0.farmName }
+                    
+                    self.members = farm.members.map { dto in
+                        let role: FamilyRole
+                        if dto.isCreator { role = .creator }
+                        else if dto.isAdmin { role = .admin }
+                        else { role = .member }
+                        
+                        return FamilyMember(
+                            userId: dto.resolvedUserId,
+                            name: dto.displayName ?? "Utilizador",
+                            initial: String((dto.displayName ?? "U").prefix(1)),
+                            colorHex: "#3B82F6",
+                            role: role,
+                            isCurrentUser: dto.resolvedUserId == response.currentUserId
+                        )
+                    }
+                }
+            } catch {
+                print("Failed to load farms: \(error)")
+            }
+        }
+    }
     
     // Actions
     func kickMember(_ member: FamilyMember) {
-        if let index = members.firstIndex(where: { $0.id == member.id }) {
-            members.remove(at: index)
+        Task {
+            let _ = try? await KoinIOSKt.manageMember(farmId: currentFarmId, targetUserId: member.userId, action: "kick")
+            loadFarms()
         }
     }
     
     func promoteMember(_ member: FamilyMember) {
-        // Mock promotion logic
-        if let index = members.firstIndex(where: { $0.id == member.id }) {
-            let newRole: FamilyRole = member.role == .member ? .admin : .creator
-            let updated = FamilyMember(name: member.name, initial: member.initial, colorHex: member.colorHex, role: newRole, isCurrentUser: member.isCurrentUser)
-            members[index] = updated
+        Task {
+            let _ = try? await KoinIOSKt.manageMember(farmId: currentFarmId, targetUserId: member.userId, action: "promote_admin")
+            loadFarms()
         }
     }
     
     func demoteMember(_ member: FamilyMember) {
-        // Mock demotion logic
-        if let index = members.firstIndex(where: { $0.id == member.id }) {
-            let newRole: FamilyRole = member.role == .admin ? .member : .member
-            let updated = FamilyMember(name: member.name, initial: member.initial, colorHex: member.colorHex, role: newRole, isCurrentUser: member.isCurrentUser)
-            members[index] = updated
+        Task {
+            let _ = try? await KoinIOSKt.manageMember(farmId: currentFarmId, targetUserId: member.userId, action: "demote_admin")
+            loadFarms()
+        }
+    }
+    
+    func createFarm() {
+        Task {
+            let _ = try? await KoinIOSKt.createFarm(name: newFarmName)
+            loadFarms()
+        }
+    }
+    
+    func joinFarm() {
+        Task {
+            let _ = try? await KoinIOSKt.joinFarm(inviteCode: newInviteCode)
+            loadFarms()
         }
     }
 }
@@ -234,7 +283,7 @@ struct FamilyView: View {
                     )
                 
                 Button(action: {
-                    // Mock Create Action
+                    viewModel.createFarm()
                 }) {
                     Text("Criar Família")
                         .font(.headline)
@@ -262,7 +311,7 @@ struct FamilyView: View {
                     )
                 
                 Button(action: {
-                    // Mock Join Action
+                    viewModel.joinFarm()
                 }) {
                     Text("Juntar")
                         .font(.headline)

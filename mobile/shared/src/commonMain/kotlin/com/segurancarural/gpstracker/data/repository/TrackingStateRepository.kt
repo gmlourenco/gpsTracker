@@ -39,4 +39,9 @@ object TrackingStateRepository {
     fun setLastAccuracy(accuracy: Float?) {
         _lastAccuracy.value = accuracy
     }
+
+    // iOS CFlow Helpers
+    fun observeIsSosActive(): com.segurancarural.gpstracker.util.CFlow<Boolean> = com.segurancarural.gpstracker.util.CFlow(isSosActive)
+    fun observeIsTracking(): com.segurancarural.gpstracker.util.CFlow<Boolean> = com.segurancarural.gpstracker.util.CFlow(isTracking)
+    fun observeIsPreSosActive(): com.segurancarural.gpstracker.util.CFlow<Boolean> = com.segurancarural.gpstracker.util.CFlow(isPreSosActive)
 }
