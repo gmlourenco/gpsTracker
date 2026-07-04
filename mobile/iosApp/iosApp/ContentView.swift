@@ -25,11 +25,7 @@ struct ContentView: View {
                     Label("Mapa", systemImage: "map")
                 }
             
-            FamilyView()
-                .tabItem {
-                    Label("Família", systemImage: "person.3")
-                }
-            
+
             SettingsView()
                 .tabItem {
                     Label("Config", systemImage: "gearshape")

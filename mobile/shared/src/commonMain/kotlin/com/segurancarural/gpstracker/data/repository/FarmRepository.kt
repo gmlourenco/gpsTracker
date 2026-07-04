@@ -155,6 +155,26 @@ class FarmRepository() {
     }
 
     @Throws(Exception::class)
+    suspend fun getDeviceConfig(serialNumber: String): Result<com.segurancarural.gpstracker.data.dto.DeviceConfigResponseDto> {
+        return try {
+            val token = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentAccessTokenOrNull()
+            if (token != null) {
+                ApiClient.supabaseJwt = token.toString()
+            }
+
+            val response = ApiClient.httpClient.get("${ApiRoutes.DEVICE_CONFIG}?serial=$serialNumber")
+            val data = response.body<com.segurancarural.gpstracker.data.dto.DeviceConfigResponseDto>()
+            if (data.success) {
+                Result.success(data)
+            } else {
+                Result.failure(Exception(data.error ?: "Failed to fetch device config"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    @Throws(Exception::class)
     suspend fun syncCurrentDeviceToFarm(farmId: String?): Result<DeviceSyncResponse> {
         val deviceId = Platform.dependencies.ensureSerialNumber()
         val label = Platform.dependencies.getDeviceLabel()

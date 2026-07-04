@@ -1,4 +1,5 @@
 import SwiftUI
+import shared
 
 
 
@@ -49,12 +50,18 @@ struct SettingsView: View {
     @AppStorage("tracking_interval_ms") private var trackingIntervalMs: Double = 60000.0
     @AppStorage("accident_sensor_sensitivity") private var accidentSensorSensitivity: String = "medium"
     @AppStorage("default_map_type") private var defaultMapType: String = "SATELLITE"
-    @AppStorage("marker_color_hex") private var markerColorHex: String = "#16A34A"
-    
+    @AppStorage("device_marker_color") private var markerColorHex: String = "#16A34A"
     @State private var customSensitivityValue: String = ""
+    @State private var selectedSensitivity: String = "Média"
+    
     @State private var isSaving: Bool = false
     @State private var showCreateGroup: Bool = false
     @State private var showJoinGroup: Bool = false
+    
+    @State private var newGroupName: String = ""
+    @State private var inviteCode: String = ""
+    
+    @State private var actionTask: Task<Void, Never>?
     
     let intervals: [Double] = [60000, 300000, 600000, 900000, 1800000, 3600000] // 1, 5, 10, 15, 30, 60 min
     let mapTypes = ["SATELLITE", "NORMAL", "TERRAIN"]
@@ -135,14 +142,58 @@ struct SettingsView: View {
                         }
                         
                         if showCreateGroup {
-                            Text("Mock: Criação de Grupo...")
-                                .foregroundColor(.gray)
-                                .font(.caption)
+                            VStack(spacing: 8) {
+                                TextField("Nome da Família", text: $newGroupName)
+                                    .padding()
+                                    .background(Color.white.opacity(0.05))
+                                    .cornerRadius(8)
+                                    .foregroundColor(.white)
+                                
+                                Button(action: {
+                                    actionTask?.cancel()
+                                    actionTask = Task {
+                                        let _ = try? await KoinIOSKt.createFarm(name: newGroupName)
+                                        if !Task.isCancelled {
+                                            showCreateGroup = false
+                                            newGroupName = ""
+                                        }
+                                    }
+                                }) {
+                                    Text("Confirmar")
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(Color(hex: "#16A34A"))
+                                        .foregroundColor(.white)
+                                        .cornerRadius(8)
+                                }
+                            }
                         }
                         if showJoinGroup {
-                            Text("Mock: Entrar por código...")
-                                .foregroundColor(.gray)
-                                .font(.caption)
+                            VStack(spacing: 8) {
+                                TextField("Código de Convite", text: $inviteCode)
+                                    .padding()
+                                    .background(Color.white.opacity(0.05))
+                                    .cornerRadius(8)
+                                    .foregroundColor(.white)
+                                
+                                Button(action: {
+                                    actionTask?.cancel()
+                                    actionTask = Task {
+                                        let _ = try? await KoinIOSKt.joinFarm(inviteCode: inviteCode)
+                                        if !Task.isCancelled {
+                                            showJoinGroup = false
+                                            inviteCode = ""
+                                        }
+                                    }
+                                }) {
+                                    Text("Entrar")
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(Color(hex: "#16A34A"))
+                                        .foregroundColor(.white)
+                                        .cornerRadius(8)
+                                }
+                            }
                         }
                     }
                 }
@@ -234,7 +285,7 @@ struct SettingsView: View {
                             Text("Sensibilidade:")
                                 .foregroundColor(.white)
                             Spacer()
-                            Picker("Sensibilidade", selection: $accidentSensorSensitivity) {
+                            Picker("Sensibilidade", selection: $selectedSensitivity) {
                                 ForEach(sensitivities, id: \.self) { sensitivity in
                                     Text(sensitivity).tag(sensitivity)
                                 }
@@ -243,7 +294,7 @@ struct SettingsView: View {
                             .accentColor(Color(hex: "#16A34A"))
                         }
                         
-                        if accidentSensorSensitivity == "Personalizada" {
+                        if selectedSensitivity == "Personalizada" {
                             HStack {
                                 Text("G-Force (1-99):")
                                     .foregroundColor(.white.opacity(0.8))
@@ -288,15 +339,52 @@ struct SettingsView: View {
             .padding()
         }
         .background(Color(hex: "#1A1A2E").edgesIgnoringSafeArea(.all))
+        .onAppear {
+            if accidentSensorSensitivity.hasPrefix("custom_") {
+                selectedSensitivity = "Personalizada"
+                customSensitivityValue = String(accidentSensorSensitivity.dropFirst("custom_".count))
+            } else if accidentSensorSensitivity == "alta" {
+                selectedSensitivity = "Alta"
+            } else if accidentSensorSensitivity == "baixa" {
+                selectedSensitivity = "Baixa"
+            } else if accidentSensorSensitivity == "Personalizada" { // Legacy fallback
+                selectedSensitivity = "Personalizada"
+            } else {
+                selectedSensitivity = "Média"
+            }
+        }
+        .onDisappear {
+            actionTask?.cancel()
+        }
     }
     
     private func saveSettings() {
+        actionTask?.cancel()
         isSaving = true
-        Task {
-            // Simulate network sync
-            try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 seconds
-            await MainActor.run {
-                isSaving = false
+        
+        if selectedSensitivity == "Personalizada" {
+            accidentSensorSensitivity = "custom_\(customSensitivityValue.isEmpty ? "4" : customSensitivityValue)"
+        } else if selectedSensitivity == "Alta" {
+            accidentSensorSensitivity = "alta"
+        } else if selectedSensitivity == "Baixa" {
+            accidentSensorSensitivity = "baixa"
+        } else {
+            accidentSensorSensitivity = "medium"
+        }
+        
+        actionTask = Task {
+            do {
+                // Call KMP to sync the device config via the Supabase endpoint
+                let _ = try await KoinIOSKt.syncCurrentDeviceToFarm()
+                // Wait briefly for UI feedback
+                try await Task.sleep(nanoseconds: 500_000_000)
+            } catch {
+                print("Failed to sync settings: \(error)")
+            }
+            if !Task.isCancelled {
+                await MainActor.run {
+                    isSaving = false
+                }
             }
         }
     }

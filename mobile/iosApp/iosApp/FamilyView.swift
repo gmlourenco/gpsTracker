@@ -35,12 +35,18 @@ class FamilyViewModel: ObservableObject {
     
     private var currentFarmId: String = ""
     
+    private var loadTask: Task<Void, Never>?
+    
     init() {
         loadFarms()
     }
     
     func loadFarms() {
-        Task {
+        loadTask?.cancel()
+        loadTask = Task { [weak self] in
+            guard let self = self else { return }
+            self.isLoading = true
+            errorMessage = nil
             do {
                 let response = try await KoinIOSKt.fetchMyFarms()
                 if response.success, !response.farms.isEmpty {
@@ -65,46 +71,57 @@ class FamilyViewModel: ObservableObject {
                             isCurrentUser: dto.resolvedUserId == response.currentUserId
                         )
                     }
+                } else {
+                    self.errorMessage = response.error ?? "Nenhuma família encontrada."
                 }
             } catch {
+                self.errorMessage = "Erro ao carregar família: \(error.localizedDescription)"
                 print("Failed to load farms: \(error)")
+            }
+            if !Task.isCancelled {
+                self.isLoading = false
             }
         }
     }
     
     // Actions
     func kickMember(_ member: FamilyMember) {
-        Task {
-            let _ = try? await KoinIOSKt.manageMember(farmId: currentFarmId, targetUserId: member.userId, action: "kick")
-            loadFarms()
+        Task { [weak self] in
+            guard let self = self else { return }
+            let _ = try? await KoinIOSKt.manageMember(farmId: self.currentFarmId, targetUserId: member.userId, action: "kick")
+            self.loadFarms()
         }
     }
     
     func promoteMember(_ member: FamilyMember) {
-        Task {
-            let _ = try? await KoinIOSKt.manageMember(farmId: currentFarmId, targetUserId: member.userId, action: "promote_admin")
-            loadFarms()
+        Task { [weak self] in
+            guard let self = self else { return }
+            let _ = try? await KoinIOSKt.manageMember(farmId: self.currentFarmId, targetUserId: member.userId, action: "promote_admin")
+            self.loadFarms()
         }
     }
     
     func demoteMember(_ member: FamilyMember) {
-        Task {
-            let _ = try? await KoinIOSKt.manageMember(farmId: currentFarmId, targetUserId: member.userId, action: "demote_admin")
-            loadFarms()
+        Task { [weak self] in
+            guard let self = self else { return }
+            let _ = try? await KoinIOSKt.manageMember(farmId: self.currentFarmId, targetUserId: member.userId, action: "demote_admin")
+            self.loadFarms()
         }
     }
     
     func createFarm() {
-        Task {
-            let _ = try? await KoinIOSKt.createFarm(name: newFarmName)
-            loadFarms()
+        Task { [weak self] in
+            guard let self = self else { return }
+            let _ = try? await KoinIOSKt.createFarm(name: self.newFarmName)
+            self.loadFarms()
         }
     }
     
     func joinFarm() {
-        Task {
-            let _ = try? await KoinIOSKt.joinFarm(inviteCode: newInviteCode)
-            loadFarms()
+        Task { [weak self] in
+            guard let self = self else { return }
+            let _ = try? await KoinIOSKt.joinFarm(inviteCode: self.newInviteCode)
+            self.loadFarms()
         }
     }
 }
@@ -169,6 +186,16 @@ struct FamilyView: View {
                         }
                     }
                     .listStyle(.plain)
+                    .refreshable {
+                        viewModel.loadFarms()
+                    }
+                    
+                    if let error = viewModel.errorMessage {
+                        Text(error)
+                            .foregroundColor(AppColors.sosRed)
+                            .font(.caption)
+                            .padding(.vertical, 8)
+                    }
                     
                     // Bottom Add/Join Section Toggle
                     Button(action: {

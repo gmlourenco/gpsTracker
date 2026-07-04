@@ -45,7 +45,7 @@ class AuthViewModel: ObservableObject {
             Task {
                 do {
                     try await KoinIOSKt.signInWithGoogleIdToken(idToken: idToken, accessToken: accessToken)
-                    self.isAuthenticated = true
+                    self.checkSession()
                     self.isLoading = false
                 } catch {
                     self.isLoading = false
@@ -57,6 +57,15 @@ class AuthViewModel: ObservableObject {
     
     func signOut() {
         GIDSignIn.sharedInstance.signOut()
+        
+        Task {
+            do {
+                try await KoinIOSKt.signOutFromSupabase()
+            } catch {
+                print("Failed to sign out from Supabase: \(error)")
+            }
+        }
+        
         platformDeps.setSupabaseJwt(jwt: nil)
         isAuthenticated = false
     }

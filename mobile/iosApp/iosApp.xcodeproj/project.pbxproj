@@ -8,18 +8,25 @@
 
 /* Begin PBXBuildFile section */
 		0086067C6F85F29A3D9CAB2C /* MapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8464F253A6ED1DFD5F4BF7EA /* MapView.swift */; };
+		0A314951A19189A5B678531E /* NativeMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B64CB17F81D7FCF71501C1EB /* NativeMapView.swift */; };
 		1C81D6F669B7BB6D2FFCCEB3 /* GoogleSignIn in Frameworks */ = {isa = PBXBuildFile; productRef = B6E18E1D8AEE3BF1FDA1E5E9 /* GoogleSignIn */; };
 		22EA1CB33A17DCC6FC82406D /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F543015C899423D4B01CEB2E /* Assets.xcassets */; };
 		307C2654CD5972A25FB7FD87 /* iOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 668CECA83ACC03A83C85A623 /* iOSApp.swift */; };
+		379D4C6DBBA934A8EF44CDDE /* GTMSessionFetcherCore in Frameworks */ = {isa = PBXBuildFile; productRef = 8F37CFABC277F8D5D1E3CCD0 /* GTMSessionFetcherCore */; };
 		3FB790F50A9B32E42CB89C7F /* AccidentDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = F196E35726381FDD5EF67152 /* AccidentDetector.swift */; };
 		415BD8B6E8E5B39E252FDD0F /* AppColors.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD03C85604C7EE3996B5AFDF /* AppColors.swift */; };
 		442A6729F9737D308E000359 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ABB3E4CE4380CDAF78906B6 /* LocationService.swift */; };
+		445C052442747365B7CB2124 /* GTMAppAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 5C7EF1DB429B1DD3360C1E96 /* GTMAppAuth */; };
+		5213EA02F84C83F56DB1D6F1 /* FlowExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0EFA6993C0A052C10D66FB9 /* FlowExtensions.swift */; };
 		56B0305B5D3847FC6B326502 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE8509E5A49E4A5CAAEB3ADB /* ContentView.swift */; };
 		68040CE08AEDC7C1E192C50C /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DB12B8F33A658239E951429 /* HomeView.swift */; };
 		885ED23253B778528E4ED380 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B20E4482019383F85D91CAC /* AuthViewModel.swift */; };
 		A816E38B482494B658CFDC86 /* FamilyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60BB360C2AF9359C59951460 /* FamilyView.swift */; };
 		B79B38D851FEF9C950AAE7B6 /* Environment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21F8A182B068B1994C597A2A /* Environment.swift */; };
+		B7C4F6137AC8345E71E92063 /* AppAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 8E1D15B34AD70371FE287658 /* AppAuth */; };
 		BC176A83C0F9CCC0CA18F75B /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E713B16C0AA6DFFD30001358 /* SettingsView.swift */; };
+		CE151FB0332E27FFE7483AAB /* SettingsSyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = F94570938DD221F074325859 /* SettingsSyncCoordinator.swift */; };
+		DA55BF23E41BBF9A9539D874 /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B98CB2A95BCC307A714533DF /* SyncCoordinator.swift */; };
 		FB2EFDB2E9A9D2B895FCDBD5 /* MapViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44F91D1C4E7AD328874A56F4 /* MapViewModel.swift */; };
 /* End PBXBuildFile section */
 
@@ -29,17 +36,21 @@
 		60BB360C2AF9359C59951460 /* FamilyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyView.swift; sourceTree = "<group>"; };
 		668CECA83ACC03A83C85A623 /* iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSApp.swift; sourceTree = "<group>"; };
 		8464F253A6ED1DFD5F4BF7EA /* MapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapView.swift; sourceTree = "<group>"; };
-		86038AE1032E284E79B32AD6 /* iosApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		86038AE1032E284E79B32AD6 /* SegurancaRuralDEV.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SegurancaRuralDEV.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8DB12B8F33A658239E951429 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		9ABB3E4CE4380CDAF78906B6 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 		9B20E4482019383F85D91CAC /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
 		9E952615EB910B75418E8063 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		AD03C85604C7EE3996B5AFDF /* AppColors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppColors.swift; sourceTree = "<group>"; };
+		B0EFA6993C0A052C10D66FB9 /* FlowExtensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FlowExtensions.swift; sourceTree = "<group>"; };
+		B64CB17F81D7FCF71501C1EB /* NativeMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeMapView.swift; sourceTree = "<group>"; };
+		B98CB2A95BCC307A714533DF /* SyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
 		C117AD187833E2513BD2F553 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		CE8509E5A49E4A5CAAEB3ADB /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		E713B16C0AA6DFFD30001358 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		F196E35726381FDD5EF67152 /* AccidentDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccidentDetector.swift; sourceTree = "<group>"; };
 		F543015C899423D4B01CEB2E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		F94570938DD221F074325859 /* SettingsSyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsSyncCoordinator.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -48,6 +59,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				1C81D6F669B7BB6D2FFCCEB3 /* GoogleSignIn in Frameworks */,
+				445C052442747365B7CB2124 /* GTMAppAuth in Frameworks */,
+				B7C4F6137AC8345E71E92063 /* AppAuth in Frameworks */,
+				379D4C6DBBA934A8EF44CDDE /* GTMSessionFetcherCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -64,14 +78,18 @@
 				CE8509E5A49E4A5CAAEB3ADB /* ContentView.swift */,
 				21F8A182B068B1994C597A2A /* Environment.swift */,
 				60BB360C2AF9359C59951460 /* FamilyView.swift */,
+				B0EFA6993C0A052C10D66FB9 /* FlowExtensions.swift */,
 				8DB12B8F33A658239E951429 /* HomeView.swift */,
 				C117AD187833E2513BD2F553 /* Info.plist */,
 				668CECA83ACC03A83C85A623 /* iOSApp.swift */,
 				9ABB3E4CE4380CDAF78906B6 /* LocationService.swift */,
 				8464F253A6ED1DFD5F4BF7EA /* MapView.swift */,
 				44F91D1C4E7AD328874A56F4 /* MapViewModel.swift */,
+				B64CB17F81D7FCF71501C1EB /* NativeMapView.swift */,
 				9E952615EB910B75418E8063 /* Secrets.xcconfig */,
+				F94570938DD221F074325859 /* SettingsSyncCoordinator.swift */,
 				E713B16C0AA6DFFD30001358 /* SettingsView.swift */,
+				B98CB2A95BCC307A714533DF /* SyncCoordinator.swift */,
 			);
 			path = iosApp;
 			sourceTree = "<group>";
@@ -87,7 +105,7 @@
 		94C98B8B3A2BFC1966447269 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				86038AE1032E284E79B32AD6 /* iosApp.app */,
+				86038AE1032E284E79B32AD6 /* SegurancaRuralDEV.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -112,9 +130,12 @@
 			name = iosApp;
 			packageProductDependencies = (
 				B6E18E1D8AEE3BF1FDA1E5E9 /* GoogleSignIn */,
+				5C7EF1DB429B1DD3360C1E96 /* GTMAppAuth */,
+				8E1D15B34AD70371FE287658 /* AppAuth */,
+				8F37CFABC277F8D5D1E3CCD0 /* GTMSessionFetcherCore */,
 			);
 			productName = iosApp;
-			productReference = 86038AE1032E284E79B32AD6 /* iosApp.app */;
+			productReference = 86038AE1032E284E79B32AD6 /* SegurancaRuralDEV.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -125,11 +146,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
-				TargetAttributes = {
-					78B53CC79860CBFC2F5543C6 = {
-						DevelopmentTeam = "";
-					};
-				};
 			};
 			buildConfigurationList = FF7CA1CA754D017066F1822F /* Build configuration list for PBXProject "iosApp" */;
 			developmentRegion = en;
@@ -141,6 +157,9 @@
 			mainGroup = 38B69C3F79CD97858CF7B609;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				89FB66DE547CA4D37D5392BF /* XCRemoteSwiftPackageReference "AppAuth-iOS" */,
+				F27D399A64B722FBAA752689 /* XCRemoteSwiftPackageReference "GTMAppAuth" */,
+				D7D0BD56E1ED13CF0B39AFA3 /* XCRemoteSwiftPackageReference "gtm-session-fetcher" */,
 				DF1BCD5B98717A06C1B5AE17 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -181,7 +200,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "cd \"$SRCROOT/..\"\n./gradlew :shared:embedAndSignAppleFrameworkForXcode\n";
+			shellScript = "cd \"$SRCROOT/..\"\nif [[ \"$CONFIGURATION\" == *\"Debug\"* ]]; then\n  export KOTLIN_FRAMEWORK_BUILD_TYPE=\"debug\"\nelse\n  export KOTLIN_FRAMEWORK_BUILD_TYPE=\"release\"\nfi\n./gradlew :shared:embedAndSignAppleFrameworkForXcode\n";
 		};
 		F5D377AA3706903238582EC1 /* Generate Environment Variables */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -214,11 +233,15 @@
 				56B0305B5D3847FC6B326502 /* ContentView.swift in Sources */,
 				B79B38D851FEF9C950AAE7B6 /* Environment.swift in Sources */,
 				A816E38B482494B658CFDC86 /* FamilyView.swift in Sources */,
+				5213EA02F84C83F56DB1D6F1 /* FlowExtensions.swift in Sources */,
 				68040CE08AEDC7C1E192C50C /* HomeView.swift in Sources */,
 				442A6729F9737D308E000359 /* LocationService.swift in Sources */,
 				0086067C6F85F29A3D9CAB2C /* MapView.swift in Sources */,
 				FB2EFDB2E9A9D2B895FCDBD5 /* MapViewModel.swift in Sources */,
+				0A314951A19189A5B678531E /* NativeMapView.swift in Sources */,
+				CE151FB0332E27FFE7483AAB /* SettingsSyncCoordinator.swift in Sources */,
 				BC176A83C0F9CCC0CA18F75B /* SettingsView.swift in Sources */,
+				DA55BF23E41BBF9A9539D874 /* SyncCoordinator.swift in Sources */,
 				307C2654CD5972A25FB7FD87 /* iOSApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -239,9 +262,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-ObjC",
-				);
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.segurancarural.gpstracker;
 				PRODUCT_NAME = SegurancaRural;
 				SDKROOT = iphoneos;
@@ -382,9 +403,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-ObjC",
-				);
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.segurancarural.gpstracker;
 				PRODUCT_NAME = SegurancaRural;
 				SDKROOT = iphoneos;
@@ -406,9 +425,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-ObjC",
-				);
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.segurancarural.gpstracker.pre;
 				PRODUCT_NAME = SegurancaRuralPRE;
 				SDKROOT = iphoneos;
@@ -597,7 +614,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = BSK5S25Q29;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = iosApp/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -605,9 +622,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-ObjC",
-				);
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.segurancarural.gpstracker.dev;
 				PRODUCT_NAME = SegurancaRuralDEV;
 				SDKROOT = iphoneos;
@@ -692,9 +707,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-ObjC",
-				);
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.segurancarural.gpstracker.pre;
 				PRODUCT_NAME = SegurancaRuralPRE;
 				SDKROOT = iphoneos;
@@ -708,7 +721,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = BSK5S25Q29;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = iosApp/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -716,9 +729,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-ObjC",
-				);
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.segurancarural.gpstracker.dev;
 				PRODUCT_NAME = SegurancaRuralDEV;
 				SDKROOT = iphoneos;
@@ -759,6 +770,22 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		89FB66DE547CA4D37D5392BF /* XCRemoteSwiftPackageReference "AppAuth-iOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/openid/AppAuth-iOS.git";
+			requirement = {
+				kind = exactVersion;
+				version = 1.7.6;
+			};
+		};
+		D7D0BD56E1ED13CF0B39AFA3 /* XCRemoteSwiftPackageReference "gtm-session-fetcher" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/gtm-session-fetcher.git";
+			requirement = {
+				kind = exactVersion;
+				version = 3.5.0;
+			};
+		};
 		DF1BCD5B98717A06C1B5AE17 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/google/GoogleSignIn-iOS";
@@ -767,9 +794,32 @@
 				version = 7.0.0;
 			};
 		};
+		F27D399A64B722FBAA752689 /* XCRemoteSwiftPackageReference "GTMAppAuth" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/google/GTMAppAuth.git";
+			requirement = {
+				kind = exactVersion;
+				version = 2.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		5C7EF1DB429B1DD3360C1E96 /* GTMAppAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F27D399A64B722FBAA752689 /* XCRemoteSwiftPackageReference "GTMAppAuth" */;
+			productName = GTMAppAuth;
+		};
+		8E1D15B34AD70371FE287658 /* AppAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 89FB66DE547CA4D37D5392BF /* XCRemoteSwiftPackageReference "AppAuth-iOS" */;
+			productName = AppAuth;
+		};
+		8F37CFABC277F8D5D1E3CCD0 /* GTMSessionFetcherCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D7D0BD56E1ED13CF0B39AFA3 /* XCRemoteSwiftPackageReference "gtm-session-fetcher" */;
+			productName = GTMSessionFetcherCore;
+		};
 		B6E18E1D8AEE3BF1FDA1E5E9 /* GoogleSignIn */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = DF1BCD5B98717A06C1B5AE17 /* XCRemoteSwiftPackageReference "GoogleSignIn-iOS" */;

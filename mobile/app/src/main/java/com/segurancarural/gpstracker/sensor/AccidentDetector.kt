@@ -44,6 +44,12 @@ class AccidentDetector(
     private var lastGyroMagnitude = 0f
     private var lastGyroTimestamp: Long = 0L
     private var totalRotationRad = 0f
+    
+    // Speed threshold state
+    private var lastLowSpeedTime: Long? = null
+    private val speedThresholdMps = 0.55f // approx 2.0 km/h
+    private val speedDelayMs = 30000L
+    private var isPausedDueToLowSpeed = false
 
     // Low-Pass Filter variables
     private val alpha = 0.8f
@@ -73,12 +79,11 @@ class AccidentDetector(
             handlerThread = HandlerThread("AccidentSensor").apply { start() }
             handler = Handler(handlerThread!!.looper)
             
-            // SENSOR_DELAY_NORMAL (~200ms sampling interval, huge battery saving vs GAME)
-            sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL, handler)
-            gyroscope?.let {
-                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, handler)
-            }
             isListening = true
+            isPausedDueToLowSpeed = false
+            lastLowSpeedTime = null
+            resumeUpdates()
+            
             consecutiveOverThresholdCount = 0
             Log.i(TAG, "Accident sensor started with sensitivity: $sensitivity (threshold: ${threshold} m/s²)")
         }
@@ -91,9 +96,48 @@ class AccidentDetector(
             handlerThread = null
             handler = null
             isListening = false
+            isPausedDueToLowSpeed = false
             consecutiveOverThresholdCount = 0
             gravity.fill(0f)
             Log.i(TAG, "Accident sensor stopped")
+        }
+    }
+    
+    private fun pauseUpdates() {
+        if (isListening) {
+            sensorManager.unregisterListener(this)
+            Log.i(TAG, "Paused motion updates due to low speed")
+        }
+    }
+
+    private fun resumeUpdates() {
+        if (isListening && !isPausedDueToLowSpeed) {
+            sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL, handler)
+            gyroscope?.let {
+                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, handler)
+            }
+        }
+    }
+    
+    fun updateSpeed(speedMps: Float) {
+        handler?.post {
+            if (speedMps < speedThresholdMps) {
+                if (lastLowSpeedTime == null) {
+                    lastLowSpeedTime = System.currentTimeMillis()
+                } else if (System.currentTimeMillis() - lastLowSpeedTime!! >= speedDelayMs) {
+                    if (!isPausedDueToLowSpeed) {
+                        isPausedDueToLowSpeed = true
+                        pauseUpdates()
+                    }
+                }
+            } else {
+                lastLowSpeedTime = null
+                if (isPausedDueToLowSpeed) {
+                    isPausedDueToLowSpeed = false
+                    Log.i(TAG, "Resuming motion updates due to increased speed")
+                    resumeUpdates()
+                }
+            }
         }
     }
 

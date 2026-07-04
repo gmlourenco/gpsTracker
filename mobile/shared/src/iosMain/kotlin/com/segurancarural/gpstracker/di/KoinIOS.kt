@@ -24,7 +24,7 @@ val iosModule = module {
     single<AppDatabase> { createAppDatabase() }
     single { get<AppDatabase>().telemetryDao() }
     single { TelemetryRepository(get()) }
-    factory {
+    single {
         SyncEngine(
             dao = get(),
             httpClient = get(),
@@ -70,6 +70,16 @@ suspend fun fetchMyFarms(): com.segurancarural.gpstracker.data.repository.FarmDe
 }
 
 @Throws(Exception::class)
+suspend fun syncCurrentDeviceToFarm(): com.segurancarural.gpstracker.data.repository.DeviceSyncResponse {
+    return getFarmRepository().syncCurrentDeviceToFarm(getFarmRepository().currentFarmId).getOrThrow()
+}
+
+@Throws(Exception::class)
+suspend fun fetchDeviceConfig(serialNumber: String): com.segurancarural.gpstracker.data.dto.DeviceConfigResponseDto {
+    return getFarmRepository().getDeviceConfig(serialNumber).getOrThrow()
+}
+
+@Throws(Exception::class)
 suspend fun createFarm(name: String?): com.segurancarural.gpstracker.data.repository.FarmResponse {
     return getFarmRepository().createFarm(name).getOrThrow()
 }
@@ -112,5 +122,19 @@ suspend fun signInWithGoogleIdToken(idToken: String, accessToken: String?) {
     com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.signInWith(IDToken) {
         this.idToken = idToken
         this.provider = Google
+    }
+    val token = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentAccessTokenOrNull()
+    if (token != null) {
+        com.segurancarural.gpstracker.data.network.ApiClient.supabaseJwt = token.toString()
+        Platform.dependencies.setSupabaseJwt(token.toString())
+    }
+}
+
+@Throws(Exception::class)
+suspend fun signOutFromSupabase() {
+    try {
+        com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.signOut()
+    } catch (e: Exception) {
+        // Ignored if already signed out
     }
 }

@@ -374,6 +374,7 @@ class LocationForegroundService : Service(), KoinComponent {
             override fun onLocationResult(result: LocationResult) {
                 for (location in result.locations) {
                     TrackingStateRepository.setLastAccuracy(location.accuracy)
+                    accidentDetector?.updateSpeed(location.speed)
                     processLocationFix(location)
                 }
             }

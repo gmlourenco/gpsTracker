@@ -133,8 +133,8 @@ export type ApiResponse = ApiSuccessResponse | ApiErrorResponse;
 /** Validates that a value is a plausible device serial number (ANDROID_ID hex string) */
 export function isValidSerialNumber(value: unknown): value is string {
   if (typeof value !== 'string') return false;
-  // ANDROID_ID is a 16-char lowercase hex string, but we accept 8-32 chars for flexibility
-  return /^[0-9a-f]{8,32}$/i.test(value);
+  // ANDROID_ID is a 16-char hex string, iOS uses 36-char UUIDs with hyphens
+  return /^[0-9a-f-]{8,36}$/i.test(value);
 }
 
 /** Validates that a value is a strict ISO 8601 timestamp (YYYY-MM-DDTHH:MM:SS with optional ms and timezone) */
@@ -164,7 +164,7 @@ export function getTelemetryValidationErrors(body: unknown): string[] {
 
   if (!isValidSerialNumber(p.serialNumber)) {
     errors.push(
-      'serialNumber must be a hex string (8-32 chars). ANDROID_ID is typically 16 lowercase hex chars.'
+      'serialNumber must be a hex string or UUID (8-36 chars). ANDROID_ID is typically 16 chars, iOS UUID is 36 chars.'
     );
   }
   if (typeof p.deviceLabel !== 'string' || p.deviceLabel.trim() === '') {

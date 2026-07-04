@@ -102,11 +102,22 @@ targets:
       - name: Compile Kotlin KMP shared module
         script: |
           cd "$SRCROOT/.."
+          if [[ "$CONFIGURATION" == *"Debug"* ]]; then
+            export KOTLIN_FRAMEWORK_BUILD_TYPE="debug"
+          else
+            export KOTLIN_FRAMEWORK_BUILD_TYPE="release"
+          fi
           ./gradlew :shared:embedAndSignAppleFrameworkForXcode
     dependencies:
-      # Google Sign-In
+      # Google Sign-In and its transitive dependencies that have resource bundles
       - package: GoogleSignIn
         product: GoogleSignIn
+      - package: GTMAppAuth
+        product: GTMAppAuth
+      - package: AppAuth
+        product: AppAuth
+      - package: GTMSessionFetcher
+        product: GTMSessionFetcherCore
     info:
       path: iosApp/Info.plist
       properties:
@@ -129,3 +140,32 @@ packages:
   GoogleSignIn:
     url: https://github.com/google/GoogleSignIn-iOS
     version: 7.0.0
+  GTMAppAuth:
+    url: https://github.com/google/GTMAppAuth.git
+    version: 2.0.0
+  AppAuth:
+    url: https://github.com/openid/AppAuth-iOS.git
+    version: 1.7.6
+  GTMSessionFetcher:
+    url: https://github.com/google/gtm-session-fetcher.git
+    version: 3.5.0
+
+schemes:
+  iosApp:
+    build:
+      targets:
+        iosApp: all
+      preActions:
+        - name: Workaround SPM Custom Configuration Bundle Bug
+          settingsTarget: iosApp
+          script: |
+            BASE_CONFIG=$(echo "$CONFIGURATION" | cut -d'-' -f1)
+            if [ "$BASE_CONFIG" != "$CONFIGURATION" ]; then
+              SPM_BUILD_DIR="$SYMROOT/${BASE_CONFIG}${EFFECTIVE_PLATFORM_NAME}"
+              mkdir -p "$BUILT_PRODUCTS_DIR"
+              BUNDLES=("AppAuth_AppAuth.bundle" "AppAuth_AppAuthCore.bundle" "GoogleSignIn_GoogleSignIn.bundle" "GTMSessionFetcher_GTMSessionFetcherCore.bundle")
+              for bundle in "${BUNDLES[@]}"; do
+                ln -sf "$SPM_BUILD_DIR/$bundle" "$BUILT_PRODUCTS_DIR/$bundle"
+              done
+            fi
+

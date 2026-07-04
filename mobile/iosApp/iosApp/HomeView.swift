@@ -17,8 +17,13 @@ class HomeViewModel: ObservableObject {
     
     private var countdownTimer: AnyCancellable?
     private var cancellables = Set<AnyCancellable>()
-    private var flowWatcher: shared.Closeable?
-    private var sosWatcher: shared.Closeable?
+    private var flowWatcher: Task<Void, Never>?
+    private var sosWatcher: Task<Void, Never>?
+    
+    deinit {
+        flowWatcher?.cancel()
+        sosWatcher?.cancel()
+    }
     
     init() {
         generateNewCode()
@@ -28,21 +33,49 @@ class HomeViewModel: ObservableObject {
             .receive(on: RunLoop.main)
             .assign(to: &$isTracking)
             
-        // Observe KMP CFlow for offline sync count
         let repo = KoinIOSKt.getTelemetryRepository()
         let cflow = CFlowKt.asCFlow(repo.getUnsyncedCountFlow())
-        flowWatcher = cflow.watch { [weak self] (count: Any?) in
-            guard let self = self, let intCount = count as? Int else { return }
-            DispatchQueue.main.async {
-                self.isOnline = (intCount == 0)
+        flowWatcher = Task { [weak self] in
+            for await count in streamCFlow(cflow) {
+                guard let self = self else { return }
+                
+                let intCount: Int
+                if let kotlinInt = count as? KotlinInt {
+                    intCount = kotlinInt.intValue
+                } else if let num = count as? NSNumber {
+                    intCount = num.intValue
+                } else if let val = count as? Int {
+                    intCount = val
+                } else {
+                    continue
+                }
+                
+                await MainActor.run {
+                    self.isOnline = (intCount == 0)
+                }
             }
         }
         
-        sosWatcher = TrackingStateRepository.shared.observeIsSosActive().watch { [weak self] active in
-            guard let active = active?.boolValue else { return }
-            DispatchQueue.main.async {
-                withAnimation {
-                    self?.isSosActive = active
+        let sosFlow = TrackingStateRepository.shared.observeIsSosActive()
+        sosWatcher = Task { [weak self] in
+            for await active in streamCFlow(sosFlow) {
+                guard let self = self else { return }
+                
+                let isActive: Bool
+                if let kotlinBool = active as? KotlinBoolean {
+                    isActive = kotlinBool.boolValue
+                } else if let num = active as? NSNumber {
+                    isActive = num.boolValue
+                } else if let val = active as? Bool {
+                    isActive = val
+                } else {
+                    continue
+                }
+                
+                await MainActor.run {
+                    withAnimation {
+                        self.isSosActive = isActive
+                    }
                 }
             }
         }
