@@ -109,7 +109,19 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function mapDeviceToConfig(data: any) {
+interface DeviceRow {
+  id: string;
+  label?: string | null;
+  marker_color?: string | null;
+  tracking_interval_ms?: number | string | null;
+  tracking_distance_m?: number | string | null;
+  default_map_type?: string | null;
+  accident_sensor_sensitivity?: string | null;
+  config_updated_at?: number | string | null;
+  [key: string]: unknown;
+}
+
+function mapDeviceToConfig(data: DeviceRow) {
   return {
     serialNumber: data.id,
     deviceLabel: data.label || 'Dispositivo',

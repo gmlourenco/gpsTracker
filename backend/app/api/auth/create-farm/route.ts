@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '../../../lib/auth-utils';
-import { getSupabaseServerClient, supabasePublic } from '../../../lib/supabase';
+import { getSupabaseServerClient } from '../../../lib/supabase';
 import { generateInviteCode } from '../../../lib/invite-utils';
 
 export async function POST(request: NextRequest) {
@@ -10,7 +10,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized: Missing or invalid token' }, { status: 401 });
     }
 
-    const token = authHeader.replace('Bearer ', '');
     const supabase = await getSupabaseServerClient(request);
     
     // Verify user token
@@ -34,7 +33,7 @@ export async function POST(request: NextRequest) {
       if (body && typeof body.name === 'string' && body.name.trim() !== '') {
         farmName = body.name.trim();
       }
-    } catch (e) {
+    } catch {
       // Fallback if no body was provided
     }
 

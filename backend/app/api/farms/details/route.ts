@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
     // ── 7. Build response ────────────────────────────────────────
     const farmsData = memberships.map(membership => {
       const farmId = membership.farm_id;
-      const farmName = (membership.farms as any)?.name;
+      const farmName = (membership.farms as { name?: string } | null)?.name;
       const canSeeInvite = membership.is_admin || membership.is_master_admin || membership.is_creator;
       const invite = canSeeInvite ? invitesByFarm.get(farmId) : null;
 

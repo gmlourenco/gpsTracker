@@ -9,7 +9,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
-    const token = authHeader.replace('Bearer ', '');
     const supabase = await getSupabaseServerClient(request);
     const { data: { user }, error: userError } = await getAuthenticatedUser(request, supabase);
 
@@ -25,7 +24,15 @@ export async function POST(request: NextRequest) {
       // Use admin client to allow reclaiming the device if the user logged in with a new account (e.g., from anonymous to Google)
       const adminSupabase = getSupabaseAdmin();
 
-      const devicePayload = {
+      const devicePayload: {
+        id: string;
+        user_id: string;
+        label: string;
+        marker_color: string;
+        tracking_enabled: boolean;
+        app_version: string;
+        farm_id?: string;
+      } = {
         id: deviceId,
         user_id: user.id,
         label: config.label || 'Unknown Device',
@@ -46,7 +53,7 @@ export async function POST(request: NextRequest) {
         if (!memberCheck) {
           return NextResponse.json({ success: false, error: 'Forbidden: You do not belong to this farm' }, { status: 403 });
         }
-        (devicePayload as any).farm_id = config.farmId;
+        devicePayload.farm_id = config.farmId;
       }
 
       const { error: upsertError } = await adminSupabase

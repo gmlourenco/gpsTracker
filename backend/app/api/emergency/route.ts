@@ -62,7 +62,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
     const { data: { user }, error: authError } = await getAuthenticatedUser(request, supabase);
     if (authError || !user) {
       return NextResponse.json(
-        { success: false, error: 'Unauthorized' } as any,
+        { success: false, error: 'Unauthorized' },
         { status: 401 }
       );
     }
@@ -70,7 +70,13 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
   }
 
   // ── 2. Upsert device ──────────────────────────────────────────────────────
-  const deviceUpdatePayload: any = {
+  const deviceUpdatePayload: {
+    id: string;
+    label: string;
+    last_seen_at: string;
+    app_version: string;
+    user_id?: string;
+  } = {
     id: payload.serialNumber,
     label: payload.deviceLabel,
     last_seen_at: new Date().toISOString(),
