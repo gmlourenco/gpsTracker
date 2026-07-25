@@ -6,10 +6,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '../../../lib/supabase';
+import { getAuthenticatedUser } from '../../../lib/auth-utils';
+import { getSupabaseServerClient, getSupabaseAdmin } from '../../../lib/supabase';
+import { timingSafeEqual } from 'crypto';
 import { isValidSerialNumber } from '../../../types/telemetry';
 
-const VALID_MAP_TYPES = ['SATELLITE', 'NORMAL', 'TERRAIN', 'HYBRID'] as const;
+const VALID_MAP_TYPES = ['SATELLITE', 'DARK', 'LIGHT'] as const;
 const VALID_SENSOR_SENSITIVITIES = ['low', 'medium', 'high', 'off'] as const;
 
 export async function GET(request: NextRequest) {
@@ -23,8 +25,29 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
+  const authHeader = request.headers.get('authorization') || '';
+  const expected = `Bearer ${process.env.DEVICE_API_SECRET}`;
+  const isDevice = authHeader.length === expected.length && timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
+
+  let supabase;
+  let user = null;
+  
+  if (isDevice) {
+    supabase = getSupabaseAdmin();
+  } else {
+    supabase = await getSupabaseServerClient(request);
+    const { data: authData, error: authError } = await getAuthenticatedUser(request, supabase);
+    if (authError || !authData.user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    user = authData.user;
+  }
+
+  // Use admin client to query devices regardless, because if a device is protected, 
+  // RLS might block reading it with a regular user client if policies are strict.
+  // Actually, we want to fetch the device row to check its user_id.
+  const adminSupabase = getSupabaseAdmin();
+  const { data: device, error } = await adminSupabase
     .from('devices')
     .select('*')
     .eq('id', serialNumber)
@@ -38,23 +61,65 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  if (!data) {
-    return NextResponse.json({ success: true, config: null });
-  }
-
-  return NextResponse.json({
-    success: true,
-    config: {
-      serialNumber: data.id,
-      deviceLabel: data.label || 'Dispositivo',
-      markerColor: data.marker_color,
-      trackingIntervalMs: data.tracking_interval_ms !== null ? Number(data.tracking_interval_ms) : 60000,
-      trackingDistanceM: data.tracking_distance_m !== null ? Number(data.tracking_distance_m) : 200,
-      defaultMapType: data.default_map_type || 'SATELLITE',
-      accidentSensorSensitivity: data.accident_sensor_sensitivity || 'medium',
-      configUpdatedAt: data.config_updated_at !== null ? Number(data.config_updated_at) : -1,
+  if (device) {
+    // DEVICE EXISTS
+    if (device.user_id) {
+      // Protected by an account
+      if (user && user.id === device.user_id) {
+        // Match
+        return NextResponse.json({ success: true, config: mapDeviceToConfig(device) });
+      } else {
+        // Forbidden: device belongs to someone else (or request is anonymous/isDevice)
+        return NextResponse.json({ success: false, error: 'Forbidden. Device is linked to another account.' }, { status: 403 });
+      }
+    } else {
+      // Not protected by an account
+      if (user) {
+        // Auto-associate
+        await adminSupabase.from('devices').update({ user_id: user.id }).eq('id', serialNumber);
+        return NextResponse.json({ success: true, config: mapDeviceToConfig(device) });
+      } else {
+        // Legacy fallback
+        return NextResponse.json({ success: true, config: mapDeviceToConfig(device) });
+      }
     }
-  });
+  } else {
+    // DEVICE DOES NOT EXIST
+    if (user) {
+      // Find other devices for this user
+      const { data: otherDevices } = await adminSupabase
+        .from('devices')
+        .select('id, label')
+        .eq('user_id', user.id);
+        
+      if (otherDevices && otherDevices.length > 0) {
+        return NextResponse.json({
+          success: true,
+          promptImport: true,
+          availableDevices: otherDevices.map(d => ({ serial: d.id, name: d.label }))
+        });
+      } else {
+        // New device, no other devices to import from
+        return NextResponse.json({ success: true, config: null });
+      }
+    } else {
+      // Anonymous new device
+      return NextResponse.json({ success: true, config: null });
+    }
+  }
+}
+
+function mapDeviceToConfig(data: any) {
+  return {
+    serialNumber: data.id,
+    deviceLabel: data.label || 'Dispositivo',
+    markerColor: data.marker_color,
+    trackingIntervalMs: data.tracking_interval_ms !== null ? Number(data.tracking_interval_ms) : 60000,
+    trackingDistanceM: data.tracking_distance_m !== null ? Number(data.tracking_distance_m) : 200,
+    defaultMapType: data.default_map_type || 'SATELLITE',
+    accidentSensorSensitivity: data.accident_sensor_sensitivity || 'medium',
+    configUpdatedAt: data.config_updated_at !== null ? Number(data.config_updated_at) : -1,
+  };
 }
 
 interface ConfigItem {
@@ -146,8 +211,44 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const supabase = getSupabaseAdmin();
-  const { error } = await supabase.from('devices').upsert(
+  const authHeader = request.headers.get('authorization') || '';
+  const expected = `Bearer ${process.env.DEVICE_API_SECRET}`;
+  const isDevice = authHeader.length === expected.length && timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
+
+  let supabase;
+  let user = null;
+  if (isDevice) {
+    supabase = getSupabaseAdmin();
+  } else {
+    supabase = await getSupabaseServerClient(request);
+    const { data: authData, error: authError } = await getAuthenticatedUser(request, supabase);
+    if (authError || !authData.user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    user = authData.user;
+  }
+
+  const adminSupabase = getSupabaseAdmin();
+  
+  // Verify ownership before upsert
+  const { data: existingDevice } = await adminSupabase
+    .from('devices')
+    .select('user_id')
+    .eq('id', serialNumber)
+    .maybeSingle();
+
+  if (existingDevice && existingDevice.user_id) {
+    if (!user || user.id !== existingDevice.user_id) {
+      return NextResponse.json({ success: false, error: 'Forbidden. Device is linked to another account.' }, { status: 403 });
+    }
+  }
+
+  // Set user_id if we have an authenticated user
+  if (user) {
+    updatePayload.user_id = user.id;
+  }
+
+  const { error } = await adminSupabase.from('devices').upsert(
     updatePayload,
     { onConflict: 'id', ignoreDuplicates: false }
   );

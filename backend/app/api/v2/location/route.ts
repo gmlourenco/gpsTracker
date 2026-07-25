@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '../../../lib/supabase';
+import { getAuthenticatedUser } from '../../../lib/auth-utils';
+import { getSupabaseServerClient, getSupabaseAdmin } from '../../../lib/supabase';
 import { isValidSerialNumber } from '../../../types/telemetry';
+import { timingSafeEqual } from 'crypto';
 
 export interface LocationV2Item {
   timestamp: string;
@@ -23,6 +25,7 @@ export interface LocationV2Item {
 export interface LocationV2Payload {
   id: string;
   deviceLabel?: string;
+  farmId?: string;
   locations: LocationV2Item[];
 }
 
@@ -44,6 +47,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: 'locations must be a non-empty array' }, { status: 400 });
   }
 
+  const MAX_BATCH_SIZE = 100;
+  if (payload.locations.length > MAX_BATCH_SIZE) {
+    return NextResponse.json({ success: false, error: `Batch size exceeds maximum of ${MAX_BATCH_SIZE}` }, { status: 400 });
+  }
+
   // Validate each location item
   for (let i = 0; i < payload.locations.length; i++) {
     const loc = payload.locations[i];
@@ -56,6 +64,9 @@ export async function POST(request: NextRequest) {
     if (!loc.gps || typeof loc.gps.lat !== 'number' || typeof loc.gps.lng !== 'number' || typeof loc.gps.accuracy !== 'number') {
       return NextResponse.json({ success: false, error: `Invalid gps details at index ${i}` }, { status: 400 });
     }
+    if (loc.gps.lat < -90 || loc.gps.lat > 90 || loc.gps.lng < -180 || loc.gps.lng > 180) {
+      return NextResponse.json({ success: false, error: `Coordinates out of bounds at index ${i}` }, { status: 400 });
+    }
     if (typeof loc.emergencyState !== 'boolean' || typeof loc.trackingEnabled !== 'boolean') {
       return NextResponse.json({ success: false, error: `Invalid tracking/emergency states at index ${i}` }, { status: 400 });
     }
@@ -65,7 +76,24 @@ export async function POST(request: NextRequest) {
   const sorted = [...payload.locations].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
   const latest = sorted[sorted.length - 1];
 
-  const supabase = getSupabaseAdmin();
+  const authHeader = request.headers.get('authorization') || '';
+  const expected = `Bearer ${process.env.DEVICE_API_SECRET}`;
+  const isDevice = authHeader.length === expected.length && timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
+
+  let supabase;
+  let userId: string | null = null;
+
+  if (isDevice) {
+    supabase = getSupabaseAdmin();
+  } else {
+    supabase = await getSupabaseServerClient(request);
+    const { data: { user }, error: authError } = await getAuthenticatedUser(request, supabase);
+
+    if (authError || !user) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    userId = user.id;
+  }
 
   // 1. Upsert device using latest status
   const { error: deviceError } = await supabase
@@ -77,7 +105,9 @@ export async function POST(request: NextRequest) {
         last_seen_at: new Date().toISOString(),
         tracking_enabled: latest.trackingEnabled,
         app_version: latest.appVersion,
-        ...(latest.markerColor ? { marker_color: latest.markerColor.toUpperCase() } : {})
+        ...(latest.markerColor ? { marker_color: latest.markerColor.toUpperCase() } : {}),
+        ...(payload.farmId ? { farm_id: payload.farmId } : {}),
+        ...(userId ? { user_id: userId } : {})
       },
       {
         onConflict: 'id',

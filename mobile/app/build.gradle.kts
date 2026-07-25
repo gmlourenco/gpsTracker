@@ -18,7 +18,7 @@ android {
         minSdk = 26           // Android 8.0 — minimum for reliable ForegroundService + FusedLocation
         targetSdk = 36
 
-        val version = project.findProperty("versionName")?.toString() ?: "0.5.0"
+        val version = project.findProperty("versionName")?.toString() ?: "0.6.0"
         versionName = version
         versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: run {
             try {
@@ -48,6 +48,15 @@ android {
             ?: project.findProperty("device.api.secret")?.toString() 
             ?: "change-me-in-local-properties"
         buildConfigField("String", "DEVICE_API_SECRET", "\"$deviceSecret\"")
+
+        val supabaseUrl = localProps.getProperty("supabase.url") ?: "https://tyacdqcabobwllwicxnw.supabase.co"
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+
+        val supabaseKey = localProps.getProperty("supabase.key") ?: "sb_publishable_3kSlwLruylDjMjWf4DI6ZQ_cQ60Xg32"
+        buildConfigField("String", "SUPABASE_KEY", "\"$supabaseKey\"")
+
+        val googleWebClientId = localProps.getProperty("google.web.client.id") ?: "YOUR_WEB_CLIENT_ID"
+        buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
     }
 
     flavorDimensions.add("environment")
@@ -65,7 +74,7 @@ android {
             }
             val backendUrl = localProps.getProperty("backend.base.url.dev") 
                 ?: localProps.getProperty("backend.base.url")
-                ?: "http://10.0.2.2:3000"
+                ?: "https://gps-tracker-nt8ezw44y-gmlourencos-projects.vercel.app/"
             buildConfigField("String", "BACKEND_BASE_URL", "\"$backendUrl\"")
         }
         create("pre") {
@@ -133,6 +142,10 @@ dependencies {
     // Shared KMP module
     implementation(project(":shared"))
 
+    // Dependency Injection via Koin
+    implementation(libs.koin.android)
+    implementation(libs.koin.compose)
+
     // AndroidX Core
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
@@ -165,6 +178,7 @@ dependencies {
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.kotlinx.json)
     implementation(libs.ktor.client.logging)
+    implementation(libs.ktor.client.auth)
     // SLF4J no-op binding — silences "No SLF4J providers found" warnings from Ktor's logging
     implementation("org.slf4j:slf4j-simple:2.0.13")
 
@@ -184,6 +198,12 @@ dependencies {
     // Firebase Cloud Messaging (push notifications)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging.ktx)
+
+    // Supabase
+    implementation(libs.supabase.auth)
+    implementation(libs.supabase.postgrest)
+    implementation(libs.supabase.compose.auth)
+    implementation(libs.supabase.compose.auth.ui)
 
     // Testing
     testImplementation(libs.junit)

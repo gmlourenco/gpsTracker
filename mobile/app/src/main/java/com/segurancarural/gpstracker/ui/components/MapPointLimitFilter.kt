@@ -14,16 +14,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.segurancarural.gpstracker.ui.model.MapPointLimit
+import com.segurancarural.gpstracker.ui.model.MapTimeFilter
 
 private val CardDark = Color(0xFF16213E)
 private val TextSecondary = Color(0xFF94A3B8)
 private val AccentBlue = Color(0xFF3B82F6)
 
 @Composable
-fun MapPointLimitFilter(
-    selectedLimit: MapPointLimit,
-    onLimitSelected: (MapPointLimit) -> Unit,
+fun MapTimeFilterBar(
+    selectedLimit: MapTimeFilter,
+    onLimitSelected: (MapTimeFilter) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -35,7 +35,7 @@ fun MapPointLimitFilter(
                 .background(CardDark.copy(alpha = 0.92f))
                 .padding(horizontal = 8.dp, vertical = 4.dp),
         ) {
-            MapPointLimit.entries.forEach { limit ->
+            MapTimeFilter.entries.forEach { limit ->
                 FilterChip(
                     selected = selectedLimit == limit,
                     onClick = { onLimitSelected(limit) },

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -60,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import com.segurancarural.gpstracker.BuildConfig
 import com.segurancarural.gpstracker.data.dto.DeviceConfigDto
 import com.segurancarural.gpstracker.data.repository.DeviceConfigRepository
+import com.segurancarural.gpstracker.data.repository.FarmRepository
 import com.segurancarural.gpstracker.data.repository.SaveConfigResult
 import com.segurancarural.gpstracker.service.LocationForegroundService
 import com.segurancarural.gpstracker.ui.model.MapTheme
@@ -71,6 +73,9 @@ import com.segurancarural.gpstracker.util.PREF_DEVICE_MARKER_COLOR
 import com.segurancarural.gpstracker.util.argbToMapLibreHex
 import com.segurancarural.gpstracker.util.ensureSerialNumber
 import com.segurancarural.gpstracker.util.markerInitial
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.compose.auth.composable.rememberSignInWithGoogle
+import io.github.jan.supabase.compose.auth.composeAuth
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -136,6 +141,11 @@ fun ConfigScreen(
 
     var isSaving by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf(false) }
+
+    val farmRepository = remember { FarmRepository() }
+    var hasFarm by remember { mutableStateOf(farmRepository.hasFarm()) }
+    var inviteCodeInput by remember { mutableStateOf("") }
+    var isFarmLoading by remember { mutableStateOf(false) }
 
     val currentSensitivity = if (selectedSensitivityIdx == 3) {
         "custom_${customGText.trim()}"
@@ -204,6 +214,271 @@ fun ConfigScreen(
             color = TextPrimary,
             fontWeight = FontWeight.Bold
         )
+
+        // ── Family Group ───────────────────────────────────────────────────
+        ConfigCard(title = "Grupo Familiar (Fazenda)") {
+            var showCreateConfirmDialog by remember { mutableStateOf(false) }
+
+            var showDeviceSyncDialog by remember { mutableStateOf(false) }
+            var availableDevicesToRestore by remember { mutableStateOf<List<com.segurancarural.gpstracker.data.dto.DeviceDto>>(emptyList()) }
+            var isLoggedIn by remember { mutableStateOf(com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentSessionOrNull() != null) }
+
+            if (showDeviceSyncDialog) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showDeviceSyncDialog = false },
+                    title = { Text("Restaurar Configurações") },
+                    text = { 
+                        Column {
+                            Text("Encontrámos outros dispositivos na sua conta. Deseja copiar as configurações de um deles para este telemóvel?")
+                            Spacer(modifier = Modifier.height(8.dp))
+                            availableDevicesToRestore.forEach { dev ->
+                                Button(
+                                    onClick = {
+                                        // Restore config
+                                        deviceLabel = dev.label
+                                        try {
+                                            selectedMarkerColorArgb = android.graphics.Color.parseColor(dev.markerColor)
+                                        } catch (e: Exception) {}
+                                        
+                                        if (dev.farmId != null) {
+                                            com.segurancarural.gpstracker.data.network.ApiClient.farmId = dev.farmId
+                                            prefs.edit().putString("farm_id", dev.farmId).apply()
+                                            hasFarm = true
+                                        }
+
+                                        prefs.edit()
+                                            .putString("device_label", deviceLabel)
+                                            .putInt(PREF_DEVICE_MARKER_COLOR, selectedMarkerColorArgb)
+                                            .apply()
+
+                                        Toast.makeText(context, "Configurações restauradas!", Toast.LENGTH_SHORT).show()
+                                        showDeviceSyncDialog = false
+                                    },
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = CardDark)
+                                ) {
+                                    Text(dev.label, color = TextPrimary)
+                                }
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = { showDeviceSyncDialog = false }) {
+                            Text("Não, usar configurações atuais")
+                        }
+                    }
+                )
+            }
+
+            val action = com.segurancarural.gpstracker.data.network.SupabaseClient.client.composeAuth.rememberSignInWithGoogle(
+                onResult = { result ->
+                    when (result) {
+                        is io.github.jan.supabase.compose.auth.composable.NativeSignInResult.Success -> {
+                            scope.launch {
+                                isFarmLoading = true
+                                isLoggedIn = true
+                                val deviceId = context.ensureSerialNumber()
+                                val syncResult = farmRepository.syncDevices(
+                                    deviceId = deviceId,
+                                    label = deviceLabel,
+                                    markerColor = argbToMapLibreHex(selectedMarkerColorArgb),
+                                    trackingEnabled = true,
+                                    appVersion = BuildConfig.VERSION_NAME,
+                                    farmId = com.segurancarural.gpstracker.data.network.ApiClient.farmId
+                                )
+
+                                if (syncResult.isSuccess) {
+                                    val devices = syncResult.getOrNull()?.devices ?: emptyList()
+                                    val otherDevices = devices.filter { it.id != deviceId }
+                                    if (otherDevices.isNotEmpty()) {
+                                        availableDevicesToRestore = otherDevices
+                                        showDeviceSyncDialog = true
+                                    }
+                                }
+
+                                val hasExistingFarm = syncResult.getOrNull()?.devices?.any { it.farmId != null } == true
+
+                                if (!hasExistingFarm && !hasFarm) {
+                                    val createResult = farmRepository.createFarm()
+                                    isFarmLoading = false
+                                    if (createResult.isSuccess) {
+                                        hasFarm = true
+                                        Toast.makeText(context, "Grupo criado com sucesso!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Erro ao criar grupo: ${createResult.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                    }
+                                } else {
+                                    isFarmLoading = false
+                                    hasFarm = true
+                                    Toast.makeText(context, "Login efetuado com sucesso!", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                        is io.github.jan.supabase.compose.auth.composable.NativeSignInResult.Error -> {
+                            isFarmLoading = false
+                            Toast.makeText(context, "Erro no login: ${result.message}", Toast.LENGTH_LONG).show()
+                        }
+                        is io.github.jan.supabase.compose.auth.composable.NativeSignInResult.ClosedByUser -> {
+                            isFarmLoading = false
+                        }
+                        is io.github.jan.supabase.compose.auth.composable.NativeSignInResult.NetworkError -> {
+                            isFarmLoading = false
+                            Toast.makeText(context, "Erro de rede no login", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
+                fallback = {}
+            )
+
+            if (showCreateConfirmDialog) {
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { showCreateConfirmDialog = false },
+                    title = { Text("Criar Grupo Familiar") },
+                    text = { Text("Tens a certeza que desejas criar um novo Grupo Familiar?") },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = {
+                            showCreateConfirmDialog = false
+                            isFarmLoading = true
+                            scope.launch {
+                                val createResult = farmRepository.createFarm()
+                                isFarmLoading = false
+                                if (createResult.isSuccess) {
+                                    hasFarm = true
+                                    Toast.makeText(context, "Grupo criado com sucesso!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Erro: ${createResult.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }) {
+                            Text("Sim, Criar")
+                        }
+                    },
+                    dismissButton = {
+                        androidx.compose.material3.TextButton(onClick = { showCreateConfirmDialog = false }) {
+                            Text("Cancelar")
+                        }
+                    }
+                )
+            }
+
+            if (!isLoggedIn) {
+                Text(
+                    text = "A nova versão exige autenticação segura. Inicie sessão para gerir a sua Família e Dispositivos.",
+                    color = TextSecondary,
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                if (isFarmLoading) {
+                    Text("A iniciar sessão...", color = TextSecondary, fontSize = 14.sp)
+                } else {
+                    Button(
+                        onClick = { action.startFlow() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4285F4)), // Google Blue
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Iniciar Sessão com o Google", color = Color.White)
+                    }
+                }
+            } else if (hasFarm) {
+                val userEmail = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentSessionOrNull()?.user?.email ?: "Sessão Ativa"
+                Text(
+                    text = "Autenticado como: $userEmail",
+                    color = AccentGreen,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Você já está conectado a um Grupo Familiar seguro.",
+                    color = TextSecondary,
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = {
+                        scope.launch {
+                            try {
+                                com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.signOut()
+                            } catch (e: Exception) {
+                                // Ignore
+                            }
+                            com.segurancarural.gpstracker.data.network.ApiClient.farmId = null
+                            prefs.edit().remove("farm_id").remove("supabase_jwt").apply()
+                            hasFarm = false
+                            isLoggedIn = false
+                            Toast.makeText(context, "Sessão terminada", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = CardDark),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Sair e Terminar Sessão", color = TextPrimary)
+                }
+            } else {
+                Text(
+                    text = "Crie ou entre em um grupo familiar para compartilhar sua localização.",
+                    color = TextSecondary,
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                if (isFarmLoading) {
+                    Text("Aguarde...", color = TextSecondary, fontSize = 14.sp)
+                } else {
+                    Button(
+                        onClick = {
+                            showCreateConfirmDialog = true
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentGreen),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Criar Novo Grupo", color = Color.White)
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Ou entrar usando um código:", color = TextSecondary, fontSize = 12.sp)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        OutlinedTextField(
+                            value = inviteCodeInput,
+                            onValueChange = { inviteCodeInput = it.uppercase() },
+                            placeholder = { Text("CÓDIGO", color = TextSecondary.copy(0.5f)) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                focusedBorderColor = AccentGreen,
+                                unfocusedBorderColor = TextSecondary,
+                            )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = {
+                                if (inviteCodeInput.length >= 6) {
+                                    scope.launch {
+                                        isFarmLoading = true
+                                        val result = farmRepository.joinFarm(inviteCodeInput)
+                                        isFarmLoading = false
+                                        if (result.isSuccess) {
+                                            hasFarm = true
+                                            Toast.makeText(context, "Entrou no grupo!", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Erro: ${result.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = inviteCodeInput.length >= 6,
+                            colors = ButtonDefaults.buttonColors(containerColor = AccentGreen)
+                        ) {
+                            Text("Entrar", color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
 
         // ── Device identity ────────────────────────────────────────────────
         ConfigCard(title = "Identidade do Dispositivo") {
@@ -521,7 +796,7 @@ fun ConfigScreen(
                 savedMapTheme = selectedMapTheme
 
                 scope.launch {
-                    val result = DeviceConfigRepository(context).saveConfigToBackend(
+                    val result = DeviceConfigRepository().saveConfigToBackend(
                         DeviceConfigDto(
                             serialNumber = context.ensureSerialNumber(),
                             deviceLabel = trimmedLabel,

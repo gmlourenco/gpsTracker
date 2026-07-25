@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 3,
-    "identityHash": "8fd0b7e5f3c41c64962bfac41fcf6e83",
+    "identityHash": "ade1d5a0938b9deaf85bc0a96c4e36b8",
     "entities": [
       {
         "tableName": "telemetry_queue",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `serialNumber` TEXT NOT NULL, `deviceLabel` TEXT NOT NULL, `timestamp` TEXT NOT NULL, `batteryLevel` INTEGER NOT NULL, `batteryCharging` INTEGER NOT NULL, `lat` REAL NOT NULL, `lng` REAL NOT NULL, `accuracy` REAL NOT NULL, `speed` REAL NOT NULL, `heading` REAL NOT NULL, `emergencyState` INTEGER NOT NULL, `trackingEnabled` INTEGER NOT NULL, `networkType` TEXT NOT NULL, `appVersion` TEXT NOT NULL, `createdAtEpochMs` INTEGER NOT NULL, `synced` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `serialNumber` TEXT NOT NULL, `deviceLabel` TEXT NOT NULL, `timestamp` TEXT NOT NULL, `batteryLevel` INTEGER NOT NULL, `batteryCharging` INTEGER NOT NULL, `lat` REAL NOT NULL, `lng` REAL NOT NULL, `accuracy` REAL NOT NULL, `speed` REAL NOT NULL, `heading` REAL NOT NULL, `emergencyState` INTEGER NOT NULL, `trackingEnabled` INTEGER NOT NULL, `networkType` TEXT NOT NULL, `appVersion` TEXT NOT NULL, `createdAtEpochMs` INTEGER NOT NULL, `syncState` INTEGER NOT NULL)",
         "fields": [
           {
             "fieldPath": "id",
@@ -105,8 +105,8 @@
             "notNull": true
           },
           {
-            "fieldPath": "synced",
-            "columnName": "synced",
+            "fieldPath": "syncState",
+            "columnName": "syncState",
             "affinity": "INTEGER",
             "notNull": true
           }
@@ -119,31 +119,31 @@
         },
         "indices": [
           {
-            "name": "index_telemetry_queue_synced_emergencyState",
+            "name": "index_telemetry_queue_syncState_emergencyState",
             "unique": false,
             "columnNames": [
-              "synced",
+              "syncState",
               "emergencyState"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_telemetry_queue_synced_emergencyState` ON `${TABLE_NAME}` (`synced`, `emergencyState`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_telemetry_queue_syncState_emergencyState` ON `${TABLE_NAME}` (`syncState`, `emergencyState`)"
           },
           {
-            "name": "index_telemetry_queue_synced_createdAtEpochMs",
+            "name": "index_telemetry_queue_syncState_createdAtEpochMs",
             "unique": false,
             "columnNames": [
-              "synced",
+              "syncState",
               "createdAtEpochMs"
             ],
             "orders": [],
-            "createSql": "CREATE INDEX IF NOT EXISTS `index_telemetry_queue_synced_createdAtEpochMs` ON `${TABLE_NAME}` (`synced`, `createdAtEpochMs`)"
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_telemetry_queue_syncState_createdAtEpochMs` ON `${TABLE_NAME}` (`syncState`, `createdAtEpochMs`)"
           }
         ]
       }
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8fd0b7e5f3c41c64962bfac41fcf6e83')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'ade1d5a0938b9deaf85bc0a96c4e36b8')"
     ]
   }
 }

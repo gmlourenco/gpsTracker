@@ -20,8 +20,8 @@ import com.segurancarural.gpstracker.util.currentTimeMillis
 @Entity(
     tableName = "telemetry_queue",
     indices = [
-        Index(value = ["synced", "emergencyState"]),
-        Index(value = ["synced", "createdAtEpochMs"])
+        Index(value = ["syncState", "emergencyState"]),
+        Index(value = ["syncState", "createdAtEpochMs"])
     ]
 )
 data class TelemetryRecord(
@@ -78,8 +78,10 @@ data class TelemetryRecord(
     val createdAtEpochMs: Long = currentTimeMillis(),
 
     /**
-     * Whether this record has been successfully synced to the backend.
-     * SyncEngine queries only records where synced = false.
+     * The current synchronization state of this record.
+     * 0 = PENDING
+     * 1 = SYNCING
+     * 2 = SYNCED
      */
-    val synced: Boolean = false
+    val syncState: Int = 0
 )

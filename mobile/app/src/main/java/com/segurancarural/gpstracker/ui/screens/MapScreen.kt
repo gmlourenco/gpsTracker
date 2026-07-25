@@ -15,47 +15,57 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.segurancarural.gpstracker.ui.viewmodel.MapViewModel
+import com.segurancarural.gpstracker.ui.components.FamilyBottomSheet
+import com.segurancarural.gpstracker.ui.components.FamilyControlPanel
+import com.segurancarural.gpstracker.ui.components.FamilyMemberCard
+import com.segurancarural.gpstracker.ui.components.MapEmptyState
+import com.segurancarural.gpstracker.ui.components.MapThemeSwitcher
+import com.segurancarural.gpstracker.ui.components.MapTimeFilterBar
 import com.segurancarural.gpstracker.ui.model.FamilyDeviceMarker
 import com.segurancarural.gpstracker.ui.model.MapTheme
-import com.segurancarural.gpstracker.ui.components.FamilyBottomSheet
-import com.segurancarural.gpstracker.ui.components.FamilyMemberCard
-import com.segurancarural.gpstracker.ui.components.MapThemeSwitcher
-import com.segurancarural.gpstracker.ui.components.FamilyControlPanel
-import com.segurancarural.gpstracker.ui.components.MapPointLimitFilter
-import com.segurancarural.gpstracker.ui.components.MapEmptyState
-import com.segurancarural.gpstracker.util.NavigationHelper
+import com.segurancarural.gpstracker.ui.viewmodel.MapViewModel
+import com.segurancarural.gpstracker.util.LAYER_ACCURACY_BORDER
+import com.segurancarural.gpstracker.util.LAYER_ACCURACY_FILL
+import com.segurancarural.gpstracker.util.LAYER_ARROWS
+import com.segurancarural.gpstracker.util.LAYER_FAMILY_ROUTES
 import com.segurancarural.gpstracker.util.LAYER_MARKER_CIRCLE
 import com.segurancarural.gpstracker.util.LAYER_MARKER_LABEL
-import com.segurancarural.gpstracker.util.SOURCE_ROUTE
 import com.segurancarural.gpstracker.util.LAYER_ROUTE
-import com.segurancarural.gpstracker.util.SOURCE_MARKER
-import com.segurancarural.gpstracker.util.SOURCE_SOS
 import com.segurancarural.gpstracker.util.LAYER_SOS
+import com.segurancarural.gpstracker.util.NavigationHelper
+import com.segurancarural.gpstracker.util.SOURCE_ACCURACY
+import com.segurancarural.gpstracker.util.SOURCE_ARROWS
+import com.segurancarural.gpstracker.util.SOURCE_FAMILY_ROUTES
+import com.segurancarural.gpstracker.util.SOURCE_MARKER
+import com.segurancarural.gpstracker.util.SOURCE_ROUTE
+import com.segurancarural.gpstracker.util.SOURCE_SOS
 import com.segurancarural.gpstracker.util.SosRedHex
+import com.segurancarural.gpstracker.util.fitCameraToRoute
 import com.segurancarural.gpstracker.util.getSatelliteStyleJson
 import com.segurancarural.gpstracker.util.updateMapLayers
-import com.segurancarural.gpstracker.util.fitCameraToRoute
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
-import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.MapLibreMap
+import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
-import org.maplibre.android.style.layers.CircleLayer
-import org.maplibre.android.style.layers.LineLayer
-import org.maplibre.android.style.layers.SymbolLayer
-import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.layers.FillLayer
+import org.maplibre.android.style.layers.LineLayer
+import org.maplibre.android.style.layers.PropertyFactory
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.sources.GeoJsonSource
 
 private val SurfaceDark = Color(0xFF1A1A2E)
@@ -66,7 +76,7 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
     val displayData by viewModel.mapDisplay.collectAsState()
     val findFamilyEnabled by viewModel.findFamilyEnabled.collectAsState()
     val refreshStatus by viewModel.familyRefreshStatus.collectAsState()
-    val selectedPointLimit by viewModel.pointLimit.collectAsState()
+    val selectedPointLimit by viewModel.timeFilter.collectAsState()
     val mapStyle by viewModel.mapStyle.collectAsState()
 
     var mapInstance by remember { mutableStateOf<MapLibreMap?>(null) }
@@ -230,6 +240,54 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
                                     PropertyFactory.circleStrokeWidth(2f),
                                 )
                             )
+
+                            // Accuracy polygons
+                            loadedStyle.addSource(GeoJsonSource(SOURCE_ACCURACY))
+                            loadedStyle.addLayerBelow(
+                                FillLayer(LAYER_ACCURACY_FILL, SOURCE_ACCURACY).withProperties(
+                                    PropertyFactory.fillColor(Expression.get("color")),
+                                    PropertyFactory.fillOpacity(0.15f)
+                                ),
+                                LAYER_ROUTE
+                            )
+                            loadedStyle.addLayerBelow(
+                                LineLayer(LAYER_ACCURACY_BORDER, SOURCE_ACCURACY).withProperties(
+                                    PropertyFactory.lineColor(Expression.get("color")),
+                                    PropertyFactory.lineWidth(1f),
+                                    PropertyFactory.lineOpacity(0.5f)
+                                ),
+                                LAYER_ROUTE
+                            )
+
+                            // Family routes
+                            loadedStyle.addSource(GeoJsonSource(SOURCE_FAMILY_ROUTES))
+                            loadedStyle.addLayerBelow(
+                                LineLayer(LAYER_FAMILY_ROUTES, SOURCE_FAMILY_ROUTES).withProperties(
+                                    PropertyFactory.lineColor(Expression.get("color")),
+                                    PropertyFactory.lineWidth(4f),
+                                    PropertyFactory.lineOpacity(0.6f),
+                                    PropertyFactory.lineJoin("round"),
+                                    PropertyFactory.lineCap("round")
+                                ),
+                                LAYER_ROUTE
+                            )
+
+                            // Arrows
+                            val arrowDrawable = ContextCompat.getDrawable(context, com.segurancarural.gpstracker.R.drawable.ic_direction_arrow)
+                            if (arrowDrawable != null) {
+                                loadedStyle.addImage("direction_arrow", arrowDrawable.toBitmap())
+                            }
+                            loadedStyle.addSource(GeoJsonSource(SOURCE_ARROWS))
+                            loadedStyle.addLayer(
+                                SymbolLayer(LAYER_ARROWS, SOURCE_ARROWS).withProperties(
+                                    PropertyFactory.iconImage("direction_arrow"),
+                                    PropertyFactory.iconSize(0.6f),
+                                    PropertyFactory.iconRotate(Expression.get("heading")),
+                                    PropertyFactory.iconAllowOverlap(true),
+                                    PropertyFactory.iconIgnorePlacement(true)
+                                )
+                            )
+
                             mapStyleInstance = loadedStyle
                         }
                     }
@@ -272,9 +330,9 @@ fun MapScreen(viewModel: MapViewModel = viewModel()) {
 
         // Bottom point limit filters row (only displayed in personal route mode)
         if (!findFamilyEnabled) {
-            MapPointLimitFilter(
+            MapTimeFilterBar(
                 selectedLimit = selectedPointLimit,
-                onLimitSelected = { viewModel.pointLimit.value = it },
+                onLimitSelected = { viewModel.timeFilter.value = it },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(bottom = 16.dp)

@@ -53,6 +53,7 @@ class SyncEngine(
     private val httpClient: HttpClient,
     private val locationUrl: String,
     private val emergencyUrl: String,
+    private val farmIdProvider: () -> String? = { null }
 ) {
 
     private val syncMutex = Mutex()
@@ -61,6 +62,7 @@ class SyncEngine(
      * Executes the full 3-phase flush. Returns [SyncResult] summarising
      * how many records were synced and any errors encountered.
      */
+    @Throws(Exception::class)
     suspend fun flush(): SyncResult {
         if (!syncMutex.tryLock()) {
             Log.w(TAG, "Sync already in progress, skipping")
@@ -73,16 +75,24 @@ class SyncEngine(
                 var historySyncedCount = 0
                 var errorCount = 0
 
+                // ── Recover stuck records ────────────────────────────────────────────────
+                val recovered = dao.resetSyncingToPending()
+                if (recovered > 0) {
+                    Log.w(TAG, "Recovered $recovered stuck SYNCING records to PENDING")
+                }
+
                 // ── Phase 1: Emergency / SOS (LIFO) ──────────────────────────────
                 val emergencyRecords = dao.getEmergencyRecords()
                 if (emergencyRecords.isNotEmpty()) {
                     Log.w(TAG, "Phase 1: Flushing ${emergencyRecords.size} SOS records (LIFO)")
                     for (record in emergencyRecords) {
+                        dao.markSyncing(listOf(record.id))
                         val success = transmitToEmergency(record)
                         if (success) {
                             dao.markSynced(listOf(record.id))
                             emergencySyncedCount++
                         } else {
+                            dao.resetSyncingToPendingByIds(listOf(record.id)) // Revert immediately
                             errorCount++
                             // Do not break — try remaining emergency records
                         }
@@ -93,11 +103,13 @@ class SyncEngine(
                 val latestRecord = dao.getLatestUnsynced()
                 if (latestRecord != null) {
                     Log.d(TAG, "Phase 2: Sending latest position (id=${latestRecord.id})")
+                    dao.markSyncing(listOf(latestRecord.id))
                     val success = transmitBatchToLocation(listOf(latestRecord))
                     if (success) {
                         dao.markSynced(listOf(latestRecord.id))
                         latestWasSynced = true
                     } else {
+                        dao.resetSyncingToPendingByIds(listOf(latestRecord.id))
                         errorCount++
                     }
                 }
@@ -112,12 +124,14 @@ class SyncEngine(
                     }
 
                     Log.d(TAG, "Phase 3: Transmitting batch of ${batch.size} records in a single V2 request (FIFO)")
+                    val successIds = batch.map { it.id }
+                    dao.markSyncing(successIds)
                     val success = transmitBatchToLocation(batch)
                     if (success) {
-                        val successIds = batch.map { it.id }
                         dao.markSynced(successIds)
                         historySyncedCount += batch.size
                     } else {
+                        dao.resetSyncingToPendingByIds(successIds)
                         errorCount++
                         // Stop batching on first failure to avoid out-of-order gaps
                         hasMore = false
@@ -186,7 +200,7 @@ class SyncEngine(
         return try {
             val response = httpClient.post(locationUrl) {
                 contentType(ContentType.Application.Json)
-                setBody(records.toLocationV2Json())
+                setBody(records.toLocationV2Json(farmId = farmIdProvider()))
             }
             if (response.status == HttpStatusCode.OK) {
                 val body = response.bodyAsText()
@@ -218,12 +232,13 @@ class SyncEngine(
 /**
  * Converts a batch of TelemetryRecords to the JSON format expected by POST /api/v2/location.
  */
-fun List<TelemetryRecord>.toLocationV2Json(markerColorHex: String? = null): String {
+fun List<TelemetryRecord>.toLocationV2Json(markerColorHex: String? = null, farmId: String? = null): String {
     if (isEmpty()) return "{}"
     val first = first()
     return buildJsonObject {
         put("id", first.serialNumber)
         put("deviceLabel", first.deviceLabel)
+        farmId?.let { put("farmId", it) }
         putJsonArray("locations") {
             forEach { record ->
                 addJsonObject {

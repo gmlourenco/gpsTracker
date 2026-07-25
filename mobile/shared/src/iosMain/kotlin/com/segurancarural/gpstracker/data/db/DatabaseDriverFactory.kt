@@ -1,7 +1,7 @@
 package com.segurancarural.gpstracker.data.db
 
 import androidx.room.Room
-import androidx.sqlite.driver.bundled.bundledSQLiteDriver
+import androidx.sqlite.driver.bundled.BundledSQLiteDriver
 import kotlinx.cinterop.ExperimentalForeignApi
 import platform.Foundation.NSDocumentDirectory
 import platform.Foundation.NSFileManager
@@ -27,9 +27,9 @@ fun createAppDatabase(): AppDatabase {
     
     return Room.databaseBuilder<AppDatabase>(
         name = dbFilePath,
-        factory = { AppDatabase::class.instantiateImpl() } // Required for KMP Room
+        factory = { AppDatabaseConstructor.initialize() } // Required for KMP Room
     )
-        .setDriver(bundledSQLiteDriver())
-        .fallbackToDestructiveMigration()
+        .setDriver(BundledSQLiteDriver())
+        .fallbackToDestructiveMigration(dropAllTables = true)
         .build()
 }

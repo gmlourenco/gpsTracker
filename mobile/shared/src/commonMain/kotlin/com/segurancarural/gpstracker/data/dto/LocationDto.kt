@@ -1,0 +1,17 @@
+package com.segurancarural.gpstracker.data.dto
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class LocationDto(
+    @SerialName("lat") val lat: Double,
+    @SerialName("lng") val lng: Double,
+    @SerialName("speed") val speed: Double = 0.0,
+    @SerialName("accuracy") val accuracy: Double = 0.0,
+    @SerialName("heading") val heading: Double = 0.0,
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("battery_level") val batteryLevel: Int = 0,
+    @SerialName("battery_charging") val batteryCharging: Boolean = false,
+    @SerialName("emergency_state") val emergencyState: Boolean = false,
+)
