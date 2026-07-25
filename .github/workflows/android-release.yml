@@ -1,11 +1,11 @@
-name: Mobile Release
+name: Android Release
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Semver version (e.g. 1.5.0)'
-        required: true
+        description: 'Semver version (e.g. 0.6.0)'
+        required: false
         type: string
   push:
     branches: [main]
@@ -13,8 +13,8 @@ on:
       - 'backend/app/config/app-release.json'
 
 jobs:
-  release:
-    runs-on: macos-latest
+  release-android:
+    runs-on: ubuntu-latest
     permissions:
       contents: write
 
@@ -31,18 +31,6 @@ jobs:
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Release version: $VERSION"
-
-      - name: Sync app-release.json version
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const path = 'backend/app/config/app-release.json';
-          const cfg = JSON.parse(fs.readFileSync(path, 'utf8'));
-          cfg.latestVersion = process.env.VERSION;
-          fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + '\n');
-          NODE
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
@@ -103,41 +91,20 @@ jobs:
             ./gradlew :app:assembleProdRelease -PversionName="$VERSION_NAME" --stacktrace
           fi
 
-      - name: Assemble iOS KMP Shared Framework
-        working-directory: mobile
-        run: |
-          echo "Building iOS shared framework..."
-          # Builds the release framework for iOS ARM64 (devices)
-          ./gradlew :shared:linkReleaseFrameworkIosArm64 --stacktrace
-
-      - name: Package artifacts
+      - name: Package Android artifact
         run: |
           APK=$(find mobile/app/build/outputs/apk -name '*.apk' | head -1)
           cp "$APK" "mobile/seguranca-rural-${{ steps.version.outputs.version }}.apk"
-          
-          # Zip the iOS Framework
-          cd mobile/shared/build/bin/iosArm64/releaseFramework
-          zip -r "${{ github.workspace }}/mobile/seguranca-rural-ios-shared-${{ steps.version.outputs.version }}.zip" shared.framework
-          cd ${{ github.workspace }}
 
-      - name: Create GitHub Release
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: Segurança Rural v${{ steps.version.outputs.version }}
           body: |
-            ## Segurança Rural v${{ steps.version.outputs.version }}
-            
-            **Android:**
-            Download `seguranca-rural-*.apk` and install on the device (keeps existing settings).
-            
-            **iOS (Engine Only):**
-            The `seguranca-rural-ios-shared-*.zip` contains the compiled Kotlin Multiplatform framework for iOS devices (ARM64). The actual iOS UI wrapper (`iosApp`) is still under development.
-
-            **Vercel:** set `APP_LATEST_VERSION=${{ steps.version.outputs.version }}` and
-            `APP_DOWNLOAD_URL` to this release asset URL.
+            ### 🤖 Android (v${{ steps.version.outputs.version }})
+            * Faça download de `seguranca-rural-${{ steps.version.outputs.version }}.apk` e instale no dispositivo Android.
+          append_body: true
           files: |
             mobile/seguranca-rural-${{ steps.version.outputs.version }}.apk
-            mobile/seguranca-rural-ios-shared-${{ steps.version.outputs.version }}.zip
           draft: false
-          generate_release_notes: true
