@@ -55,7 +55,7 @@ android {
         val supabaseKey = localProps.getProperty("supabase.key") ?: "sb_publishable_3kSlwLruylDjMjWf4DI6ZQ_cQ60Xg32"
         buildConfigField("String", "SUPABASE_KEY", "\"$supabaseKey\"")
 
-        val googleWebClientId = localProps.getProperty("google.web.client.id") ?: "YOUR_WEB_CLIENT_ID"
+        val googleWebClientId = localProps.getProperty("google.web.client.id") ?: "522937712462-dmtau0jnukes33pf3jgsitpe5v5hcsjh.apps.googleusercontent.com"
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$googleWebClientId\"")
     }
 
