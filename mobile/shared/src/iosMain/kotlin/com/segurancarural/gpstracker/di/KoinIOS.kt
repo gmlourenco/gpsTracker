@@ -133,15 +133,27 @@ fun initKoin(
 }
 
 @Throws(Exception::class)
-suspend fun signInWithGoogleIdToken(idToken: String, accessToken: String?) {
-    com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.signInWith(IDToken) {
-        this.idToken = idToken
-        this.provider = Google
-    }
-    val token = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentAccessTokenOrNull()
-    if (token != null) {
-        com.segurancarural.gpstracker.data.network.ApiClient.supabaseJwt = token.toString()
-        Platform.dependencies.setSupabaseJwt(token.toString())
+suspend fun signInWithGoogleIdToken(idToken: String, accessToken: String?, nonce: String? = null) {
+    try {
+        println("🟢 [KoinIOS] Starting Supabase signInWith(IDToken)...")
+        com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.signInWith(IDToken) {
+            this.idToken = idToken
+            this.provider = Google
+            if (nonce != null) {
+                this.nonce = nonce
+            }
+        }
+        val token = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentAccessTokenOrNull()
+        if (token != null) {
+            println("🟢 [KoinIOS] Supabase auth successful! Saving JWT.")
+            com.segurancarural.gpstracker.data.network.ApiClient.supabaseJwt = token.toString()
+            Platform.dependencies.setSupabaseJwt(token.toString())
+        } else {
+            println("⚠️ [KoinIOS] Supabase auth completed but currentAccessTokenOrNull is null.")
+        }
+    } catch (e: Exception) {
+        println("❌ [KoinIOS] Supabase signInWithGoogleIdToken failed: ${e.message}")
+        throw e
     }
 }
 
@@ -150,6 +162,8 @@ suspend fun signOutFromSupabase() {
     try {
         com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.signOut()
     } catch (e: Exception) {
-        // Ignored if already signed out
+        println("⚠️ [KoinIOS] Error during signOutFromSupabase: ${e.message}")
     }
+    com.segurancarural.gpstracker.data.network.ApiClient.supabaseJwt = null
+    try { Platform.dependencies.setSupabaseJwt(null) } catch (e: Exception) {}
 }

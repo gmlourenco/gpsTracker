@@ -1,5 +1,6 @@
 package com.segurancarural.gpstracker.data.network
 
+import com.segurancarural.gpstracker.Platform
 import com.segurancarural.gpstracker.util.KmpLogger
 import io.github.jan.supabase.auth.auth
 import io.ktor.client.HttpClient
@@ -24,20 +25,32 @@ object ApiClient {
                 bearer {
                     loadTokens {
                         val session = SupabaseClient.client.auth.currentSessionOrNull()
-                        val defaultToken = supabaseJwt ?: SharedConfig.DEVICE_API_SECRET
-                        BearerTokens(session?.accessToken ?: defaultToken, session?.refreshToken ?: "")
+                        val platformJwt = try { Platform.dependencies.getSupabaseJwt() } catch (e: Exception) { null }
+                        val userJwt = session?.accessToken ?: supabaseJwt ?: platformJwt
+                        val token = userJwt ?: SharedConfig.DEVICE_API_SECRET
+                        BearerTokens(token, session?.refreshToken ?: "")
                     }
                     refreshTokens {
                         try {
                             val session = SupabaseClient.client.auth.currentSessionOrNull()
+                            val platformJwt = try { Platform.dependencies.getSupabaseJwt() } catch (e: Exception) { null }
                             if (session?.refreshToken != null && session.refreshToken.isNotEmpty()) {
                                 SupabaseClient.client.auth.refreshCurrentSession()
                                 val newSession = SupabaseClient.client.auth.currentSessionOrNull()
-                                val defaultToken = supabaseJwt ?: SharedConfig.DEVICE_API_SECRET
-                                BearerTokens(newSession?.accessToken ?: defaultToken, newSession?.refreshToken ?: "")
+                                val userJwt = newSession?.accessToken ?: supabaseJwt ?: platformJwt
+                                val token = userJwt ?: SharedConfig.DEVICE_API_SECRET
+                                if (newSession?.accessToken != null) {
+                                    supabaseJwt = newSession.accessToken
+                                    try { Platform.dependencies.setSupabaseJwt(newSession.accessToken) } catch (e: Exception) {}
+                                }
+                                BearerTokens(token, newSession?.refreshToken ?: "")
                             } else {
-                                // No refresh token means this is likely a device-secret authenticated call, or the user is logged out.
-                                null
+                                val userJwt = supabaseJwt ?: platformJwt
+                                if (userJwt != null) {
+                                    BearerTokens(userJwt, "")
+                                } else {
+                                    null
+                                }
                             }
                         } catch (e: Exception) {
                             KmpLogger.e("KtorAuth", "Failed to refresh session: ${e.message}", e)

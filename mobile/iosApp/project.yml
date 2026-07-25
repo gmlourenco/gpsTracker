@@ -10,6 +10,8 @@ targets:
     platform: iOS
     deploymentTarget: "16.0"
     sources: [iosApp]
+    entitlements:
+      path: iosApp/iosApp.entitlements
     settings:
       base:
         INFOPLIST_FILE: iosApp/Info.plist
@@ -91,6 +93,12 @@ targets:
     info:
       path: iosApp/Info.plist
       properties:
+        GIDClientID: 522937712462-4vc4goged9jf34v5q26por5d063p2adv.apps.googleusercontent.com
+        CFBundleURLTypes:
+          - CFBundleTypeRole: Editor
+            CFBundleURLSchemes:
+              - com.googleusercontent.apps.522937712462-4vc4goged9jf34v5q26por5d063p2adv
+              - com.googleusercontent.apps.522937712462-kupd9i6co961n0e38tc811lnumrjqngn
         CFBundleName: $(PRODUCT_NAME)
         CFBundleDisplayName: $(PRODUCT_NAME)
         UILaunchScreen:

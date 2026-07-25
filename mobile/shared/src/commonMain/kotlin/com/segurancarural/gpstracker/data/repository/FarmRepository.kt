@@ -162,7 +162,7 @@ class FarmRepository() {
                 ApiClient.supabaseJwt = token.toString()
             }
 
-            val response = ApiClient.httpClient.get("${ApiRoutes.DEVICE_CONFIG}?serial=$serialNumber")
+            val response = ApiClient.httpClient.get("${ApiRoutes.DEVICE_CONFIG}?serialNumber=$serialNumber")
             val data = response.body<com.segurancarural.gpstracker.data.dto.DeviceConfigResponseDto>()
             if (data.success) {
                 Result.success(data)

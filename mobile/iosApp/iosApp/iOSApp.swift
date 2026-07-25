@@ -4,8 +4,13 @@ import BackgroundTasks
 import UserNotifications
 import FirebaseCore
 import FirebaseMessaging
+import GoogleSignIn
 
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
+    func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+        return GIDSignIn.sharedInstance.handle(url)
+    }
+
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
         // Init Koin
         let supabaseUrl = Environment.supabaseUrl
@@ -28,12 +33,13 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         )
         
         // Initialize Firebase with environment-specific plist
-        let plistName = isDebug ? "GoogleService-Info-Dev" : "GoogleService-Info-Prod"
+        let currentBundleId = Bundle.main.bundleIdentifier ?? ""
+        let plistName = currentBundleId.hasSuffix(".dev") ? "GoogleService-Info-Dev" : "GoogleService-Info-Prod"
         if let plistPath = Bundle.main.path(forResource: plistName, ofType: "plist"),
            let options = FirebaseOptions(contentsOfFile: plistPath) {
             FirebaseApp.configure(options: options)
             Messaging.messaging().delegate = self
-            print("Firebase configured successfully using \(plistName).plist.")
+            print("Firebase configured successfully using \(plistName).plist (Bundle ID: \(currentBundleId)).")
         } else {
             print("\(plistName).plist not found in the bundle. Firebase not configured.")
         }
@@ -185,6 +191,9 @@ struct iOSApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .onOpenURL { url in
+                    GIDSignIn.sharedInstance.handle(url)
+                }
         }
         .onChange(of: scenePhase) { newPhase in
             if newPhase == .background {

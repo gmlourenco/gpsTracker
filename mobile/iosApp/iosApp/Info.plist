@@ -21,7 +21,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0.0</string>
+	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
@@ -44,5 +44,19 @@
 		<key>UILaunchScreen</key>
 		<dict/>
 	</dict>
+	<key>GIDClientID</key>
+	<string>522937712462-4vc4goged9jf34v5q26por5d063p2adv.apps.googleusercontent.com</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.googleusercontent.apps.522937712462-4vc4goged9jf34v5q26por5d063p2adv</string>
+				<string>com.googleusercontent.apps.522937712462-kupd9i6co961n0e38tc811lnumrjqngn</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

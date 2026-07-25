@@ -18,7 +18,6 @@
 		445C052442747365B7CB2124 /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 16D66C9411832E1B7D572C76 /* FirebaseCore */; };
 		5213EA02F84C83F56DB1D6F1 /* FlowExtensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0EFA6993C0A052C10D66FB9 /* FlowExtensions.swift */; };
 		56B0305B5D3847FC6B326502 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE8509E5A49E4A5CAAEB3ADB /* ContentView.swift */; };
-		65CB63A862CED9F306ED1419 /* SettingsView.swift.bak in Resources */ = {isa = PBXBuildFile; fileRef = 1A604DF2CC3313CDB3F9A2A7 /* SettingsView.swift.bak */; };
 		68040CE08AEDC7C1E192C50C /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DB12B8F33A658239E951429 /* HomeView.swift */; };
 		885ED23253B778528E4ED380 /* AuthViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B20E4482019383F85D91CAC /* AuthViewModel.swift */; };
 		9CDAB141E445D978A60A7AB6 /* GoogleService-Info-Prod.plist in Resources */ = {isa = PBXBuildFile; fileRef = DDB4BFAE996B6E2874049542 /* GoogleService-Info-Prod.plist */; };
@@ -34,14 +33,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		1A604DF2CC3313CDB3F9A2A7 /* SettingsView.swift.bak */ = {isa = PBXFileReference; path = SettingsView.swift.bak; sourceTree = "<group>"; };
 		21F8A182B068B1994C597A2A /* Environment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Environment.swift; sourceTree = "<group>"; };
 		44F91D1C4E7AD328874A56F4 /* MapViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapViewModel.swift; sourceTree = "<group>"; };
 		601A5772A3BB88424B2BB536 /* GoogleService-Info-Dev.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info-Dev.plist"; sourceTree = "<group>"; };
 		60BB360C2AF9359C59951460 /* FamilyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FamilyView.swift; sourceTree = "<group>"; };
 		668CECA83ACC03A83C85A623 /* iOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSApp.swift; sourceTree = "<group>"; };
 		8464F253A6ED1DFD5F4BF7EA /* MapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapView.swift; sourceTree = "<group>"; };
-		86038AE1032E284E79B32AD6 /* iosApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = iosApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		86038AE1032E284E79B32AD6 /* SegurancaRural.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SegurancaRural.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		8DB12B8F33A658239E951429 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		9ABB3E4CE4380CDAF78906B6 /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 		9B20E4482019383F85D91CAC /* AuthViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthViewModel.swift; sourceTree = "<group>"; };
@@ -51,6 +49,7 @@
 		B64CB17F81D7FCF71501C1EB /* NativeMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeMapView.swift; sourceTree = "<group>"; };
 		B98CB2A95BCC307A714533DF /* SyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
 		C117AD187833E2513BD2F553 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		C49B0B02429FBBC9F867DDE1 /* iosApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = iosApp.entitlements; sourceTree = "<group>"; };
 		CE8509E5A49E4A5CAAEB3ADB /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		DDB4BFAE996B6E2874049542 /* GoogleService-Info-Prod.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "GoogleService-Info-Prod.plist"; sourceTree = "<group>"; };
 		E4A1F314FF6697C3FE25E0C6 /* SnackbarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnackbarView.swift; sourceTree = "<group>"; };
@@ -89,6 +88,7 @@
 				DDB4BFAE996B6E2874049542 /* GoogleService-Info-Prod.plist */,
 				8DB12B8F33A658239E951429 /* HomeView.swift */,
 				C117AD187833E2513BD2F553 /* Info.plist */,
+				C49B0B02429FBBC9F867DDE1 /* iosApp.entitlements */,
 				668CECA83ACC03A83C85A623 /* iOSApp.swift */,
 				9ABB3E4CE4380CDAF78906B6 /* LocationService.swift */,
 				8464F253A6ED1DFD5F4BF7EA /* MapView.swift */,
@@ -97,7 +97,6 @@
 				9E952615EB910B75418E8063 /* Secrets.xcconfig */,
 				F94570938DD221F074325859 /* SettingsSyncCoordinator.swift */,
 				E713B16C0AA6DFFD30001358 /* SettingsView.swift */,
-				1A604DF2CC3313CDB3F9A2A7 /* SettingsView.swift.bak */,
 				E4A1F314FF6697C3FE25E0C6 /* SnackbarView.swift */,
 				B98CB2A95BCC307A714533DF /* SyncCoordinator.swift */,
 			);
@@ -115,7 +114,7 @@
 		94C98B8B3A2BFC1966447269 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				86038AE1032E284E79B32AD6 /* iosApp.app */,
+				86038AE1032E284E79B32AD6 /* SegurancaRural.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -144,7 +143,7 @@
 				AC813CE66F97994D9BE8A812 /* FirebaseMessaging */,
 			);
 			productName = iosApp;
-			productReference = 86038AE1032E284E79B32AD6 /* iosApp.app */;
+			productReference = 86038AE1032E284E79B32AD6 /* SegurancaRural.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -155,11 +154,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
-				TargetAttributes = {
-					78B53CC79860CBFC2F5543C6 = {
-						DevelopmentTeam = "";
-					};
-				};
 			};
 			buildConfigurationList = FF7CA1CA754D017066F1822F /* Build configuration list for PBXProject "iosApp" */;
 			developmentRegion = en;
@@ -192,7 +186,6 @@
 				22EA1CB33A17DCC6FC82406D /* Assets.xcassets in Resources */,
 				D33E568F5A9E8DCCAF74AFA0 /* GoogleService-Info-Dev.plist in Resources */,
 				9CDAB141E445D978A60A7AB6 /* GoogleService-Info-Prod.plist in Resources */,
-				65CB63A862CED9F306ED1419 /* SettingsView.swift.bak in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -390,8 +383,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = iosApp/iosApp.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = BSK5S25Q29;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = iosApp/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -399,9 +393,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-ObjC",
-				);
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.segurancarural.gpstracker;
 				PRODUCT_NAME = SegurancaRural;
 				SDKROOT = iphoneos;
@@ -414,8 +406,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = iosApp/iosApp.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = "";
+				DEVELOPMENT_TEAM = BSK5S25Q29;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				INFOPLIST_FILE = iosApp/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 16.0;
@@ -423,9 +416,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				OTHER_LDFLAGS = (
-					"-ObjC",
-				);
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = com.segurancarural.gpstracker;
 				PRODUCT_NAME = SegurancaRural;
 				SDKROOT = iphoneos;

@@ -31,13 +31,15 @@ struct ConfigCard<Content: View>: View {
 
 extension View {
     func getRootViewController() -> UIViewController {
-        guard let screen = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
+        guard let screen = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene ?? UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let root = screen.windows.first(where: { $0.isKeyWindow })?.rootViewController ?? screen.windows.first?.rootViewController else {
             return UIViewController()
         }
-        guard let root = screen.windows.first?.rootViewController else {
-            return UIViewController()
+        var topController = root
+        while let presented = topController.presentedViewController {
+            topController = presented
         }
-        return root
+        return topController
     }
 }
 
