@@ -129,6 +129,18 @@ class FamilyGroupsViewModel(application: Application) : AndroidViewModel(applica
         _uiState.update { it.copy(showAddSection = !it.showAddSection) }
     }
 
+    fun generateInvite(farmId: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isActionLoading = true) }
+            farmRepository.generateInvite(farmId).fold(
+                onSuccess = { loadFarms() },
+                onFailure = { e ->
+                    _uiState.update { it.copy(isActionLoading = false, errorMessage = e.message) }
+                }
+            )
+        }
+    }
+
     // ── Member management (swipe actions) ─────────────────────────
 
     fun requestMemberAction(farmId: String, member: FarmMemberDto, action: String) {

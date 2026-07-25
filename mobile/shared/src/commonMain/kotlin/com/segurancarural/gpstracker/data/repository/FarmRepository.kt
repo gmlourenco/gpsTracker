@@ -229,7 +229,26 @@ class FarmRepository() {
             Result.failure(e)
         }
     }
+
+    @Throws(Exception::class)
+    suspend fun generateInvite(farmId: String): Result<GenerateInviteResponse> {
+        return try {
+            val token = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentAccessTokenOrNull()
+            if (token != null) ApiClient.supabaseJwt = token.toString()
+
+            val response = ApiClient.httpClient.post("${ApiRoutes.BASE}/api/farms/invite") {
+                contentType(ContentType.Application.Json)
+                setBody(GenerateInviteRequest(farmId))
+            }
+            val data = response.body<GenerateInviteResponse>()
+            if (data.success) Result.success(data)
+            else Result.failure(Exception(data.error ?: "Unknown error"))
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
+
 
 @Serializable
 data class DeviceSyncRequest(
@@ -318,3 +337,17 @@ data class MemberActionResponse(
     val message: String? = null,
     val error: String? = null,
 )
+
+@Serializable
+data class GenerateInviteRequest(
+    val farmId: String
+)
+
+@Serializable
+data class GenerateInviteResponse(
+    val success: Boolean,
+    val inviteCode: String? = null,
+    val expiresAt: String? = null,
+    val error: String? = null
+)
+

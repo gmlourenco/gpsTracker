@@ -155,6 +155,21 @@ fun FamilyGroupsScreen(viewModel: FamilyGroupsViewModel = viewModel()) {
                                             }) {
                                                 Icon(Icons.Default.Share, contentDescription = "Partilhar", tint = AccentGreen)
                                             }
+                                        } else {
+                                            IconButton(
+                                                onClick = { viewModel.generateInvite(farm.farmId) },
+                                                enabled = !state.isActionLoading
+                                            ) {
+                                                if (state.isActionLoading) {
+                                                    CircularProgressIndicator(
+                                                        modifier = Modifier.padding(8.dp),
+                                                        color = AccentGreen,
+                                                        strokeWidth = 2.dp
+                                                    )
+                                                } else {
+                                                    Icon(Icons.Default.Add, contentDescription = "Gerar novo código", tint = AccentGreen)
+                                                }
+                                            }
                                         }
                                     }
                                     // Invite metadata
@@ -169,7 +184,7 @@ fun FamilyGroupsScreen(viewModel: FamilyGroupsViewModel = viewModel()) {
                                         val usesText = farm.inviteUsesRemaining?.let { "• $it uso(s) restante(s)" } ?: ""
                                         Text("$expiresText $usesText", color = TextSecondary, fontSize = 11.sp)
                                     } else {
-                                        Text("Gera um novo código na gestão da família.", color = TextSecondary, fontSize = 11.sp)
+                                        Text("Clica no + à direita para gerar um novo código de convite.", color = TextSecondary, fontSize = 11.sp)
                                     }
                                 }
                             }
