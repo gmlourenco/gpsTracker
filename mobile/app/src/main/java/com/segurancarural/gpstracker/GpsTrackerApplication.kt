@@ -32,7 +32,10 @@ class GpsTrackerApplication : Application() {
 
         com.segurancarural.gpstracker.data.network.SupabaseClient.init {
             install(io.github.jan.supabase.compose.auth.ComposeAuth) {
-                googleNativeLogin(serverClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID)
+                googleNativeLogin(
+                    serverClientId = BuildConfig.GOOGLE_WEB_CLIENT_ID,
+                    filterByAuthorizedAccounts = false  // Always show full account picker (required for first-time prod installs)
+                )
             }
         }
 
