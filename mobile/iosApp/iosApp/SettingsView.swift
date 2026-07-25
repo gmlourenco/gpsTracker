@@ -45,12 +45,20 @@ struct SettingsView: View {
     @StateObject private var authVM = AuthViewModel()
     
     // AppStorage variables
-    @AppStorage("device_label") private var deviceLabel: String = "Dispositivo"
-    @AppStorage("tracking_distance_m") private var trackingDistanceM: Double = 200.0
-    @AppStorage("tracking_interval_ms") private var trackingIntervalMs: Double = 60000.0
-    @AppStorage("accident_sensor_sensitivity") private var accidentSensorSensitivity: String = "medium"
-    @AppStorage("default_map_type") private var defaultMapType: String = "SATELLITE"
-    @AppStorage("device_marker_color") private var markerColorHex: String = "#16A34A"
+    @AppStorage("device_label") private var storedDeviceLabel: String = "Dispositivo"
+    @AppStorage("tracking_distance_m") private var storedTrackingDistanceM: Double = 200.0
+    @AppStorage("tracking_interval_ms") private var storedTrackingIntervalMs: Double = 60000.0
+    @AppStorage("accident_sensor_sensitivity") private var storedAccidentSensorSensitivity: String = "medium"
+    @AppStorage("default_map_type") private var storedDefaultMapType: String = "SATELLITE"
+    @AppStorage("device_marker_color") private var storedMarkerColorHex: String = "#16A34A"
+    
+    // Local State (Prevents UI lag during typing)
+    @State private var deviceLabel: String = ""
+    @State private var trackingDistanceM: Double = 200.0
+    @State private var trackingIntervalMs: Double = 60000.0
+    @State private var defaultMapType: String = "SATELLITE"
+    @State private var markerColorHex: String = "#16A34A"
+    
     @State private var customSensitivityValue: String = ""
     @State private var selectedSensitivity: String = "Média"
     
@@ -61,7 +69,29 @@ struct SettingsView: View {
     @State private var newGroupName: String = ""
     @State private var inviteCode: String = ""
     
+    @State private var snackbarMessage: SnackbarMessage?
+    
     @State private var actionTask: Task<Void, Never>?
+    
+    private var currentSensitivityValue: String {
+        if selectedSensitivity == "Personalizada" {
+            return "custom_\(customSensitivityValue.isEmpty ? "4" : customSensitivityValue)"
+        } else if selectedSensitivity == "Alta" {
+            return "alta"
+        } else if selectedSensitivity == "Baixa" {
+            return "baixa"
+        }
+        return "medium"
+    }
+    
+    private var hasChanges: Bool {
+        return deviceLabel != storedDeviceLabel ||
+               trackingDistanceM != storedTrackingDistanceM ||
+               trackingIntervalMs != storedTrackingIntervalMs ||
+               defaultMapType != storedDefaultMapType ||
+               markerColorHex != storedMarkerColorHex ||
+               currentSensitivityValue != storedAccidentSensorSensitivity
+    }
     
     let intervals: [Double] = [60000, 300000, 600000, 900000, 1800000, 3600000] // 1, 5, 10, 15, 30, 60 min
     let mapTypes = ["SATELLITE", "NORMAL", "TERRAIN"]
@@ -328,26 +358,51 @@ struct SettingsView: View {
                             .font(.headline)
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color(hex: "#16A34A"))
-                            .foregroundColor(.white)
+                            .background(hasChanges ? Color(hex: "#16A34A") : Color.gray)
+                            .foregroundColor(hasChanges ? .white : .white.opacity(0.6))
                             .cornerRadius(12)
                     }
                 }
-                .disabled(isSaving)
+                .disabled(isSaving || !hasChanges)
                 .padding(.top, 10)
             }
             .padding()
         }
         .background(Color(hex: "#1A1A2E").edgesIgnoringSafeArea(.all))
+        .overlay(
+            VStack {
+                Spacer()
+                if let msg = snackbarMessage {
+                    SnackbarView(message: msg)
+                        .padding(.bottom, 20)
+                        .onAppear {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                                withAnimation {
+                                    if snackbarMessage == msg {
+                                        snackbarMessage = nil
+                                    }
+                                }
+                            }
+                        }
+                }
+            }
+        )
         .onAppear {
-            if accidentSensorSensitivity.hasPrefix("custom_") {
+            deviceLabel = storedDeviceLabel
+            trackingDistanceM = storedTrackingDistanceM
+            trackingIntervalMs = storedTrackingIntervalMs
+            defaultMapType = storedDefaultMapType
+            markerColorHex = storedMarkerColorHex
+            
+            let sensitivity = storedAccidentSensorSensitivity
+            if sensitivity.hasPrefix("custom_") {
                 selectedSensitivity = "Personalizada"
-                customSensitivityValue = String(accidentSensorSensitivity.dropFirst("custom_".count))
-            } else if accidentSensorSensitivity == "alta" {
+                customSensitivityValue = String(sensitivity.dropFirst("custom_".count))
+            } else if sensitivity == "alta" {
                 selectedSensitivity = "Alta"
-            } else if accidentSensorSensitivity == "baixa" {
+            } else if sensitivity == "baixa" {
                 selectedSensitivity = "Baixa"
-            } else if accidentSensorSensitivity == "Personalizada" { // Legacy fallback
+            } else if sensitivity == "Personalizada" { // Legacy fallback
                 selectedSensitivity = "Personalizada"
             } else {
                 selectedSensitivity = "Média"
@@ -361,29 +416,58 @@ struct SettingsView: View {
     private func saveSettings() {
         actionTask?.cancel()
         isSaving = true
+        snackbarMessage = nil
         
-        if selectedSensitivity == "Personalizada" {
-            accidentSensorSensitivity = "custom_\(customSensitivityValue.isEmpty ? "4" : customSensitivityValue)"
-        } else if selectedSensitivity == "Alta" {
-            accidentSensorSensitivity = "alta"
-        } else if selectedSensitivity == "Baixa" {
-            accidentSensorSensitivity = "baixa"
-        } else {
-            accidentSensorSensitivity = "medium"
-        }
+        let sensitivityToSave = currentSensitivityValue
+        let labelToSave = deviceLabel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Dispositivo" : deviceLabel
+        let colorToSave = markerColorHex
+        let distanceToSave = trackingDistanceM
+        let intervalToSave = trackingIntervalMs
+        let mapTypeToSave = defaultMapType
+        
+        // Optimistically apply local state to AppStorage
+        storedDeviceLabel = labelToSave
+        storedTrackingDistanceM = distanceToSave
+        storedTrackingIntervalMs = intervalToSave
+        storedDefaultMapType = mapTypeToSave
+        storedMarkerColorHex = colorToSave
+        storedAccidentSensorSensitivity = sensitivityToSave
         
         actionTask = Task {
             do {
-                // Call KMP to sync the device config via the Supabase endpoint
+                // First sync the farm identity (which updates farm backend)
                 let _ = try await KoinIOSKt.syncCurrentDeviceToFarm()
-                // Wait briefly for UI feedback
-                try await Task.sleep(nanoseconds: 500_000_000)
-            } catch {
-                print("Failed to sync settings: \(error)")
-            }
-            if !Task.isCancelled {
+                
+                // Now sync all full settings via DeviceConfigRepository
+                let repo = KoinIOSKt.getDeviceConfigRepository()
+                
+                let dto = DeviceConfigDto(
+                    serialNumber: UIDevice.current.identifierForVendor?.uuidString ?? "ios-device",
+                    deviceLabel: labelToSave,
+                    markerColor: colorToSave,
+                    trackingIntervalMs: Int64(intervalToSave),
+                    trackingDistanceM: Float(distanceToSave),
+                    defaultMapType: mapTypeToSave,
+                    accidentSensorSensitivity: sensitivityToSave,
+                    configUpdatedAt: Int64(Date().timeIntervalSince1970 * 1000)
+                )
+                
+                let result = try await repo.saveConfigToBackend(config: dto)
+                
                 await MainActor.run {
                     isSaving = false
+                    if result == .success {
+                        snackbarMessage = SnackbarMessage(text: "Configurações guardadas e sincronizadas", type: .success)
+                    } else if result == .offlineQueued {
+                        snackbarMessage = SnackbarMessage(text: "Guardado localmente (sincronizará quando tiver rede)", type: .info)
+                    } else {
+                        snackbarMessage = SnackbarMessage(text: "Erro ao guardar definições no servidor", type: .error)
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    isSaving = false
+                    snackbarMessage = SnackbarMessage(text: "Falha ao sincronizar: \(error.localizedDescription)", type: .error)
                 }
             }
         }

@@ -2,18 +2,10 @@ package com.segurancarural.gpstracker.data.repository
 
 import android.content.Context
 import com.google.firebase.messaging.FirebaseMessaging
-import com.segurancarural.gpstracker.data.network.ApiResult
-import com.segurancarural.gpstracker.data.network.ApiRoutes
 import com.segurancarural.gpstracker.data.network.ApiService
 import com.segurancarural.gpstracker.util.AppLog
 import com.segurancarural.gpstracker.util.ensureSerialNumber
 import kotlinx.coroutines.tasks.await
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.serialization.json.put
 
 /**
  * Handles FCM token lifecycle:
@@ -30,68 +22,7 @@ class FcmTokenRepository(private val context: Context) {
      */
     suspend fun uploadToken(token: String): Boolean {
         val serialNumber = context.ensureSerialNumber()
-
-        val payload = buildJsonObject {
-            put("serialNumber", serialNumber)
-            put("fcmToken", token)
-        }
-
-        val url = ApiRoutes.FCM_TOKEN
-        val bodyJson = Json.encodeToString(payload)
-        val result = apiService.patchRaw(url, bodyJson)
-        return when (result) {
-            is ApiResult.Success -> {
-                val body = result.data
-                val isLogicalSuccess = try {
-                    val json = Json.parseToJsonElement(body)
-                    json.jsonObject["success"]?.jsonPrimitive?.booleanOrNull == true
-                } catch (e: Exception) {
-                    false
-                }
-                if (isLogicalSuccess) {
-                    AppLog.i("FcmTokenRepository", "FCM token uploaded successfully")
-                    OfflineRequestManager.clearPending("FCM_TOKEN")
-                    true
-                } else {
-                    AppLog.w("FcmTokenRepository", "FCM token upload response was not a logical success (possibly captive portal). Queueing.")
-                    OfflineRequestManager.enqueue(
-                        serviceType = "FCM_TOKEN",
-                        url = url,
-                        method = "PATCH",
-                        bodyJson = bodyJson
-                    )
-                    false
-                }
-            }
-            is ApiResult.HttpError -> {
-                if (result.code >= 500) {
-                    AppLog.e("FcmTokenRepository", "Server error (HTTP ${result.code}) when uploading FCM token. Queueing.")
-                    OfflineRequestManager.enqueue(
-                        serviceType = "FCM_TOKEN",
-                        url = url,
-                        method = "PATCH",
-                        bodyJson = bodyJson
-                    )
-                } else {
-                    AppLog.e("FcmTokenRepository", "FCM token upload failed: ${result.code} - ${result.message}")
-                }
-                false
-            }
-            is ApiResult.NetworkError -> {
-                AppLog.w("FcmTokenRepository", "Network error when uploading FCM token: ${result.exception.message}. Queueing.")
-                OfflineRequestManager.enqueue(
-                    serviceType = "FCM_TOKEN",
-                    url = url,
-                    method = "PATCH",
-                    bodyJson = bodyJson
-                )
-                false
-            }
-            is ApiResult.Unauthorized -> {
-                AppLog.e("FcmTokenRepository", "Unauthorized FCM token upload attempt")
-                false
-            }
-        }
+        return PushTokenRepository().uploadToken(token, serialNumber)
     }
 
     /**

@@ -39,7 +39,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.segurancarural.gpstracker.BuildConfig
-import com.segurancarural.gpstracker.data.repository.DeviceConfigRepository
 import com.segurancarural.gpstracker.data.repository.FcmTokenRepository
 import com.segurancarural.gpstracker.service.LocationForegroundService
 import com.segurancarural.gpstracker.ui.components.AppUpdateDialog
@@ -142,7 +141,8 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             SegurancaRuralTheme {
-                val configRepository = remember { DeviceConfigRepository(this@MainActivity) }
+                val configLoader = remember { com.segurancarural.gpstracker.data.repository.AndroidDeviceConfigLoader(this@MainActivity) }
+                val configRepository = remember { com.segurancarural.gpstracker.data.repository.DeviceConfigRepository() }
                 var importPromptDevices by remember { mutableStateOf<List<com.segurancarural.gpstracker.data.dto.AvailableDeviceDto>?>(null) }
 
                 val mapViewModel: MapViewModel = viewModel()
@@ -151,7 +151,7 @@ class MainActivity : ComponentActivity() {
                 var hasCheckedAndDismissedOnLaunch by rememberSaveable { mutableStateOf(false) }
 
                 LaunchedEffect(Unit) {
-                    val result = configRepository.loadConfigFromBackend()
+                    val result = configLoader.loadConfigFromBackend()
                     if (result is com.segurancarural.gpstracker.data.repository.ConfigLoadResult.PromptImport) {
                         importPromptDevices = result.availableDevices
                     }
@@ -220,7 +220,7 @@ class MainActivity : ComponentActivity() {
                                                 modifier = Modifier.padding(vertical = 4.dp),
                                                 onClick = {
                                                     lifecycleScope.launch {
-                                                        val res = configRepository.loadConfigFromBackend(device.serial)
+                                                        val res = configLoader.loadConfigFromBackend(device.serial)
                                                         if (res is com.segurancarural.gpstracker.data.repository.ConfigLoadResult.Success) {
                                                             val prefs = getSharedPreferences("tracking_prefs", MODE_PRIVATE)
                                                             val newConfig = com.segurancarural.gpstracker.data.dto.DeviceConfigDto(

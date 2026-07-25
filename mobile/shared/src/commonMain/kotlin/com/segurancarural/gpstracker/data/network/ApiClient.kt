@@ -29,10 +29,16 @@ object ApiClient {
                     }
                     refreshTokens {
                         try {
-                            SupabaseClient.client.auth.refreshCurrentSession()
-                            val newSession = SupabaseClient.client.auth.currentSessionOrNull()
-                            val defaultToken = supabaseJwt ?: SharedConfig.DEVICE_API_SECRET
-                            BearerTokens(newSession?.accessToken ?: defaultToken, newSession?.refreshToken ?: "")
+                            val session = SupabaseClient.client.auth.currentSessionOrNull()
+                            if (session?.refreshToken != null && session.refreshToken.isNotEmpty()) {
+                                SupabaseClient.client.auth.refreshCurrentSession()
+                                val newSession = SupabaseClient.client.auth.currentSessionOrNull()
+                                val defaultToken = supabaseJwt ?: SharedConfig.DEVICE_API_SECRET
+                                BearerTokens(newSession?.accessToken ?: defaultToken, newSession?.refreshToken ?: "")
+                            } else {
+                                // No refresh token means this is likely a device-secret authenticated call, or the user is logged out.
+                                null
+                            }
                         } catch (e: Exception) {
                             KmpLogger.e("KtorAuth", "Failed to refresh session: ${e.message}", e)
                             null

@@ -11,7 +11,7 @@ class LocationService: NSObject, CLLocationManagerDelegate, ObservableObject {
     private let batteryThreshold: Float = 0.20 // 20%
     
     // Cached dependencies and unchanging properties to reduce bridging overhead
-    private lazy var telemetryRepository = KoinIOSKt.getTelemetryRepository()
+    private lazy var submitLocationUseCase = KoinIOSKt.getSubmitLocationUseCase()
     private let deviceSerialNumber: String = UIDevice.current.identifierForVendor?.uuidString ?? "ios-device"
     private let deviceName: String = UIDevice.current.name
     private let appVersion: String = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "Unknown"
@@ -40,6 +40,7 @@ class LocationService: NSObject, CLLocationManagerDelegate, ObservableObject {
         locationManager.delegate = self
         locationManager.allowsBackgroundLocationUpdates = true
         locationManager.pausesLocationUpdatesAutomatically = false // Prevent iOS from pausing if stationary
+        locationManager.activityType = .automotiveNavigation
         
         // Enable battery monitoring to adapt accuracy
         UIDevice.current.isBatteryMonitoringEnabled = true
@@ -195,11 +196,12 @@ class LocationService: NSObject, CLLocationManagerDelegate, ObservableObject {
             
             if !isHighAccuracyMode || locationManager.distanceFilter != desiredDistance {
                 locationManager.stopMonitoringSignificantLocationChanges()
-                locationManager.desiredAccuracy = kCLLocationAccuracyBest
+                locationManager.desiredAccuracy = kCLLocationAccuracyBestForNavigation
+                locationManager.activityType = .automotiveNavigation
                 locationManager.distanceFilter = desiredDistance
                 locationManager.startUpdatingLocation()
                 isHighAccuracyMode = true
-                print("LocationService: Switched to High Accuracy Mode (Distance Filter: \(locationManager.distanceFilter)m)")
+                print("LocationService: Switched to High Accuracy Navigation Mode (Distance Filter: \(locationManager.distanceFilter)m)")
             }
         } else {
             if isHighAccuracyMode || (!isHighAccuracyMode && isTracking) {
@@ -213,12 +215,6 @@ class LocationService: NSObject, CLLocationManagerDelegate, ObservableObject {
     
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let location = locations.last else { return }
-        
-        // Filter out highly inaccurate locations (equivalent to Android)
-        if location.horizontalAccuracy > 250 && !self.isSosActive {
-            print("LocationService: Ignored low accuracy location (\(location.horizontalAccuracy)m)")
-            return
-        }
         
         // Enforce tracking interval
         let dynamicIntervalMs = SettingsSyncCoordinator.shared.trackingIntervalMs
@@ -245,8 +241,7 @@ class LocationService: NSObject, CLLocationManagerDelegate, ObservableObject {
         
         AccidentDetector.shared.updateSpeed(Double(speed))
         
-        // Create TelemetryRecord using the correct KMP generated init
-        // Uses cached device information properties to avoid repeated ObjC bridging overhead
+        // Create TelemetryRecord
         let record = TelemetryRecord(
             id: 0,
             serialNumber: deviceSerialNumber,
@@ -267,14 +262,21 @@ class LocationService: NSObject, CLLocationManagerDelegate, ObservableObject {
             syncState: 0
         )
         
-        // Fetch repo outside the detached task (on main thread) to ensure lazy var thread safety
-        let repo = self.telemetryRepository
+        let useCase = self.submitLocationUseCase
         
-        // Use detached Task on background priority to avoid blocking UI MainActor thread
-        Task.detached(priority: .background) {
+        Task.detached(priority: .background) { [weak self] in
             do {
-                try await repo.submitLocation(record: record)
-                print("LocationService: Successfully passed location to KMP TelemetryRepository")
+                let filterResult = try await useCase.invoke(record: record)
+                if filterResult is FilterResult.Accept {
+                    print("LocationService: Location accepted & smoothed by KMP GpsLocationFilter")
+                } else if filterResult is FilterResult.DiscardRedundant {
+                    print("LocationService: Discarded redundant stationary jitter point")
+                } else if filterResult is FilterResult.SuspiciousJumpRecheck {
+                    print("LocationService: Suspicious jump / Wi-Fi bounce detected! Triggering rapid re-check fix in 2.5s...")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                        self?.locationManager.requestLocation()
+                    }
+                }
             } catch {
                 print("LocationService: Failed to submit location to KMP - \(error)")
             }

@@ -4,25 +4,8 @@
    version = "1.7">
    <BuildAction
       parallelizeBuildables = "YES"
-      buildImplicitDependencies = "YES">
-      <PreActions>
-         <ExecutionAction
-            ActionType = "Xcode.IDEStandardExecutionActionsCore.ExecutionActionType.ShellScriptAction">
-            <ActionContent
-               title = "Workaround SPM Custom Configuration Bundle Bug"
-               scriptText = "BASE_CONFIG=$(echo &quot;$CONFIGURATION&quot; | cut -d&apos;-&apos; -f1)&#10;if [ &quot;$BASE_CONFIG&quot; != &quot;$CONFIGURATION&quot; ]; then&#10;  SPM_BUILD_DIR=&quot;$SYMROOT/${BASE_CONFIG}${EFFECTIVE_PLATFORM_NAME}&quot;&#10;  mkdir -p &quot;$BUILT_PRODUCTS_DIR&quot;&#10;  BUNDLES=(&quot;AppAuth_AppAuth.bundle&quot; &quot;AppAuth_AppAuthCore.bundle&quot; &quot;GoogleSignIn_GoogleSignIn.bundle&quot; &quot;GTMSessionFetcher_GTMSessionFetcherCore.bundle&quot;)&#10;  for bundle in &quot;${BUNDLES[@]}&quot;; do&#10;    ln -sf &quot;$SPM_BUILD_DIR/$bundle&quot; &quot;$BUILT_PRODUCTS_DIR/$bundle&quot;&#10;  done&#10;fi&#10;">
-               <EnvironmentBuildable>
-                  <BuildableReference
-                     BuildableIdentifier = "primary"
-                     BlueprintIdentifier = "78B53CC79860CBFC2F5543C6"
-                     BuildableName = "SegurancaRuralDEV.app"
-                     BlueprintName = "iosApp"
-                     ReferencedContainer = "container:iosApp.xcodeproj">
-                  </BuildableReference>
-               </EnvironmentBuildable>
-            </ActionContent>
-         </ExecutionAction>
-      </PreActions>
+      buildImplicitDependencies = "YES"
+      runPostActionsOnFailure = "NO">
       <BuildActionEntries>
          <BuildActionEntry
             buildForTesting = "YES"
@@ -33,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "78B53CC79860CBFC2F5543C6"
-               BuildableName = "SegurancaRuralDEV.app"
+               BuildableName = "iosApp.app"
                BlueprintName = "iosApp"
                ReferencedContainer = "container:iosApp.xcodeproj">
             </BuildableReference>
@@ -41,15 +24,16 @@
       </BuildActionEntries>
    </BuildAction>
    <TestAction
-      buildConfiguration = "Debug-Dev"
+      buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "YES">
+      shouldUseLaunchSchemeArgsEnv = "YES"
+      onlyGenerateCoverageForSpecifiedTargets = "NO">
       <MacroExpansion>
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "78B53CC79860CBFC2F5543C6"
-            BuildableName = "SegurancaRuralDEV.app"
+            BuildableName = "iosApp.app"
             BlueprintName = "iosApp"
             ReferencedContainer = "container:iosApp.xcodeproj">
          </BuildableReference>
@@ -58,7 +42,7 @@
       </Testables>
    </TestAction>
    <LaunchAction
-      buildConfiguration = "Debug-Dev"
+      buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       launchStyle = "0"
@@ -72,14 +56,14 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "78B53CC79860CBFC2F5543C6"
-            BuildableName = "SegurancaRuralDEV.app"
+            BuildableName = "iosApp.app"
             BlueprintName = "iosApp"
             ReferencedContainer = "container:iosApp.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
    <ProfileAction
-      buildConfiguration = "Release-Dev"
+      buildConfiguration = "Release"
       shouldUseLaunchSchemeArgsEnv = "YES"
       savedToolIdentifier = ""
       useCustomWorkingDirectory = "NO"
@@ -89,17 +73,17 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "78B53CC79860CBFC2F5543C6"
-            BuildableName = "SegurancaRuralDEV.app"
+            BuildableName = "iosApp.app"
             BlueprintName = "iosApp"
             ReferencedContainer = "container:iosApp.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
    <AnalyzeAction
-      buildConfiguration = "Debug-Dev">
+      buildConfiguration = "Debug">
    </AnalyzeAction>
    <ArchiveAction
-      buildConfiguration = "Release-Dev"
+      buildConfiguration = "Release"
       revealArchiveInOrganizer = "YES">
    </ArchiveAction>
 </Scheme>

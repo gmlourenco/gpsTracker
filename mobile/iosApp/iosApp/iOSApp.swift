@@ -2,8 +2,10 @@ import SwiftUI
 import shared
 import BackgroundTasks
 import UserNotifications
+import FirebaseCore
+import FirebaseMessaging
 
-class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate, MessagingDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
         // Init Koin
         let supabaseUrl = Environment.supabaseUrl
@@ -24,6 +26,17 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
             backendBaseUrl: backendBaseUrl,
             isDebug: isDebug
         )
+        
+        // Initialize Firebase with environment-specific plist
+        let plistName = isDebug ? "GoogleService-Info-Dev" : "GoogleService-Info-Prod"
+        if let plistPath = Bundle.main.path(forResource: plistName, ofType: "plist"),
+           let options = FirebaseOptions(contentsOfFile: plistPath) {
+            FirebaseApp.configure(options: options)
+            Messaging.messaging().delegate = self
+            print("Firebase configured successfully using \(plistName).plist.")
+        } else {
+            print("\(plistName).plist not found in the bundle. Firebase not configured.")
+        }
         
         // Register Background Task
         BGTaskScheduler.shared.register(forTaskWithIdentifier: "com.segurancarural.gpstracker.sync", using: nil) { [weak self] task in
@@ -94,18 +107,28 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         let tokenParts = deviceToken.map { data in String(format: "%02.2hhx", data) }
         let token = tokenParts.joined()
-        print("Device Token: \(token)")
+        print("APNs Device Token: \(token)")
         
-        // Enqueue the token update via KMP's OfflineRequestManager
+        // Pass APNs token to Firebase Messaging
+        Messaging.messaging().apnsToken = deviceToken
+    }
+    
+    func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
+        guard let token = fcmToken else { return }
+        print("Firebase registration token: \(token)")
+        
         let deviceSerialNumber = UIDevice.current.identifierForVendor?.uuidString ?? "ios-device"
-        let bodyJson = "{\"serialNumber\":\"\(deviceSerialNumber)\",\"fcmToken\":\"\(token)\"}"
         
-        KoinIOSKt.getOfflineRequestManager().enqueue(
-            serviceType: "FCM_TOKEN",
-            url: ApiRoutes().FCM_TOKEN,
-            method: "PATCH",
-            bodyJson: bodyJson
-        )
+        Task {
+            do {
+                let repo = KoinIOSKt.getPushTokenRepository()
+                // uploadToken is a suspend function; Kotlin maps Boolean returns safely.
+                let _ = try await repo.uploadToken(token: token, serialNumber: deviceSerialNumber)
+                print("FCM Token successfully handed off to KMP PushTokenRepository.")
+            } catch {
+                print("Error uploading FCM token: \(error)")
+            }
+        }
     }
     
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {

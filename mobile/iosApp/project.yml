@@ -4,14 +4,6 @@ options:
   deploymentTarget:
     iOS: "16.0"
 
-configs:
-  Debug-Dev: debug
-  Release-Dev: release
-  Debug-Pre: debug
-  Release-Pre: release
-  Debug-Prod: debug
-  Release-Prod: release
-
 targets:
   iosApp:
     type: application
@@ -24,29 +16,13 @@ targets:
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         SWIFT_VERSION: "5.0"
         DEVELOPMENT_TEAM: "" # To be filled locally by the user
+        PRODUCT_BUNDLE_IDENTIFIER: com.segurancarural.gpstracker
+        PRODUCT_NAME: SegurancaRural
         OTHER_LDFLAGS:
           - -ObjC
-      configs:
-        Debug-Dev:
-          PRODUCT_BUNDLE_IDENTIFIER: com.segurancarural.gpstracker.dev
-          PRODUCT_NAME: SegurancaRuralDEV
-        Release-Dev:
-          PRODUCT_BUNDLE_IDENTIFIER: com.segurancarural.gpstracker.dev
-          PRODUCT_NAME: SegurancaRuralDEV
-        Debug-Pre:
-          PRODUCT_BUNDLE_IDENTIFIER: com.segurancarural.gpstracker.pre
-          PRODUCT_NAME: SegurancaRuralPRE
-        Release-Pre:
-          PRODUCT_BUNDLE_IDENTIFIER: com.segurancarural.gpstracker.pre
-          PRODUCT_NAME: SegurancaRuralPRE
-        Debug-Prod:
-          PRODUCT_BUNDLE_IDENTIFIER: com.segurancarural.gpstracker
-          PRODUCT_NAME: SegurancaRural
-        Release-Prod:
-          PRODUCT_BUNDLE_IDENTIFIER: com.segurancarural.gpstracker
-          PRODUCT_NAME: SegurancaRural
     preBuildScripts:
       - name: Generate Environment Variables
+        basedOnDependencyAnalysis: false
         script: |
           cd "$SRCROOT/.."
           LOCAL_PROPS="local.properties"
@@ -74,14 +50,10 @@ targets:
           fi
           
           # Resolve backend URL based on configuration
-          if [[ "$CONFIGURATION" == *"-Dev"* ]]; then
+          if [[ "$CONFIGURATION" == *"Debug"* ]]; then
               backendUrl=$(grep '^backend.base.url.dev=' "$LOCAL_PROPS" 2>/dev/null | cut -d'=' -f2)
               [ -z "$backendUrl" ] && backendUrl=$(grep '^backend.base.url=' "$LOCAL_PROPS" 2>/dev/null | cut -d'=' -f2)
-              [ -z "$backendUrl" ] && backendUrl="https://gps-tracker-8q7deewac-gmlourencos-projects.vercel.app/"
-          elif [[ "$CONFIGURATION" == *"-Pre"* ]]; then
-              backendUrl=$(grep '^backend.base.url.pre=' "$LOCAL_PROPS" 2>/dev/null | cut -d'=' -f2)
-              [ -z "$backendUrl" ] && backendUrl=$(grep '^backend.base.url=' "$LOCAL_PROPS" 2>/dev/null | cut -d'=' -f2)
-              [ -z "$backendUrl" ] && backendUrl="https://segurancarural-gpstracker-pre.vercel.app"
+              [ -z "$backendUrl" ] && backendUrl="https://gps-tracker-2j795tlgx-gmlourencos-projects.vercel.app/"
           else
               backendUrl=$(grep '^backend.base.url.prod=' "$LOCAL_PROPS" 2>/dev/null | cut -d'=' -f2)
               [ -z "$backendUrl" ] && backendUrl=$(grep '^backend.base.url=' "$LOCAL_PROPS" 2>/dev/null | cut -d'=' -f2)
@@ -90,7 +62,7 @@ targets:
           
           echo "    static let backendBaseUrl = \"$backendUrl\"" >> "$OUT_FILE"
           
-          # Pass isDebug based on Configuration prefix
+          # Pass isDebug based on Configuration
           if [[ "$CONFIGURATION" == *"Debug"* ]]; then
               echo "    static let isDebug = true" >> "$OUT_FILE"
           else
@@ -100,6 +72,7 @@ targets:
           echo "}" >> "$OUT_FILE"
 
       - name: Compile Kotlin KMP shared module
+        basedOnDependencyAnalysis: false
         script: |
           cd "$SRCROOT/.."
           if [[ "$CONFIGURATION" == *"Debug"* ]]; then
@@ -109,15 +82,12 @@ targets:
           fi
           ./gradlew :shared:embedAndSignAppleFrameworkForXcode
     dependencies:
-      # Google Sign-In and its transitive dependencies that have resource bundles
       - package: GoogleSignIn
         product: GoogleSignIn
-      - package: GTMAppAuth
-        product: GTMAppAuth
-      - package: AppAuth
-        product: AppAuth
-      - package: GTMSessionFetcher
-        product: GTMSessionFetcherCore
+      - package: Firebase
+        product: FirebaseCore
+      - package: Firebase
+        product: FirebaseMessaging
     info:
       path: iosApp/Info.plist
       properties:
@@ -129,6 +99,7 @@ targets:
           - location
           - fetch
           - processing
+          - remote-notification
         NSLocationWhenInUseUsageDescription: Precisamos da sua localização para o rastreio da fazenda.
         NSLocationAlwaysAndWhenInUseUsageDescription: Precisamos da localização em background para enviar os pontos para a fazenda.
         NSLocationAlwaysUsageDescription: Precisamos da localização em background para enviar os pontos para a fazenda.
@@ -139,33 +110,13 @@ targets:
 packages:
   GoogleSignIn:
     url: https://github.com/google/GoogleSignIn-iOS
-    version: 7.0.0
-  GTMAppAuth:
-    url: https://github.com/google/GTMAppAuth.git
-    version: 2.0.0
-  AppAuth:
-    url: https://github.com/openid/AppAuth-iOS.git
-    version: 1.7.6
-  GTMSessionFetcher:
-    url: https://github.com/google/gtm-session-fetcher.git
-    version: 3.5.0
+    from: "7.0.0"
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: "12.0.0"
 
 schemes:
   iosApp:
     build:
       targets:
         iosApp: all
-      preActions:
-        - name: Workaround SPM Custom Configuration Bundle Bug
-          settingsTarget: iosApp
-          script: |
-            BASE_CONFIG=$(echo "$CONFIGURATION" | cut -d'-' -f1)
-            if [ "$BASE_CONFIG" != "$CONFIGURATION" ]; then
-              SPM_BUILD_DIR="$SYMROOT/${BASE_CONFIG}${EFFECTIVE_PLATFORM_NAME}"
-              mkdir -p "$BUILT_PRODUCTS_DIR"
-              BUNDLES=("AppAuth_AppAuth.bundle" "AppAuth_AppAuthCore.bundle" "GoogleSignIn_GoogleSignIn.bundle" "GTMSessionFetcher_GTMSessionFetcherCore.bundle")
-              for bundle in "${BUNDLES[@]}"; do
-                ln -sf "$SPM_BUILD_DIR/$bundle" "$BUILT_PRODUCTS_DIR/$bundle"
-              done
-            fi
-

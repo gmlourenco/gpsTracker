@@ -10,6 +10,7 @@ import com.segurancarural.gpstracker.data.repository.FamilyPositionsRepository
 import com.segurancarural.gpstracker.data.repository.FarmRepository
 import com.segurancarural.gpstracker.data.repository.OfflineRequestManager
 import com.segurancarural.gpstracker.data.repository.TelemetryRepository
+import com.segurancarural.gpstracker.domain.usecase.SubmitLocationUseCase
 import com.segurancarural.gpstracker.sync.SyncEngine
 import com.segurancarural.gpstracker.ui.model.FamilyDeviceMarker
 import io.github.jan.supabase.auth.auth
@@ -35,12 +36,18 @@ val iosModule = module {
     }
 }
 
-
 object KoinHelper : KoinComponent {
     fun getTelemetryRepository(): TelemetryRepository = get()
     fun getFamilyPositionsRepository(): FamilyPositionsRepository = get()
     fun getSyncEngine(): SyncEngine = get()
     fun getFarmRepository(): FarmRepository = get()
+    fun getDeviceConfigRepository(): com.segurancarural.gpstracker.data.repository.DeviceConfigRepository = get()
+    fun getPushTokenRepository(): com.segurancarural.gpstracker.data.repository.PushTokenRepository = get()
+    fun getSubmitLocationUseCase(): SubmitLocationUseCase = get()
+}
+
+fun getSubmitLocationUseCase(): SubmitLocationUseCase {
+    return KoinHelper.getSubmitLocationUseCase()
 }
 
 fun getTelemetryRepository(): TelemetryRepository {
@@ -49,6 +56,14 @@ fun getTelemetryRepository(): TelemetryRepository {
 
 fun getFamilyPositionsRepository(): FamilyPositionsRepository {
     return KoinHelper.getFamilyPositionsRepository()
+}
+
+fun getDeviceConfigRepository(): com.segurancarural.gpstracker.data.repository.DeviceConfigRepository {
+    return KoinHelper.getDeviceConfigRepository()
+}
+
+fun getPushTokenRepository(): com.segurancarural.gpstracker.data.repository.PushTokenRepository {
+    return KoinHelper.getPushTokenRepository()
 }
 
 @Throws(Exception::class)

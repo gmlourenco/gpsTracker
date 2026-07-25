@@ -796,7 +796,7 @@ fun ConfigScreen(
                 savedMapTheme = selectedMapTheme
 
                 scope.launch {
-                    val result = DeviceConfigRepository(context).saveConfigToBackend(
+                    val result = DeviceConfigRepository().saveConfigToBackend(
                         DeviceConfigDto(
                             serialNumber = context.ensureSerialNumber(),
                             deviceLabel = trimmedLabel,

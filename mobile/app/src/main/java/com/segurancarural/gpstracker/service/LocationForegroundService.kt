@@ -546,8 +546,40 @@ class LocationForegroundService : Service(), KoinComponent {
 
     private fun storeRecord(record: TelemetryRecord) {
         serviceScope.launch {
-            submitLocationUseCase(record)
-            Log.d(TAG, "Submitted record (emergency=${record.emergencyState}, accuracy=${record.accuracy}m)")
+            val filterResult = submitLocationUseCase(record)
+            when (filterResult) {
+                is com.segurancarural.gpstracker.util.FilterResult.Accept -> {
+                    Log.d(TAG, "Submitted record (emergency=${record.emergencyState}, accuracy=${record.accuracy}m)")
+                }
+                is com.segurancarural.gpstracker.util.FilterResult.DiscardRedundant -> {
+                    Log.d(TAG, "Discarded redundant stationary jitter point")
+                }
+                is com.segurancarural.gpstracker.util.FilterResult.SuspiciousJumpRecheck -> {
+                    Log.w(TAG, "Suspicious jump / Wi-Fi bounce detected! Requesting rapid location re-check in 2.5s...")
+                    delay(2500L)
+                    requestImmediateLocationRecheck()
+                }
+            }
+        }
+    }
+
+    private fun requestImmediateLocationRecheck() {
+        try {
+            val currentLocationRequest = CurrentLocationRequest.Builder()
+                .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+                .setGranularity(Granularity.GRANULARITY_FINE)
+                .setDurationMillis(5_000)
+                .setMaxUpdateAgeMillis(0)
+                .build()
+            fusedLocationClient.getCurrentLocation(currentLocationRequest, null)
+                .addOnSuccessListener { location: android.location.Location? ->
+                    if (location != null) {
+                        Log.i(TAG, "✅ Immediate recheck fix received (${location.accuracy}m)")
+                        processLocationFix(location)
+                    }
+                }
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Location permission missing for recheck: ${e.message}")
         }
     }
 
