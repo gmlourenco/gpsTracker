@@ -44,6 +44,16 @@ class AccidentDetector(
     private var lastGyroMagnitude = 0f
     private var lastGyroTimestamp: Long = 0L
     private var totalRotationRad = 0f
+    
+    // Speed threshold state
+    private var lastLowSpeedTime: Long? = null
+    private val speedThresholdMps = 0.55f // approx 2.0 km/h
+    private val speedDelayMs = 30000L
+    private var isPausedDueToLowSpeed = false
+
+    // Low-Pass Filter variables
+    private val alpha = 0.8f
+    private val gravity = FloatArray(3)
 
     // Map sensitivity to G-force threshold in m/s^2 (G * 9.8)
     private val threshold: Float = when {
@@ -57,6 +67,10 @@ class AccidentDetector(
     }
 
     fun start() {
+        if (sensitivity.lowercase() == "off") {
+            Log.i(TAG, "Sensor de acidente explicitamente desligado nas configurações.")
+            return
+        }
         if (accelerometer == null) {
             Log.e(TAG, "Accelerometer not available on this device!")
             return
@@ -65,12 +79,11 @@ class AccidentDetector(
             handlerThread = HandlerThread("AccidentSensor").apply { start() }
             handler = Handler(handlerThread!!.looper)
             
-            // SENSOR_DELAY_GAME (~20ms sampling interval)
-            sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME, handler)
-            gyroscope?.let {
-                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME, handler)
-            }
             isListening = true
+            isPausedDueToLowSpeed = false
+            lastLowSpeedTime = null
+            resumeUpdates()
+            
             consecutiveOverThresholdCount = 0
             Log.i(TAG, "Accident sensor started with sensitivity: $sensitivity (threshold: ${threshold} m/s²)")
         }
@@ -83,8 +96,48 @@ class AccidentDetector(
             handlerThread = null
             handler = null
             isListening = false
+            isPausedDueToLowSpeed = false
             consecutiveOverThresholdCount = 0
+            gravity.fill(0f)
             Log.i(TAG, "Accident sensor stopped")
+        }
+    }
+    
+    private fun pauseUpdates() {
+        if (isListening) {
+            sensorManager.unregisterListener(this)
+            Log.i(TAG, "Paused motion updates due to low speed")
+        }
+    }
+
+    private fun resumeUpdates() {
+        if (isListening && !isPausedDueToLowSpeed) {
+            sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_NORMAL, handler)
+            gyroscope?.let {
+                sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL, handler)
+            }
+        }
+    }
+    
+    fun updateSpeed(speedMps: Float) {
+        handler?.post {
+            if (speedMps < speedThresholdMps) {
+                if (lastLowSpeedTime == null) {
+                    lastLowSpeedTime = System.currentTimeMillis()
+                } else if (System.currentTimeMillis() - lastLowSpeedTime!! >= speedDelayMs) {
+                    if (!isPausedDueToLowSpeed) {
+                        isPausedDueToLowSpeed = true
+                        pauseUpdates()
+                    }
+                }
+            } else {
+                lastLowSpeedTime = null
+                if (isPausedDueToLowSpeed) {
+                    isPausedDueToLowSpeed = false
+                    Log.i(TAG, "Resuming motion updates due to increased speed")
+                    resumeUpdates()
+                }
+            }
         }
     }
 
@@ -97,9 +150,15 @@ class AccidentDetector(
     }
 
     private fun processAccelerometer(event: SensorEvent) {
-        val x = event.values[0]
-        val y = event.values[1]
-        val z = event.values[2]
+        // Isolate the force of gravity with the low-pass filter to ignore tractor engine vibration
+        gravity[0] = alpha * gravity[0] + (1 - alpha) * event.values[0]
+        gravity[1] = alpha * gravity[1] + (1 - alpha) * event.values[1]
+        gravity[2] = alpha * gravity[2] + (1 - alpha) * event.values[2]
+
+        // Remove the gravity contribution with the high-pass filter
+        val x = event.values[0] - gravity[0]
+        val y = event.values[1] - gravity[1]
+        val z = event.values[2] - gravity[2]
 
         val magnitude = sqrt((x * x + y * y + z * z).toDouble()).toFloat()
 

@@ -1,0 +1,130 @@
+name: iosApp
+options:
+  bundleIdPrefix: com.segurancarural
+  deploymentTarget:
+    iOS: "16.0"
+
+targets:
+  iosApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources: [iosApp]
+    entitlements:
+      path: iosApp/iosApp.entitlements
+    settings:
+      base:
+        INFOPLIST_FILE: iosApp/Info.plist
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+        SWIFT_VERSION: "5.0"
+        DEVELOPMENT_TEAM: "" # To be filled locally by the user
+        PRODUCT_BUNDLE_IDENTIFIER: com.segurancarural.gpstracker
+        PRODUCT_NAME: SegurancaRural
+        OTHER_LDFLAGS:
+          - -ObjC
+    preBuildScripts:
+      - name: Generate Environment Variables
+        basedOnDependencyAnalysis: false
+        script: |
+          cd "$SRCROOT/.."
+          LOCAL_PROPS="local.properties"
+          OUT_FILE="iosApp/iosApp/Environment.swift"
+          
+          # Write Environment.swift
+          echo "import Foundation" > "$OUT_FILE"
+          echo "struct Environment {" >> "$OUT_FILE"
+          
+          if [ -f "$LOCAL_PROPS" ]; then
+              while IFS='=' read -r key value; do
+                  key=$(echo "$key" | tr -d '\r')
+                  value=$(echo "$value" | tr -d '\r')
+                  if [[ $key == \#* ]] || [[ -z $key ]]; then continue; fi
+                  
+                  if [ "$key" == "supabase.url" ]; then
+                      value=$(echo "$value" | sed 's/\\:/:/g')
+                      echo "    static let supabaseUrl = \"$value\"" >> "$OUT_FILE"
+                  elif [ "$key" == "supabase.key" ]; then
+                      echo "    static let supabaseKey = \"$value\"" >> "$OUT_FILE"
+                  elif [ "$key" == "device.api.secret" ]; then
+                      echo "    static let deviceApiSecret = \"$value\"" >> "$OUT_FILE"
+                  fi
+              done < "$LOCAL_PROPS"
+          fi
+          
+          # Resolve backend URL based on configuration
+          if [[ "$CONFIGURATION" == *"Debug"* ]]; then
+              backendUrl=$(grep '^backend.base.url.dev=' "$LOCAL_PROPS" 2>/dev/null | cut -d'=' -f2)
+              [ -z "$backendUrl" ] && backendUrl=$(grep '^backend.base.url=' "$LOCAL_PROPS" 2>/dev/null | cut -d'=' -f2)
+              [ -z "$backendUrl" ] && backendUrl="https://gps-tracker-2j795tlgx-gmlourencos-projects.vercel.app/"
+          else
+              backendUrl=$(grep '^backend.base.url.prod=' "$LOCAL_PROPS" 2>/dev/null | cut -d'=' -f2)
+              [ -z "$backendUrl" ] && backendUrl=$(grep '^backend.base.url=' "$LOCAL_PROPS" 2>/dev/null | cut -d'=' -f2)
+              [ -z "$backendUrl" ] && backendUrl="https://gps-tracker-nine-omega.vercel.app"
+          fi
+          
+          echo "    static let backendBaseUrl = \"$backendUrl\"" >> "$OUT_FILE"
+          
+          # Pass isDebug based on Configuration
+          if [[ "$CONFIGURATION" == *"Debug"* ]]; then
+              echo "    static let isDebug = true" >> "$OUT_FILE"
+          else
+              echo "    static let isDebug = false" >> "$OUT_FILE"
+          fi
+          
+          echo "}" >> "$OUT_FILE"
+
+      - name: Compile Kotlin KMP shared module
+        basedOnDependencyAnalysis: false
+        script: |
+          cd "$SRCROOT/.."
+          if [[ "$CONFIGURATION" == *"Debug"* ]]; then
+            export KOTLIN_FRAMEWORK_BUILD_TYPE="debug"
+          else
+            export KOTLIN_FRAMEWORK_BUILD_TYPE="release"
+          fi
+          ./gradlew :shared:embedAndSignAppleFrameworkForXcode
+    dependencies:
+      - package: GoogleSignIn
+        product: GoogleSignIn
+      - package: Firebase
+        product: FirebaseCore
+      - package: Firebase
+        product: FirebaseMessaging
+    info:
+      path: iosApp/Info.plist
+      properties:
+        GIDClientID: 522937712462-4vc4goged9jf34v5q26por5d063p2adv.apps.googleusercontent.com
+        CFBundleURLTypes:
+          - CFBundleTypeRole: Editor
+            CFBundleURLSchemes:
+              - com.googleusercontent.apps.522937712462-4vc4goged9jf34v5q26por5d063p2adv
+              - com.googleusercontent.apps.522937712462-kupd9i6co961n0e38tc811lnumrjqngn
+        CFBundleName: $(PRODUCT_NAME)
+        CFBundleDisplayName: $(PRODUCT_NAME)
+        UILaunchScreen:
+          UILaunchScreen: {}
+        UIBackgroundModes:
+          - location
+          - fetch
+          - processing
+          - remote-notification
+        NSLocationWhenInUseUsageDescription: Precisamos da sua localização para o rastreio da fazenda.
+        NSLocationAlwaysAndWhenInUseUsageDescription: Precisamos da localização em background para enviar os pontos para a fazenda.
+        NSLocationAlwaysUsageDescription: Precisamos da localização em background para enviar os pontos para a fazenda.
+        NSMotionUsageDescription: Precisamos aceder aos sensores de movimento para detetar acidentes graves ou capotamento do veículo (trator).
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.segurancarural.gpstracker.sync
+
+packages:
+  GoogleSignIn:
+    url: https://github.com/google/GoogleSignIn-iOS
+    from: "7.0.0"
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: "12.0.0"
+
+schemes:
+  iosApp:
+    build:
+      targets:
+        iosApp: all

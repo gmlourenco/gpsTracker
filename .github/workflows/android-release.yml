@@ -1,22 +1,11 @@
-# Build a signed release APK and publish to GitHub Releases.
-# Trigger manually with a version, or push changes to app-release.json on main.
-#
-# Required GitHub secrets (Settings → Secrets → Actions):
-#   ANDROID_KEYSTORE_BASE64  — base64-encoded .jks / .keystore file
-#   ANDROID_KEYSTORE_PASSWORD
-#   ANDROID_KEY_ALIAS
-#   ANDROID_KEY_PASSWORD
-#
-# After release: set Vercel env APP_LATEST_VERSION and APP_DOWNLOAD_URL to the new asset URL.
-
 name: Android Release
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Semver version (e.g. 1.5.0)'
-        required: true
+        description: 'Semver version (e.g. 0.6.0)'
+        required: false
         type: string
   push:
     branches: [main]
@@ -24,7 +13,7 @@ on:
       - 'backend/app/config/app-release.json'
 
 jobs:
-  release:
+  release-android:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -43,18 +32,6 @@ jobs:
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "Release version: $VERSION"
 
-      - name: Sync app-release.json version
-        run: |
-          node <<'NODE'
-          const fs = require('fs');
-          const path = 'backend/app/config/app-release.json';
-          const cfg = JSON.parse(fs.readFileSync(path, 'utf8'));
-          cfg.latestVersion = process.env.VERSION;
-          fs.writeFileSync(path, JSON.stringify(cfg, null, 2) + '\n');
-          NODE
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-
       - name: Setup Java 17
         uses: actions/setup-java@v4
         with:
@@ -71,7 +48,7 @@ jobs:
         run: |
           if [ -n "$GOOGLE_SERVICES_BASE64" ]; then
             echo "Decoding google-services.json from Base64 secret..."
-            echo "$GOOGLE_SERVICES_BASE64" | base64 -d > mobile/app/google-services.json
+            echo "$GOOGLE_SERVICES_BASE64" | base64 --decode > mobile/app/google-services.json
           elif [ -n "$GOOGLE_SERVICES_JSON" ]; then
             echo "Writing google-services.json from JSON secret..."
             echo "$GOOGLE_SERVICES_JSON" > mobile/app/google-services.json
@@ -89,9 +66,9 @@ jobs:
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > mobile/release.keystore
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > mobile/release.keystore
 
-      - name: Assemble release APK
+      - name: Assemble Android release APK
         working-directory: mobile
         env:
           VERSION_NAME: ${{ steps.version.outputs.version }}
@@ -114,23 +91,20 @@ jobs:
             ./gradlew :app:assembleProdRelease -PversionName="$VERSION_NAME" --stacktrace
           fi
 
-      - name: Rename APK
+      - name: Package Android artifact
         run: |
           APK=$(find mobile/app/build/outputs/apk -name '*.apk' | head -1)
           cp "$APK" "mobile/seguranca-rural-${{ steps.version.outputs.version }}.apk"
 
-      - name: Create GitHub Release
+      - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}
           name: Segurança Rural v${{ steps.version.outputs.version }}
           body: |
-            ## Segurança Rural Android v${{ steps.version.outputs.version }}
-
-            Download `seguranca-rural-*.apk` and install on the device (keeps existing settings).
-
-            **Vercel:** set `APP_LATEST_VERSION=${{ steps.version.outputs.version }}` and
-            `APP_DOWNLOAD_URL` to this release asset URL.
-          files: mobile/seguranca-rural-${{ steps.version.outputs.version }}.apk
+            ### 🤖 Android (v${{ steps.version.outputs.version }})
+            * Faça download de `seguranca-rural-${{ steps.version.outputs.version }}.apk` e instale no dispositivo Android.
+          append_body: true
+          files: |
+            mobile/seguranca-rural-${{ steps.version.outputs.version }}.apk
           draft: false
-          generate_release_notes: true

@@ -1,0 +1,25 @@
+package com.segurancarural.gpstracker.data.dto
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class DeviceDto(
+    @SerialName("id") val id: String,
+    @SerialName("label") val label: String,
+    @SerialName("marker_color") val markerColor: String = "#16A34A",
+    @SerialName("farm_id") val farmId: String? = null,
+    @SerialName("app_version") val appVersion: String = "1.0.0",
+    @SerialName("last_seen_at") val lastSeenAt: String? = null,
+    @SerialName("latestLocation") val latestLocation: LocationDto? = null,
+    @SerialName("previousLocations") val previousLocations: List<PreviousLocationDto>? = null
+)
+
+@Serializable
+data class PreviousLocationDto(
+    @SerialName("lat") val lat: Double,
+    @SerialName("lng") val lng: Double,
+    @SerialName("accuracy") val accuracy: Double = 0.0,
+    @SerialName("heading") val heading: Double = 0.0,
+    @SerialName("created_at") val createdAt: String
+)

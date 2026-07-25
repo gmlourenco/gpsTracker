@@ -11,7 +11,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '../../lib/supabase';
+import { timingSafeEqual } from 'crypto';
+import { getAuthenticatedUser } from '../../lib/auth-utils';
+import { getSupabaseServerClient, getSupabaseAdmin } from '../../lib/supabase';
 import {
   getTelemetryValidationErrors,
   validateTelemetryPayload,
@@ -46,20 +48,53 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
   }
 
   const payload = body;
-  const supabase = getSupabaseAdmin();
+  const authHeader = request.headers.get('authorization') || '';
+  const expected = `Bearer ${process.env.DEVICE_API_SECRET}`;
+  const isDevice = authHeader.length === expected.length && timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
+
+  let supabase;
+  let userId: string | null = null;
+
+  if (isDevice) {
+    supabase = getSupabaseAdmin();
+  } else {
+    supabase = await getSupabaseServerClient(request);
+    const { data: { user }, error: authError } = await getAuthenticatedUser(request, supabase);
+    if (authError || !user) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 401 }
+      );
+    }
+    userId = user.id;
+  }
 
   // ── 2. Upsert device ──────────────────────────────────────────────────────
+  const deviceUpdatePayload: {
+    id: string;
+    label: string;
+    marker_color: string;
+    last_seen_at: string;
+    tracking_enabled?: boolean;
+    app_version: string;
+    user_id?: string;
+  } = {
+    id: payload.serialNumber,
+    label: payload.deviceLabel,
+    marker_color: payload.markerColor?.toUpperCase() ?? '#16A34A',
+    last_seen_at: new Date().toISOString(),
+    tracking_enabled: payload.trackingEnabled,
+    app_version: payload.appVersion,
+  };
+  
+  if (userId) {
+    deviceUpdatePayload.user_id = userId;
+  }
+
   const { error: deviceError } = await supabase
     .from('devices')
     .upsert(
-      {
-        id: payload.serialNumber,
-        label: payload.deviceLabel,
-        marker_color: payload.markerColor?.toUpperCase() ?? '#16A34A',
-        last_seen_at: new Date().toISOString(),
-        tracking_enabled: payload.trackingEnabled,
-        app_version: payload.appVersion,
-      },
+      deviceUpdatePayload,
       {
         onConflict: 'id',
         ignoreDuplicates: false, // always update last_seen_at

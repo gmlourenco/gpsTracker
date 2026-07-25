@@ -15,7 +15,9 @@ import android.os.Looper
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.google.android.gms.location.CurrentLocationRequest
 import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.Granularity
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
@@ -23,8 +25,6 @@ import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import com.segurancarural.gpstracker.BuildConfig
 import com.segurancarural.gpstracker.data.model.TelemetryRecord
-import com.segurancarural.gpstracker.data.repository.FamilyPositionsRepository
-import com.segurancarural.gpstracker.data.repository.TelemetryRepository
 import com.segurancarural.gpstracker.data.repository.TrackingStateRepository
 import com.segurancarural.gpstracker.domain.usecase.SubmitLocationUseCase
 import com.segurancarural.gpstracker.receiver.HeartbeatReceiver
@@ -38,8 +38,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 import java.time.Instant
 
 private const val TAG = "LocationFgService"
@@ -63,7 +64,9 @@ private const val NOTIFICATION_ID = 1001
  * Start/stop the service from [MainActivity] or [BootReceiver].
  * Toggle SOS mode via [ACTION_SOS_ACTIVATE] / [ACTION_SOS_DEACTIVATE] intents.
  */
-class LocationForegroundService : Service() {
+class LocationForegroundService : Service(), KoinComponent {
+
+    private val submitLocationUseCase: SubmitLocationUseCase by inject()
 
     companion object {
         const val ACTION_START = "com.segurancarural.gpstracker.action.START_TRACKING"
@@ -141,6 +144,14 @@ class LocationForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Android 14+ Compliance: Explicitly construct and call startForeground immediately
+        val notification = buildNotification()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+
         when (intent?.action) {
             ACTION_STOP -> {
                 stopTracking()
@@ -160,7 +171,13 @@ class LocationForegroundService : Service() {
                 updateNotification()
                 try {
                     Log.d(TAG, "Forcing immediate GPS fix for SOS activation...")
-                    fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                    val currentLocationRequest = CurrentLocationRequest.Builder()
+                        .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+                        .setGranularity(Granularity.GRANULARITY_FINE)
+                        .setDurationMillis(10_000)
+                        .setMaxUpdateAgeMillis(0)
+                        .build()
+                    fusedLocationClient.getCurrentLocation(currentLocationRequest, null)
                         .addOnSuccessListener { location: android.location.Location? ->
                             if (location != null) {
                                 Log.i(TAG, "✅ Forced immediate SOS location fix received (${location.accuracy}m)")
@@ -208,31 +225,24 @@ class LocationForegroundService : Service() {
     private fun startTracking() {
         TrackingStateRepository.setTracking(true)
 
-        // Acquire wake lock to keep CPU awake while tracking is active
-        try {
-            val powerManager = getSystemService(Context.POWER_SERVICE) as PowerManager
-            wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SegurancaRural::TrackingWakeLock").apply {
-                acquire(12 * 60 * 60 * 1000L) // 12-hour max (full work day)
-            }
-            Log.i(TAG, "WakeLock acquired successfully")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to acquire WakeLock: ${e.message}")
-        }
+        // Abusive Wakelock removed: Do not hold massive wakelocks continuously.
+        // Relying on Foreground Service TYPE_LOCATION instead.
 
-        // Start as foreground service with sticky notification
-        val notification = buildNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
+        // Start as foreground service with sticky notification (already handled in onStartCommand)
+        updateNotification()
 
         registerLocationCallback()
         requestLocationUpdates()
         
         try {
             Log.d(TAG, "Requesting immediate forced location fix...")
-            fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+            val currentLocationRequest = CurrentLocationRequest.Builder()
+                .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+                .setGranularity(Granularity.GRANULARITY_FINE)
+                .setDurationMillis(10_000)
+                .setMaxUpdateAgeMillis(0)
+                .build()
+            fusedLocationClient.getCurrentLocation(currentLocationRequest, null)
                 .addOnSuccessListener { location: android.location.Location? ->
                     if (location != null) {
                         Log.i(TAG, "✅ Forced immediate location fix received (${location.accuracy}m)")
@@ -305,7 +315,13 @@ class LocationForegroundService : Service() {
         } else {
             Log.w(TAG, "Cannot store heartbeat: lastKnownLocation is null, requesting immediate fix")
             try {
-                fusedLocationClient.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
+                val currentLocationRequest = CurrentLocationRequest.Builder()
+                    .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+                    .setGranularity(Granularity.GRANULARITY_FINE)
+                    .setDurationMillis(10_000)
+                    .setMaxUpdateAgeMillis(0)
+                    .build()
+                fusedLocationClient.getCurrentLocation(currentLocationRequest, null)
                     .addOnSuccessListener { location: android.location.Location? ->
                         if (location != null) {
                             Log.i(TAG, "✅ Heartbeat immediate location fix received (${location.accuracy}m)")
@@ -358,6 +374,7 @@ class LocationForegroundService : Service() {
             override fun onLocationResult(result: LocationResult) {
                 for (location in result.locations) {
                     TrackingStateRepository.setLastAccuracy(location.accuracy)
+                    accidentDetector?.updateSpeed(location.speed)
                     processLocationFix(location)
                 }
             }
@@ -387,6 +404,7 @@ class LocationForegroundService : Service() {
         }
 
         val requestBuilder = LocationRequest.Builder(priority, intervalMs)
+            .setGranularity(Granularity.GRANULARITY_FINE)
             .setMinUpdateIntervalMillis(maxOf(intervalMs / 2, 10_000L))
             .setMaxUpdateDelayMillis(if (isSos) intervalMs else intervalMs * 6)
             .setWaitForAccurateLocation(true)
@@ -527,11 +545,41 @@ class LocationForegroundService : Service() {
     }
 
     private fun storeRecord(record: TelemetryRecord) {
-        val repository = TelemetryRepository(applicationContext)
-        val submitLocationUseCase = SubmitLocationUseCase(repository)
         serviceScope.launch {
-            submitLocationUseCase(record)
-            Log.d(TAG, "Submitted record (emergency=${record.emergencyState}, accuracy=${record.accuracy}m)")
+            val filterResult = submitLocationUseCase(record)
+            when (filterResult) {
+                is com.segurancarural.gpstracker.util.FilterResult.Accept -> {
+                    Log.d(TAG, "Submitted record (emergency=${record.emergencyState}, accuracy=${record.accuracy}m)")
+                }
+                is com.segurancarural.gpstracker.util.FilterResult.DiscardRedundant -> {
+                    Log.d(TAG, "Discarded redundant stationary jitter point")
+                }
+                is com.segurancarural.gpstracker.util.FilterResult.SuspiciousJumpRecheck -> {
+                    Log.w(TAG, "Suspicious jump / Wi-Fi bounce detected! Requesting rapid location re-check in 2.5s...")
+                    delay(2500L)
+                    requestImmediateLocationRecheck()
+                }
+            }
+        }
+    }
+
+    private fun requestImmediateLocationRecheck() {
+        try {
+            val currentLocationRequest = CurrentLocationRequest.Builder()
+                .setPriority(Priority.PRIORITY_HIGH_ACCURACY)
+                .setGranularity(Granularity.GRANULARITY_FINE)
+                .setDurationMillis(5_000)
+                .setMaxUpdateAgeMillis(0)
+                .build()
+            fusedLocationClient.getCurrentLocation(currentLocationRequest, null)
+                .addOnSuccessListener { location: android.location.Location? ->
+                    if (location != null) {
+                        Log.i(TAG, "✅ Immediate recheck fix received (${location.accuracy}m)")
+                        processLocationFix(location)
+                    }
+                }
+        } catch (e: SecurityException) {
+            Log.e(TAG, "Location permission missing for recheck: ${e.message}")
         }
     }
 
@@ -628,6 +676,31 @@ class LocationForegroundService : Service() {
         manager.notify(NOTIFICATION_ID, buildNotification())
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        Log.w(TAG, "onTaskRemoved called - App swiped away")
+        if (TrackingStateRepository.isTracking.value) {
+            val restartIntent = Intent(applicationContext, this.javaClass).apply {
+                setPackage(packageName)
+            }
+            val pendingIntent = PendingIntent.getService(
+                this,
+                1,
+                restartIntent,
+                PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val alarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
+            alarmManager.set(
+                AlarmManager.ELAPSED_REALTIME,
+                android.os.SystemClock.elapsedRealtime() + 1000,
+                pendingIntent
+            )
+            Log.i(TAG, "Scheduled alarm to restart tracking service")
+        } else {
+            stopSelf()
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
@@ -648,34 +721,7 @@ class LocationForegroundService : Service() {
     }
 
     private fun startBackgroundEmergencyPolling() {
-        pollingJob?.cancel()
-        pollingJob = serviceScope.launch {
-            val familyRepository = FamilyPositionsRepository()
-            val notifiedSosDevices = mutableSetOf<String>()
-            
-            while (isActive) {
-                val ourSerialNumber = applicationContext.ensureSerialNumber()
-                val result = familyRepository.fetchLastPositions()
-                result.fold(
-                    onSuccess = { markers ->
-                        val emergencyMarkers = markers.filter { it.emergencyState && it.deviceId != ourSerialNumber }
-                        for (marker in emergencyMarkers) {
-                            if (marker.deviceId !in notifiedSosDevices) {
-                                triggerEmergencyNotification(marker)
-                                notifiedSosDevices.add(marker.deviceId)
-                            }
-                        }
-                        // Clean up devices that are no longer in SOS
-                        val currentSosIds = emergencyMarkers.map { it.deviceId }
-                            notifiedSosDevices.retainAll(currentSosIds)
-                        },
-                        onFailure = { error ->
-                            Log.e(TAG, "Failed to poll family positions: ${error.message}")
-                        }
-                    )
-                delay(20_000L) // Poll every 20 seconds
-            }
-        }
+        // Disabled per user request: family positions should only be updated when showing on screen (MapViewModel).
     }
 
     private fun triggerEmergencyNotification(marker: FamilyDeviceMarker) {

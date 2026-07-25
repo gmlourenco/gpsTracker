@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>522937712462-kupd9i6co961n0e38tc811lnumrjqngn.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyCBUzyqy0PC5ptc65k1vHL2BLIDzjAHi94</string>
+	<key>GCM_SENDER_ID</key>
+	<string>522937712462</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.segurancarural.gpstracker.dev</string>
+	<key>PROJECT_ID</key>
+	<string>segurancaruralgpstracker</string>
+	<key>STORAGE_BUCKET</key>
+	<string>segurancaruralgpstracker.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:522937712462:ios:25016ffc90ca2a3269e81f</string>
+</dict>
+</plist>

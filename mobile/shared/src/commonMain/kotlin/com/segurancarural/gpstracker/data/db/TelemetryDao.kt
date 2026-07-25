@@ -31,14 +31,32 @@ interface TelemetryDao {
      * Mark one or more records as successfully synced.
      * The SyncEngine calls this after confirming the backend returned 200.
      */
-    @Query("UPDATE telemetry_queue SET synced = 1 WHERE id IN (:ids)")
+    @Query("UPDATE telemetry_queue SET syncState = 1 WHERE id IN (:ids)")
+    suspend fun markSyncing(ids: List<Long>)
+
+    /**
+     * Mark one or more records as successfully synced.
+     */
+    @Query("UPDATE telemetry_queue SET syncState = 2 WHERE id IN (:ids)")
     suspend fun markSynced(ids: List<Long>)
+
+    /**
+     * Revert records that were syncing back to pending (on network failure or startup crash recovery).
+     */
+    @Query("UPDATE telemetry_queue SET syncState = 0 WHERE syncState = 1")
+    suspend fun resetSyncingToPending(): Int
+
+    /**
+     * Revert specific records that were syncing back to pending (on transmission failure).
+     */
+    @Query("UPDATE telemetry_queue SET syncState = 0 WHERE id IN (:ids)")
+    suspend fun resetSyncingToPendingByIds(ids: List<Long>): Int
 
     /**
      * Permanently delete all records that have been marked as synced.
      * Called periodically to keep the local DB lean.
      */
-    @Query("DELETE FROM telemetry_queue WHERE synced = 1")
+    @Query("DELETE FROM telemetry_queue WHERE syncState = 2")
     suspend fun deleteSynced(): Int
 
     // ── Phase 1: Emergency / SOS records (LIFO) ───────────────────────────
@@ -50,7 +68,7 @@ interface TelemetryDao {
      */
     @Query("""
         SELECT * FROM telemetry_queue
-        WHERE synced = 0 AND emergencyState = 1
+        WHERE syncState = 0 AND emergencyState = 1
         ORDER BY createdAtEpochMs DESC
     """)
     suspend fun getEmergencyRecords(): List<TelemetryRecord>
@@ -64,7 +82,7 @@ interface TelemetryDao {
      */
     @Query("""
         SELECT * FROM telemetry_queue
-        WHERE synced = 0
+        WHERE syncState = 0
         ORDER BY createdAtEpochMs DESC
         LIMIT 1
     """)
@@ -79,7 +97,7 @@ interface TelemetryDao {
      */
     @Query("""
         SELECT * FROM telemetry_queue
-        WHERE synced = 0 AND emergencyState = 0
+        WHERE syncState = 0 AND emergencyState = 0
         ORDER BY createdAtEpochMs ASC
         LIMIT :limit
     """)
@@ -88,11 +106,12 @@ interface TelemetryDao {
     // ── Utility queries ───────────────────────────────────────────────────
 
     /** Count of all unsynced records — used for the connectivity badge UI. */
-    @Query("SELECT COUNT(*) FROM telemetry_queue WHERE synced = 0")
+    /** Count of all unsynced records — used for the connectivity badge UI. */
+    @Query("SELECT COUNT(*) FROM telemetry_queue WHERE syncState = 0")
     fun observeUnsyncedCount(): Flow<Int>
 
     /** Number of records still waiting to be uploaded. */
-    @Query("SELECT COUNT(*) FROM telemetry_queue WHERE synced = 0")
+    @Query("SELECT COUNT(*) FROM telemetry_queue WHERE syncState = 0")
     suspend fun getUnsyncedCount(): Int
 
     /** Total number of records in the queue (synced + unsynced). */
@@ -100,7 +119,7 @@ interface TelemetryDao {
     suspend fun getTotalCount(): Int
 
     /** Check if any emergency records are pending sync. */
-    @Query("SELECT COUNT(*) FROM telemetry_queue WHERE synced = 0 AND emergencyState = 1")
+    @Query("SELECT COUNT(*) FROM telemetry_queue WHERE syncState = 0 AND emergencyState = 1")
     suspend fun getEmergencyPendingCount(): Int
 
     // ── Map History ───────────────────────────────────────────────────────
@@ -112,6 +131,12 @@ interface TelemetryDao {
     @Query("SELECT * FROM telemetry_queue WHERE createdAtEpochMs >= :sinceMs ORDER BY createdAtEpochMs ASC")
     fun observeRouteHistory(sinceMs: Long): Flow<List<TelemetryRecord>>
 
+    /**
+     * Returns a reactive flow of route history for the map, filtered by explicit time boundaries.
+     */
+    @Query("SELECT * FROM telemetry_queue WHERE createdAtEpochMs >= :startMs AND createdAtEpochMs <= :endMs ORDER BY createdAtEpochMs ASC")
+    fun observeRouteHistoryBounded(startMs: Long, endMs: Long): Flow<List<TelemetryRecord>>
+
     // ── Cleanup ───────────────────────────────────────────────────────────
 
     /**
@@ -119,6 +144,6 @@ interface TelemetryDao {
      * Used on startup to purge stale records saved with a placeholder serialNumber
      * (e.g., "unknown-device-id") before the real identity was established.
      */
-    @Query("DELETE FROM telemetry_queue WHERE serialNumber = :serialNumber AND synced = 0")
+    @Query("DELETE FROM telemetry_queue WHERE serialNumber = :serialNumber AND syncState = 0")
     suspend fun deleteUnsyncedBySerialNumber(serialNumber: String): Int
 }

@@ -10,7 +10,7 @@ import com.segurancarural.gpstracker.ui.model.FamilyDeviceMarker
 import com.segurancarural.gpstracker.ui.model.FamilyRefreshStatus
 import com.segurancarural.gpstracker.ui.model.MapDisplayData
 import com.segurancarural.gpstracker.ui.model.MapMarkerDisplay
-import com.segurancarural.gpstracker.ui.model.MapPointLimit
+import com.segurancarural.gpstracker.ui.model.MapTimeFilter
 import com.segurancarural.gpstracker.util.DEFAULT_MARKER_COLOR_ARGB
 import com.segurancarural.gpstracker.util.PREF_DEVICE_LABEL
 import com.segurancarural.gpstracker.util.PREF_DEVICE_MARKER_COLOR
@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -33,9 +34,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     private val prefs = application.getSharedPreferences(TRACKING_PREFS_NAME, Application.MODE_PRIVATE)
     private val familyRepository = FamilyPositionsRepository()
 
-    private val myRouteHoursMs = 24L * 60 * 60 * 1000
-
-    val pointLimit = MutableStateFlow(MapPointLimit.LAST_100)
+    val timeFilter = MutableStateFlow(MapTimeFilter.TODAY)
 
     private val _findFamilyEnabled = MutableStateFlow(false)
     val findFamilyEnabled: StateFlow<Boolean> = _findFamilyEnabled.asStateFlow()
@@ -48,20 +47,46 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
 
     private val deviceStyle = MutableStateFlow(loadDeviceStyle())
 
-    private val rawMyRoute: StateFlow<List<TelemetryRecord>> = dao
-        .observeRouteHistory(System.currentTimeMillis() - myRouteHoursMs)
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val rawMyRoute: StateFlow<List<TelemetryRecord>> = timeFilter
+        .flatMapLatest { filter ->
+            val calendar = java.util.Calendar.getInstance()
+            val endMs: Long
+            val startMs: Long
+            when (filter) {
+                MapTimeFilter.TODAY -> {
+                    endMs = System.currentTimeMillis()
+                    calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                    calendar.set(java.util.Calendar.MINUTE, 0)
+                    calendar.set(java.util.Calendar.SECOND, 0)
+                    calendar.set(java.util.Calendar.MILLISECOND, 0)
+                    startMs = calendar.timeInMillis
+                }
+                MapTimeFilter.YESTERDAY -> {
+                    calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                    calendar.set(java.util.Calendar.MINUTE, 0)
+                    calendar.set(java.util.Calendar.SECOND, 0)
+                    calendar.set(java.util.Calendar.MILLISECOND, 0)
+                    endMs = calendar.timeInMillis - 1
+                    calendar.add(java.util.Calendar.DAY_OF_YEAR, -1)
+                    startMs = calendar.timeInMillis
+                }
+                MapTimeFilter.THIS_WEEK -> {
+                    endMs = System.currentTimeMillis()
+                    calendar.set(java.util.Calendar.DAY_OF_WEEK, calendar.firstDayOfWeek)
+                    calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
+                    calendar.set(java.util.Calendar.MINUTE, 0)
+                    calendar.set(java.util.Calendar.SECOND, 0)
+                    calendar.set(java.util.Calendar.MILLISECOND, 0)
+                    startMs = calendar.timeInMillis
+                }
+            }
+            dao.observeRouteHistoryBounded(startMs, endMs)
+        }
         .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val myRouteHistory: StateFlow<List<TelemetryRecord>> = combine(
-        rawMyRoute,
-        pointLimit,
-    ) { history, limit ->
-        when (limit.maxPoints) {
-            null -> history
-            else -> history.takeLast(limit.maxPoints)
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    val myRouteHistory: StateFlow<List<TelemetryRecord>> = rawMyRoute
 
     val mapDisplay: StateFlow<MapDisplayData> = combine(
         findFamilyEnabled,

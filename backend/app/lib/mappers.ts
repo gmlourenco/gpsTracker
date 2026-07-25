@@ -55,3 +55,65 @@ export function mapRpcRowsToDevices(
 ): DeviceWithLatestLocation[] {
   return rows.map(mapRpcRowToDevice);
 }
+
+/**
+ * Maps an array of RPC rows from get_positions_with_history to DeviceWithLatestLocation[]
+ * Grouping previous locations into the `previousLocations` array.
+ */
+export function mapRpcRowsToDevicesWithHistory(
+  rows: Record<string, unknown>[]
+): DeviceWithLatestLocation[] {
+  const deviceMap = new Map<string, DeviceWithLatestLocation>();
+
+  for (const r of rows) {
+    const deviceId = r.device_id as string;
+    const rowNum = Number(r.row_num);
+
+    if (!deviceMap.has(deviceId)) {
+      deviceMap.set(deviceId, {
+        id: deviceId,
+        label: r.label as string,
+        marker_color: r.marker_color as string,
+        created_at: '', // Not strictly needed for UI, but required by type
+        last_seen_at: null,
+        tracking_enabled: true,
+        app_version: r.app_version as string,
+        latestLocation: null,
+        previousLocations: []
+      });
+    }
+
+    const device = deviceMap.get(deviceId)!;
+
+    if (rowNum === 1 && r.lat) {
+      device.latestLocation = {
+        id: 0,
+        device_id: deviceId,
+        lat: r.lat as number,
+        lng: r.lng as number,
+        accuracy: r.accuracy as number,
+        speed: r.speed as number,
+        heading: r.heading as number,
+        battery_level: r.battery_level as number,
+        battery_charging: r.battery_charging as boolean,
+        emergency_state: r.emergency_state as boolean,
+        network_type: r.network_type as string,
+        tracking_enabled: true,
+        app_version: r.app_version as string,
+        created_at: r.created_at as string,
+        synced_at: r.created_at as string,
+      };
+      device.last_seen_at = r.created_at as string;
+    } else if (rowNum > 1 && r.lat) {
+      device.previousLocations!.push({
+        lat: r.lat as number,
+        lng: r.lng as number,
+        accuracy: r.accuracy as number,
+        heading: r.heading as number,
+        created_at: r.created_at as string,
+      });
+    }
+  }
+
+  return Array.from(deviceMap.values());
+}

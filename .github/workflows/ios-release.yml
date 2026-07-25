@@ -1,0 +1,72 @@
+name: iOS Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Semver version (e.g. 0.6.0)'
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - 'backend/app/config/app-release.json'
+
+jobs:
+  release-ios:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=$(node -p "require('./backend/app/config/app-release.json').latestVersion")
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Release version: $VERSION"
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Setup local.properties
+        run: |
+          echo "device.api.secret=${{ secrets.DEVICE_API_SECRET }}" > mobile/local.properties
+
+      - name: Assemble iOS KMP Shared Framework
+        working-directory: mobile
+        run: |
+          echo "Building iOS shared framework..."
+          chmod +x gradlew
+          ./gradlew :shared:linkReleaseFrameworkIosArm64 --stacktrace
+
+      - name: Package iOS artifact
+        run: |
+          cd mobile/shared/build/bin/iosArm64/releaseFramework
+          zip -r "${{ github.workspace }}/mobile/seguranca-rural-ios-shared-${{ steps.version.outputs.version }}.zip" shared.framework
+          cd ${{ github.workspace }}
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: Segurança Rural v${{ steps.version.outputs.version }}
+          body: |
+            ### 🍏 iOS (v${{ steps.version.outputs.version }})
+            * O ficheiro `seguranca-rural-ios-shared-${{ steps.version.outputs.version }}.zip` contém o framework Kotlin Multiplatform compilado para iOS (ARM64).
+          append_body: true
+          files: |
+            mobile/seguranca-rural-ios-shared-${{ steps.version.outputs.version }}.zip
+          draft: false

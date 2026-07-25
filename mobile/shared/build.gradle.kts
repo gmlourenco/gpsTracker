@@ -14,10 +14,17 @@ kotlin {
 
     androidTarget()
 
-    // iOS targets — placeholder for future port (Phase 3)
-    iosX64()
-    iosArm64()
-    iosSimulatorArm64()
+    // iOS targets
+    listOf(
+        iosX64(),
+        iosArm64(),
+        iosSimulatorArm64()
+    ).forEach { iosTarget ->
+        iosTarget.binaries.framework {
+            baseName = "shared"
+            isStatic = true
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {
@@ -26,9 +33,17 @@ kotlin {
             implementation(libs.ktor.client.content.negotiation)
             implementation(libs.ktor.serialization.kotlinx.json)
             implementation(libs.ktor.client.logging)
+            implementation(libs.ktor.client.auth)
+
+            // Koin core (KMP)
+            implementation(libs.koin.core)
 
             // Room runtime (KMP-compatible)
             implementation(libs.androidx.room.runtime)
+
+            // Supabase
+            implementation(libs.supabase.auth)
+            implementation(libs.supabase.postgrest)
         }
 
         androidMain.dependencies {
@@ -40,6 +55,10 @@ kotlin {
         iosMain.dependencies {
             implementation(libs.ktor.client.darwin)
             implementation(libs.androidx.sqlite.bundled)
+        }
+
+        commonTest.dependencies {
+            implementation(kotlin("test"))
         }
     }
 }
