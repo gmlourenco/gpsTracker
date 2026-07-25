@@ -32,7 +32,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -64,6 +66,12 @@ fun FamilyGroupsScreen(viewModel: FamilyGroupsViewModel = viewModel()) {
     var dropdownExpanded by remember { mutableStateOf(false) }
     var inviteCodeInput by remember { mutableStateOf("") }
     var newFarmNameInput by remember { mutableStateOf("") }
+    var isRefreshing by remember { mutableStateOf(false) }
+
+    LaunchedEffect(state.isLoading) {
+        if (!state.isLoading) isRefreshing = false
+    }
+
     // ── Confirmation Dialog ─────────────────────────────────────
     state.pendingAction?.let { pending ->
         AlertDialog(
@@ -86,12 +94,20 @@ fun FamilyGroupsScreen(viewModel: FamilyGroupsViewModel = viewModel()) {
             textContentColor = TextSecondary,
         )
     }
-    Column(
-        modifier = Modifier.fillMaxSize().background(SurfaceDark).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+    PullToRefreshBox(
+        isRefreshing = isRefreshing,
+        onRefresh = {
+            isRefreshing = true
+            viewModel.loadFarms()
+        },
+        modifier = Modifier.fillMaxSize().background(SurfaceDark)
     ) {
-        Text("Grupos Familiares", style = MaterialTheme.typography.headlineSmall,
-            color = TextPrimary, fontWeight = FontWeight.Bold)
+        Column(
+            modifier = Modifier.fillMaxSize().padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text("Grupos Familiares", style = MaterialTheme.typography.headlineSmall,
+                color = TextPrimary, fontWeight = FontWeight.Bold)
         when {
             state.errorMessage != null -> {
                 Text("Erro: ${state.errorMessage}", color = Color.Red)
@@ -293,3 +309,7 @@ fun FamilyGroupsScreen(viewModel: FamilyGroupsViewModel = viewModel()) {
         }
     }
 }
+}
+
+
+

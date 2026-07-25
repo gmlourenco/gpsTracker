@@ -65,15 +65,32 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const { data: directDevices } = await query;
       if (directDevices) directDevices.forEach(d => allowedDeviceIds!.add(d.id));
 
-      // B. Devices from the user's families (farms)
+      // B. Devices from the user's families (farms) AND devices of any co-member of those families
       if (hasFamilies) {
         const farmIds = userFarms.map(f => f.farm_id);
+        
+        // 1. Devices synced to any of my families
         const { data: farmDevices } = await adminSupabase
           .from('devices')
           .select('id')
           .in('farm_id', farmIds);
           
         if (farmDevices) farmDevices.forEach(d => allowedDeviceIds!.add(d.id));
+
+        // 2. Devices owned by any member of my families
+        const { data: coMembers } = await adminSupabase
+          .from('farm_members')
+          .select('user_id')
+          .in('farm_id', farmIds);
+          
+        const coMemberUserIds = Array.from(new Set((coMembers ?? []).map(m => m.user_id)));
+        if (coMemberUserIds.length > 0) {
+          const { data: memberDevices } = await adminSupabase
+            .from('devices')
+            .select('id')
+            .in('user_id', coMemberUserIds);
+          if (memberDevices) memberDevices.forEach(d => allowedDeviceIds!.add(d.id));
+        }
       }
     }
   }
