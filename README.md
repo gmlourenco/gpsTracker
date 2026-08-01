@@ -1,214 +1,71 @@
-# 🚜 Segurança Rural — Tractor GPS & SOS
+# 🚜 Ecossistema Segurança Rural — Mapa de Arquitetura Global
 
-> **Production-grade, offline-first GPS tracking and emergency alerting system for agricultural environments.** Built for families operating tractors and heavy machinery in isolated rural areas with limited network coverage.
+> **Documentação de Contexto Global (Master README)**
+> Este ficheiro serve como o mapa de alto nível para todo o ecossistema. Qualquer programador (ou IA) que inicie trabalhos neste repositório deve ler este documento para compreender a topologia, propósito e o fluxo de dados do projeto.
 
-[![Next.js](https://img.shields.io/badge/Backend-Next.js_15-black?logo=next.js)](https://nextjs.org/)
-[![Kotlin](https://img.shields.io/badge/Mobile-Kotlin_Multiplatform-7F52FF?logo=kotlin)](https://kotlinlang.org/docs/multiplatform.html)
-[![Supabase](https://img.shields.io/badge/Database-Supabase_PostgreSQL-3ECF8E?logo=supabase)](https://supabase.com/)
-[![MapLibre](https://img.shields.io/badge/Maps-MapLibre_GL-396CB2?logo=maplibre)](https://maplibre.org/)
-[![Vercel](https://img.shields.io/badge/Deploy-Vercel-000?logo=vercel)](https://vercel.com/)
+## 🎯 Propósito Global
+O **Segurança Rural** é um sistema *production-grade* e *offline-first* para monitorização GPS (telemetria) e emissão de alertas SOS. Foi desenhado especificamente para famílias que operam tratores e maquinaria pesada em zonas rurais e agrícolas isoladas, frequentemente com conetividade celular fraca ou inexistente. A integridade dos dados e a persistência em cenários sem rede são prioridades máximas.
 
 ---
 
-## 📐 Architecture Overview
+## 🗂️ Estrutura de Pastas e Componentes
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│                        FAMILY DEVICES (Android)                      │
-│                                                                       │
-│  ┌──────────────────────────────────────────────────┐               │
-│  │           Kotlin Multiplatform Core (shared/)    │               │
-│  │  ┌─────────────┐  ┌──────────┐  ┌────────────┐  │               │
-│  │  │ Room DB     │  │SyncEngine│  │  Models    │  │               │
-│  │  │ (Offline Q) │  │(3-Phase) │  │(TelRecord) │  │               │
-│  │  └─────────────┘  └──────────┘  └────────────┘  │               │
-│  └──────────────────────────────────────────────────┘               │
-│                                                                       │
-│  ┌──────────────┐  ┌──────────────────┐  ┌──────────────────────┐  │
-│  │  Foreground  │  │  WorkManager     │  │   Jetpack Compose    │  │
-│  │  Service     │  │  SyncWorker      │  │   UI (3 screens)     │  │
-│  │  (FusedGPS)  │  │  (Network gate)  │  │  Home/Map/Config     │  │
-│  └──────────────┘  └──────────────────┘  └──────────────────────┘  │
-└──────────────┬──────────────────────────────────────────────────────┘
-               │ HTTPS (telemetry + SOS)
-               ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│               BACKEND (Next.js App Router — Vercel)                  │
-│                                                                       │
-│   POST /api/location   POST /api/emergency   GET /api/devices        │
-│        │                      │                    │                  │
-│        └──────────────────────┴────────────────────┘                 │
-│                               │                                       │
-│                    Supabase PostgreSQL                                │
-│             (devices + locations tables, PostGIS, RLS)               │
-└─────────────────────────────────────────────────────────────────────┘
-```
+O projeto é um monorepo que agrega o backend cloud e as aplicações móveis baseadas em tecnologia partilhada:
+
+- `backend/`: Código Next.js que expõe as APIs REST de telemetria e o dashboard web. Alojado na Vercel.
+- `mobile/`: Ecossistema Mobile.
+  - `mobile/shared/`: Módulo KMP (Kotlin Multiplatform) que contém toda a lógica core (Base de Dados Local, Sync Engine, Modelos de dados). É a fonte da verdade da lógica de negócio.
+  - `mobile/app/`: App Android nativa, responsável pelo interface, serviços em background e acesso ao hardware (GPS, Boot Receivers).
+  - `mobile/iosApp/`: App iOS nativa (arquitetura SwiftUI) que consome o módulo KMP (em desenvolvimento).
 
 ---
 
-## 🗂️ Repository Structure
+## 🧩 Tecnologias Base Usadas
 
-```
-nextGPStracking/
-├── .ai/
-│   ├── Overview.md          # Full architecture specification (PT)
-│   └── plan.md              # Development status tracker
-├── .github/
-│   └── workflows/
-│       └── ci.yml           # CI: lint + build validation
-├── backend/                 # Next.js API backend
-│   ├── src/
-│   │   ├── app/
-│   │   │   └── api/
-│   │   │       ├── location/    # POST – telemetry ingest
-│   │   │       ├── emergency/   # POST – SOS handler
-│   │   │       └── devices/     # GET  – dashboard data
-│   │   ├── lib/
-│   │   │   └── supabase.ts      # Supabase singleton client
-│   │   └── types/
-│   │       └── telemetry.ts     # TypeScript payload contracts
-│   ├── supabase-schema.sql      # Full DDL (run in Supabase SQL editor)
-│   ├── vercel.json
-│   └── .env.local.example
-└── mobile/                  # Kotlin Multiplatform project
-    ├── shared/              # KMP shared logic (Android + iOS stub)
-    │   └── src/
-    │       ├── commonMain/  # Room DB, SyncEngine, models
-    │       ├── androidMain/ # Android-specific Room driver
-    │       └── iosMain/     # iOS stubs (future)
-    └── app/                 # Android app module
-        └── src/main/
-            ├── java/com/seguranca/rural/
-            │   ├── LocationForegroundService.kt
-            │   ├── BootReceiver.kt
-            │   ├── SyncWorker.kt
-            │   ├── MainActivity.kt
-            │   └── ui/screens/
-            │       ├── HomeScreen.kt   # SOS button + status
-            │       ├── MapScreen.kt    # MapLibre offline map
-            │       └── ConfigScreen.kt # Settings
-            └── AndroidManifest.xml
-```
+| Camada | Tecnologias |
+| :--- | :--- |
+| **Backend & API** | **Next.js 15** (App Router), TypeScript, Vercel |
+| **Base de Dados** | **Supabase (PostgreSQL)**, PostGIS (geofencing espacial), RLS (Row Level Security) |
+| **Mobile Core (Shared)**| **Kotlin Multiplatform (KMP)**, **Room DB** (fila offline no dispositivo) |
+| **Mobile (Android)** | **Jetpack Compose** (UI), WorkManager, FusedLocationProvider |
+| **Mobile (iOS)** | **SwiftUI** (UI) |
+| **Mapas Offline** | **MapLibre GL** (leitura local de `.mbtiles` sem internet) |
 
 ---
 
-## 🚀 Developer Setup
+## 📐 Arquitetura Global e Comunicação
 
-### Prerequisites
-- **Node.js** ≥ 20 + npm
-- **Android Studio** Meerkat+ (for Kotlin 2.x)
-- **Java** 17 (set `JAVA_HOME`)
-- A **Supabase** project (free tier is sufficient)
+**Como é que o mobile comunica com o backend?**
+A aplicação móvel atua essencialmente como um sensor/cliente pesado que comunica com a API (Next.js) através de chamadas **HTTPS (REST)** standard.
 
-### 1. Clone & Root Setup
-
-```bash
-git clone https://github.com/your-org/nextGPStracking.git
-cd nextGPStracking
-```
-
-### 2. Backend Setup
-
-```bash
-cd backend
-cp .env.local.example .env.local
-# Edit .env.local with your Supabase credentials
-
-npm install
-npm run dev          # Starts on http://localhost:3000
-```
-
-**Environment variables required in `.env.local`:**
-```
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
-DEVICE_API_SECRET=your-shared-device-secret
-```
-
-### 3. Database Setup
-
-Run the SQL schema in your Supabase project's **SQL Editor**:
-```bash
-# Copy contents of backend/supabase-schema.sql
-# Paste and run in https://app.supabase.com/project/YOUR_PROJECT/sql
-```
-
-### 4. Mobile Setup
-
-```bash
-cd mobile
-# Open in Android Studio or build via CLI:
-./gradlew :app:assembleDebug
-```
-
-Configure the backend URL in the app's `ConfigScreen` or set it via `local.properties`:
-```properties
-backend.base.url=https://your-deployment.vercel.app
-```
-
-### 5. Deploy Backend to Vercel
-
-```bash
-cd backend
-npx vercel --prod
-# Set env vars in Vercel dashboard → Settings → Environment Variables
-```
+1. **Recolha e Armazenamento Local:** O hardware móvel lê coordenadas (e.g., a cada poucos minutos ou a cada 15 segundos em SOS). Estas não vão diretamente para a rede, mas são primeiro escritas e encriptadas numa Base de Dados Room local (KMP `shared/`). Isto garante que num vale sem cobertura de rede, não há perda de dados.
+2. **Motor de Sincronização (SyncEngine):** Um worker em background (`WorkManager` no Android) deteta quando há rede e esvazia a fila offline em lotes. Envia um *POST payload* em JSON para os endpoints do Next.js.
+3. **Backend Middleware:** As rotas de API no Next.js validam a autenticidade do dispositivo e atuam como proxy/middleware de validação.
+4. **Base de Dados:** Usando a *Supabase Service Role Key*, o Next.js insere os registos de modo seguro na base de dados PostgreSQL alojada no Supabase.
 
 ---
 
-## 🔑 Key Features
+## 🔄 Fluxo Principal de Dados (Data Flow)
 
-| Feature | Implementation |
-|---|---|
-| **Offline-First Queue** | Room DB in KMP shared module, 100% local integrity |
-| **3-Phase Sync** | SOS LIFO → Latest Point → FIFO history (batches of 25) |
-| **Adaptive GPS Sampling** | Static: 45-60min cellular / Moving: 5-15min balanced / SOS: 15s pure GPS |
-| **2-Second SOS Button** | LongPress with continuous haptic feedback, prevents pocket activation |
-| **Auto-Restart on Boot** | `BootReceiver` reads `EncryptedSharedPreferences` |
-| **Offline Maps** | MapLibre `.mbtiles` packages for agricultural regions |
-| **Zero Auth Friction** | Device UUID in `EncryptedSharedPreferences`, no login required on tracker |
-| **PostGIS Ready** | Geofencing support enabled via `CREATE EXTENSION postgis` |
+O caminho de vida de uma coordenada de localização (ou de um evento de pânico SOS) segue rigidamente este canal unidirecional:
 
----
-
-## 🛡️ Security Model
-
-- **Tracker devices**: No login. One-time registration generates a UUID stored in `EncryptedSharedPreferences`. Every HTTP request signs the `Authorization: Bearer <DEVICE_API_SECRET>` header.
-- **Web Dashboard** (Phase 3): Supabase Auth Magic Links (email-based, no passwords).
-- **Row Level Security**: All Supabase tables enforce RLS — only authenticated users can read/write.
-- **Service Role Key**: Never exposed to client-side code. Only used in Next.js API routes (server-side).
+`1. Sensor (GPS no telemóvel)`
+⬇️
+`2. Fila Offline (Room DB no módulo KMP shared)`
+⬇️
+`3. Motor de Sincronização (SyncEngine avalia estado da rede)`
+⬇️
+`4. Envio HTTPS POST (Carga JSON encriptada)`
+⬇️
+`5. API Next.js Middleware (/api/location ou /api/emergency)`
+⬇️
+`6. Supabase (PostgreSQL / PostGIS)`
 
 ---
 
-## 📱 Screens
+## 🛡️ Segurança e Autenticação
 
-| Screen | Description |
-|---|---|
-| **Home** | Giant SOS button (40% screen), tracking toggle, connectivity badge, battery + GPS precision tiles |
-| **Map** | MapLibre native view, historical polyline with age gradient, SOS pulsing marker, time filters |
-| **Config** | Tracking interval selector, data/motion policies, emergency contact with native dialer fallback |
+O ecossistema divide-se em dois contextos de autenticação:
 
----
-
-## 🔋 Battery Optimization Strategy
-
-- **Hardware FIFO Batching**: GPS chip retains coordinates internally, CPU wakes in bulk
-- **Accuracy Filtering**: Locations > 80m uncertainty are flagged; replaced if better fix arrives within 10s
-- **Doze Mode Mitigation**: Foreground Service with visible notification prevents system termination
-- **Target**: < 5-8% battery drain over 12 hours continuous operation
-
----
-
-## 📋 Development Roadmap
-
-See [`.ai/plan.md`](./.ai/plan.md) for the detailed component status tracker.
-
-**Phase 1** (Weeks 1-2): Core infrastructure ✅  
-**Phase 2** (Weeks 3-4): Offline resilience + energy optimization ✅  
-**Phase 3** (Weeks 5-6): Crash detection, last-gasp alert, iOS port ⬜
-
----
-
-## 📄 License
-
-Private — Family use only. Not for public distribution.
+- **Trackers/Tratores (Aplicações Móveis):** Para evitar complexidade e fricção com os utilizadores idosos/rurais, os trackers não exigem login manual. É gerado um UUID e injetado o segredo do sistema aquando do emparelhamento inicial. Estas credenciais viajam nos *headers* HTTP (e.g. `Authorization: Bearer <DEVICE_API_SECRET>`). O Next.js valida o request antes de inserir no Supabase.
+- **Familiares/Administradores (Dashboard Web/Supabase):** Quando um utilizador pretende visualizar os dados via Web (Dashboard Next.js), utiliza a Autenticação oficial do Supabase (e.g., Magic Links). Ao aceder às tabelas do Supabase, aplicam-se Políticas RLS (Row Level Security) que garantem que aquele familiar só vê a telemetria dos tratores que lhe pertencem.

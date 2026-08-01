@@ -3,6 +3,7 @@ package com.segurancarural.gpstracker.data.repository
 import com.segurancarural.gpstracker.Platform
 import com.segurancarural.gpstracker.data.db.TelemetryDao
 import com.segurancarural.gpstracker.data.model.TelemetryRecord
+import com.segurancarural.gpstracker.data.network.ApiClient
 import com.segurancarural.gpstracker.data.network.ApiResult
 import com.segurancarural.gpstracker.data.network.ApiRoutes
 import com.segurancarural.gpstracker.data.network.ApiService
