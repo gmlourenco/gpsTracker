@@ -129,10 +129,10 @@ class FamilyGroupsViewModel(application: Application) : AndroidViewModel(applica
         _uiState.update { it.copy(showAddSection = !it.showAddSection) }
     }
 
-    fun generateInvite(farmId: String) {
+    fun generateInvite(farmId: String, maxUses: Int = 1, expiresInHours: Int = 24) {
         viewModelScope.launch {
             _uiState.update { it.copy(isActionLoading = true) }
-            farmRepository.generateInvite(farmId).fold(
+            farmRepository.generateInvite(farmId, maxUses, expiresInHours).fold(
                 onSuccess = { loadFarms() },
                 onFailure = { e ->
                     _uiState.update { it.copy(isActionLoading = false, errorMessage = e.message) }

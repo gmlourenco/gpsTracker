@@ -3,6 +3,7 @@ package com.segurancarural.gpstracker.data.repository
 import com.segurancarural.gpstracker.Platform
 import com.segurancarural.gpstracker.data.db.TelemetryDao
 import com.segurancarural.gpstracker.data.model.TelemetryRecord
+import com.segurancarural.gpstracker.data.network.ApiClient
 import com.segurancarural.gpstracker.data.network.ApiResult
 import com.segurancarural.gpstracker.data.network.ApiRoutes
 import com.segurancarural.gpstracker.data.network.ApiService
@@ -16,7 +17,8 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 class TelemetryRepository(private val dao: TelemetryDao) {
-    private val apiService = ApiService()
+    /** Dedicated telemetry API service — uses device secret auth only, no JWT */
+    private val apiService = ApiService(client = ApiClient.telemetryClient)
 
     fun getUnsyncedCountFlow() = dao.observeUnsyncedCount()
 

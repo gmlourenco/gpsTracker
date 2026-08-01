@@ -17,8 +17,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { timingSafeEqual } from 'crypto';
-import { getAuthenticatedUser } from '../../lib/auth-utils';
-import { getSupabaseServerClient, getSupabaseAdmin } from '../../lib/supabase';
+import { getSupabaseAdmin } from '../../lib/supabase';
 import { validateEmergencyPayload, ApiResponse } from '../../types/telemetry';
 import { sendEmergencyNotifications } from '../../lib/notifications';
 import { sendSosPushToAll } from '../../lib/fcm';
@@ -50,47 +49,27 @@ export async function POST(request: NextRequest): Promise<NextResponse<ApiRespon
   const payload = body;
   const authHeader = request.headers.get('authorization') || '';
   const expected = `Bearer ${process.env.DEVICE_API_SECRET}`;
-  const isDevice = authHeader.length === expected.length && timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
+  const isValidSecret = authHeader.length === expected.length && timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
 
-  let supabase;
-  let userId: string | null = null;
-
-  if (isDevice) {
-    supabase = getSupabaseAdmin();
-  } else {
-    supabase = await getSupabaseServerClient(request);
-    const { data: { user }, error: authError } = await getAuthenticatedUser(request, supabase);
-    if (authError || !user) {
-      return NextResponse.json(
-        { success: false, error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-    userId = user.id;
+  if (!isValidSecret) {
+    return NextResponse.json(
+      { success: false, error: 'Unauthorized' },
+      { status: 401 }
+    );
   }
+
+  const supabase = getSupabaseAdmin();
 
   // ── 2. Upsert device ──────────────────────────────────────────────────────
-  const deviceUpdatePayload: {
-    id: string;
-    label: string;
-    last_seen_at: string;
-    app_version: string;
-    user_id?: string;
-  } = {
-    id: payload.serialNumber,
-    label: payload.deviceLabel,
-    last_seen_at: new Date().toISOString(),
-    app_version: payload.appVersion,
-  };
-  
-  if (userId) {
-    deviceUpdatePayload.user_id = userId;
-  }
-
   const { error: deviceError } = await supabase
     .from('devices')
     .upsert(
-      deviceUpdatePayload,
+      {
+        id: payload.serialNumber,
+        label: payload.deviceLabel,
+        last_seen_at: new Date().toISOString(),
+        app_version: payload.appVersion,
+      },
       { onConflict: 'id', ignoreDuplicates: false }
     );
 

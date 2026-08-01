@@ -28,7 +28,7 @@ val iosModule = module {
     single {
         SyncEngine(
             dao = get(),
-            httpClient = get(),
+            httpClient = com.segurancarural.gpstracker.data.network.ApiClient.telemetryClient,
             locationUrl = ApiRoutes.LOCATION_V2,
             emergencyUrl = ApiRoutes.EMERGENCY,
             farmIdProvider = { get<FarmRepository>().currentFarmId }

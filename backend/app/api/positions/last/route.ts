@@ -19,7 +19,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const authHeader = request.headers.get('authorization') || '';
   let supabase;
 
-  if (authHeader.startsWith('Bearer eyJ')) {
+  const jwtMatch = authHeader.match(/^Bearer\s+(eyJ\S+)$/i);
+  if (jwtMatch) {
     supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
@@ -38,10 +39,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // ── 1. Explicit Backend Access Check (Defense in Depth) ───────────────────
   let allowedDeviceIds: Set<string> | null = null;
   
-  if (authHeader.startsWith('Bearer eyJ')) {
+  if (jwtMatch) {
     const adminSupabase = getSupabaseAdmin();
     // Get user from the JWT to determine their id securely
-    const { data: userData } = await supabase.auth.getUser();
+    const { data: userData, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      return NextResponse.json(
+        { success: false, error: 'JWT expired or invalid. Please re-authenticate.' },
+        { status: 401 }
+      );
+    }
     if (userData?.user) {
       const user = userData.user;
       allowedDeviceIds = new Set<string>();

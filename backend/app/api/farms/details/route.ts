@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
         },
         inviteCode: invite?.code ?? null,
         inviteExpiresAt: invite?.expiresAt ?? null,
-        inviteUsesRemaining: invite ? (invite.maxUses - invite.usesCount) : null,
+        inviteUsesRemaining: invite ? (invite.maxUses === -1 ? -1 : (invite.maxUses - invite.usesCount)) : null,
         members,
       };
     });

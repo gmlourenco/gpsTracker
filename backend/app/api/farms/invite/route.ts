@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { farmId } = body as { farmId: string };
+    const { farmId, maxUses = 1, expiresInHours = 24 } = body as { farmId: string; maxUses?: number; expiresInHours?: number };
 
     if (!farmId) {
       return NextResponse.json({ success: false, error: 'farmId is required' }, { status: 400 });
@@ -45,10 +45,13 @@ export async function POST(request: NextRequest) {
       .eq('farm_id', farmId)
       .eq('is_active', true);
 
+    const parsedMaxUses = typeof maxUses === 'number' ? maxUses : 1;
+    const parsedHours = typeof expiresInHours === 'number' && expiresInHours > 0 ? expiresInHours : 24;
+
     // Generate new invite code
     const code = generateInviteCode(8);
     const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+    expiresAt.setTime(expiresAt.getTime() + parsedHours * 60 * 60 * 1000);
 
     const { data: invite, error: inviteError } = await adminSupabase
       .from('farm_invites')
@@ -56,7 +59,7 @@ export async function POST(request: NextRequest) {
         farm_id: farmId,
         code,
         expires_at: expiresAt.toISOString(),
-        max_uses: 1,
+        max_uses: parsedMaxUses,
         uses_count: 0,
         is_active: true,
         created_by: user.id

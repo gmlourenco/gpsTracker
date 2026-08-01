@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.GroupAdd
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -25,6 +26,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -67,6 +70,9 @@ fun FamilyGroupsScreen(viewModel: FamilyGroupsViewModel = viewModel()) {
     var inviteCodeInput by remember { mutableStateOf("") }
     var newFarmNameInput by remember { mutableStateOf("") }
     var isRefreshing by remember { mutableStateOf(false) }
+    var showGenerateInviteDialog by remember { mutableStateOf(false) }
+    var selectedMaxUses by remember { mutableStateOf(1) }
+    var selectedHours by remember { mutableStateOf(24) }
 
     LaunchedEffect(state.isLoading) {
         if (!state.isLoading) isRefreshing = false
@@ -92,6 +98,78 @@ fun FamilyGroupsScreen(viewModel: FamilyGroupsViewModel = viewModel()) {
             containerColor = CardDark,
             titleContentColor = TextPrimary,
             textContentColor = TextSecondary,
+        )
+    }
+
+    if (showGenerateInviteDialog && state.selectedFarm != null) {
+        AlertDialog(
+            onDismissRequest = { showGenerateInviteDialog = false },
+            title = { Text("Configurar Convite", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Número de utilizações:", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                    val useOptions = listOf("1 user" to 1, "2 users" to 2, "3 users" to 3, "4 users" to 4, "5 users" to 5, "Ilimitado" to -1)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        useOptions.chunked(3).forEach { columnOptions ->
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                columnOptions.forEach { (label, valInt) ->
+                                    FilterChip(
+                                        selected = selectedMaxUses == valInt,
+                                        onClick = { selectedMaxUses = valInt },
+                                        label = { Text(label, fontSize = 11.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = AccentGreen.copy(alpha = 0.2f),
+                                            selectedLabelColor = AccentGreen,
+                                            labelColor = TextSecondary
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Validade (horas):", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                    val hourOptions = listOf("1h" to 1, "6h" to 6, "12h" to 12, "24h" to 24, "48h" to 48, "7 dias" to 168)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        hourOptions.chunked(3).forEach { columnOptions ->
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                columnOptions.forEach { (label, valInt) ->
+                                    FilterChip(
+                                        selected = selectedHours == valInt,
+                                        onClick = { selectedHours = valInt },
+                                        label = { Text(label, fontSize = 11.sp) },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = AccentGreen.copy(alpha = 0.2f),
+                                            selectedLabelColor = AccentGreen,
+                                            labelColor = TextSecondary
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showGenerateInviteDialog = false
+                        viewModel.generateInvite(state.selectedFarm!!.farmId, selectedMaxUses, selectedHours)
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentGreen)
+                ) {
+                    Text("Gerar", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showGenerateInviteDialog = false }) {
+                    Text("Cancelar", color = TextSecondary)
+                }
+            },
+            containerColor = CardDark,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary
         )
     }
     PullToRefreshBox(
@@ -159,21 +237,22 @@ fun FamilyGroupsScreen(viewModel: FamilyGroupsViewModel = viewModel()) {
                                             color = if (farm.inviteCode != null) AccentGreen else TextSecondary,
                                             fontWeight = FontWeight.Bold, fontSize = 24.sp
                                         )
-                                        if (farm.inviteCode != null) {
-                                            IconButton(onClick = {
-                                                val sendIntent = Intent().apply {
-                                                    action = Intent.ACTION_SEND
-                                                    putExtra(Intent.EXTRA_TEXT,
-                                                        "Junta-te à família ${farm.farmName} na app Segurança Rural com o código: ${farm.inviteCode}")
-                                                    type = "text/plain"
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (farm.inviteCode != null) {
+                                                IconButton(onClick = {
+                                                    val sendIntent = Intent().apply {
+                                                        action = Intent.ACTION_SEND
+                                                        putExtra(Intent.EXTRA_TEXT,
+                                                            "Junta-te à família ${farm.farmName} na app Segurança Rural com o código: ${farm.inviteCode}")
+                                                        type = "text/plain"
+                                                    }
+                                                    context.startActivity(Intent.createChooser(sendIntent, "Partilhar código"))
+                                                }) {
+                                                    Icon(Icons.Default.Share, contentDescription = "Partilhar", tint = AccentGreen)
                                                 }
-                                                context.startActivity(Intent.createChooser(sendIntent, "Partilhar código"))
-                                            }) {
-                                                Icon(Icons.Default.Share, contentDescription = "Partilhar", tint = AccentGreen)
                                             }
-                                        } else {
                                             IconButton(
-                                                onClick = { viewModel.generateInvite(farm.farmId) },
+                                                onClick = { showGenerateInviteDialog = true },
                                                 enabled = !state.isActionLoading
                                             ) {
                                                 if (state.isActionLoading) {
@@ -183,7 +262,11 @@ fun FamilyGroupsScreen(viewModel: FamilyGroupsViewModel = viewModel()) {
                                                         strokeWidth = 2.dp
                                                     )
                                                 } else {
-                                                    Icon(Icons.Default.Add, contentDescription = "Gerar novo código", tint = AccentGreen)
+                                                    Icon(
+                                                        if (farm.inviteCode != null) Icons.Default.Refresh else Icons.Default.Add,
+                                                        contentDescription = "Gerar novo código",
+                                                        tint = AccentGreen
+                                                    )
                                                 }
                                             }
                                         }
@@ -197,7 +280,11 @@ fun FamilyGroupsScreen(viewModel: FamilyGroupsViewModel = viewModel()) {
                                                 "Expira: ${formatter.format(Instant.parse(iso))}"
                                             } catch (_: Exception) { "Expira em 7 dias" }
                                         } ?: ""
-                                        val usesText = farm.inviteUsesRemaining?.let { "• $it uso(s) restante(s)" } ?: ""
+                                        val usesText = when (farm.inviteUsesRemaining) {
+                                            -1 -> "• Usos ilimitados"
+                                            null -> ""
+                                            else -> "• ${farm.inviteUsesRemaining} uso(s) restante(s)"
+                                        }
                                         Text("$expiresText $usesText", color = TextSecondary, fontSize = 11.sp)
                                     } else {
                                         Text("Clica no + à direita para gerar um novo código de convite.", color = TextSecondary, fontSize = 11.sp)

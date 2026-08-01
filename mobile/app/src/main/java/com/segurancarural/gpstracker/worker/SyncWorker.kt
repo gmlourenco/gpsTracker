@@ -64,12 +64,10 @@ class SyncWorker(
 
         Log.i(TAG, "Syncing $unsyncedCount unsynced records")
 
-        val httpClient = ApiClient.httpClient
-
         return try {
             val engine = SyncEngine(
                 dao = db.telemetryDao(),
-                httpClient = httpClient,
+                httpClient = ApiClient.telemetryClient,
                 locationUrl = ApiRoutes.LOCATION_V2,
                 emergencyUrl = ApiRoutes.EMERGENCY,
             )
