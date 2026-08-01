@@ -80,7 +80,7 @@ export function proxy(request: NextRequest) {
   const isSecretAuth = timingSafeEqual(authHeader, expected);
 
   if (!isSecretAuth) {
-    if (authHeader.startsWith('Bearer eyJ')) {
+    if (/^Bearer\s+eyJ/i.test(authHeader)) {
       // Let the route handler verify the Supabase JWT
     } else {
       return NextResponse.json(

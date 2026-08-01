@@ -32,16 +32,20 @@ export async function POST(request: NextRequest) {
     // 2. Validate invite
     const { data: invite, error: inviteError } = await adminClient
       .from('farm_invites')
-      .select('id, farm_id, expires_at')
+      .select('id, farm_id, expires_at, max_uses, uses_count, is_active')
       .eq('code', inviteCode.toUpperCase())
       .single();
 
-    if (inviteError || !invite) {
-      return NextResponse.json({ success: false, error: 'Invalid or expired invite code' }, { status: 400 });
+    if (inviteError || !invite || !invite.is_active) {
+      return NextResponse.json({ success: false, error: 'Código de convite inválido ou inativo' }, { status: 400 });
     }
 
     if (new Date(invite.expires_at) < new Date()) {
-      return NextResponse.json({ success: false, error: 'Invite code has expired' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'O código de convite expirou' }, { status: 400 });
+    }
+
+    if (invite.max_uses !== -1 && (invite.uses_count || 0) >= invite.max_uses) {
+      return NextResponse.json({ success: false, error: 'O código de convite já atingiu o limite de utilizações' }, { status: 400 });
     }
 
     // 3. Add user to farm_members
@@ -55,6 +59,15 @@ export async function POST(request: NextRequest) {
       console.error('Farm member insertion failed:', memberError);
       return NextResponse.json({ success: false, error: 'Failed to join farm' }, { status: 500 });
     }
+
+    // 4. Update invite uses_count and check if it should be deactivated
+    const newUsesCount = (invite.uses_count || 0) + 1;
+    const newIsActive = invite.max_uses === -1 ? true : (newUsesCount < invite.max_uses);
+
+    await adminClient
+      .from('farm_invites')
+      .update({ uses_count: newUsesCount, is_active: newIsActive })
+      .eq('id', invite.id);
 
     return NextResponse.json({
       success: true,
