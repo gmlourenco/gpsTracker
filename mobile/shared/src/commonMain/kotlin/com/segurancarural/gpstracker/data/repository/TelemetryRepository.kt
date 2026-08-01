@@ -16,7 +16,8 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 class TelemetryRepository(private val dao: TelemetryDao) {
-    private val apiService = ApiService()
+    /** Dedicated telemetry API service — uses device secret auth only, no JWT */
+    private val apiService = ApiService(client = ApiClient.telemetryClient)
 
     fun getUnsyncedCountFlow() = dao.observeUnsyncedCount()
 

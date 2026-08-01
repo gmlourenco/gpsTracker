@@ -231,14 +231,14 @@ class FarmRepository() {
     }
 
     @Throws(Exception::class)
-    suspend fun generateInvite(farmId: String): Result<GenerateInviteResponse> {
+    suspend fun generateInvite(farmId: String, maxUses: Int = 1, expiresInHours: Int = 24): Result<GenerateInviteResponse> {
         return try {
             val token = com.segurancarural.gpstracker.data.network.SupabaseClient.client.auth.currentAccessTokenOrNull()
             if (token != null) ApiClient.supabaseJwt = token.toString()
 
             val response = ApiClient.httpClient.post("${ApiRoutes.BASE}/api/farms/invite") {
                 contentType(ContentType.Application.Json)
-                setBody(GenerateInviteRequest(farmId))
+                setBody(GenerateInviteRequest(farmId, maxUses, expiresInHours))
             }
             val data = response.body<GenerateInviteResponse>()
             if (data.success) Result.success(data)
@@ -340,7 +340,9 @@ data class MemberActionResponse(
 
 @Serializable
 data class GenerateInviteRequest(
-    val farmId: String
+    val farmId: String,
+    val maxUses: Int = 1,
+    val expiresInHours: Int = 24
 )
 
 @Serializable

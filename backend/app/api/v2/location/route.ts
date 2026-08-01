@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '../../../lib/auth-utils';
-import { getSupabaseServerClient, getSupabaseAdmin } from '../../../lib/supabase';
+import { getSupabaseAdmin } from '../../../lib/supabase';
 import { isValidSerialNumber } from '../../../types/telemetry';
 import { timingSafeEqual } from 'crypto';
 
@@ -78,22 +77,13 @@ export async function POST(request: NextRequest) {
 
   const authHeader = request.headers.get('authorization') || '';
   const expected = `Bearer ${process.env.DEVICE_API_SECRET}`;
-  const isDevice = authHeader.length === expected.length && timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
+  const isValidSecret = authHeader.length === expected.length && timingSafeEqual(Buffer.from(authHeader), Buffer.from(expected));
 
-  let supabase;
-  let userId: string | null = null;
-
-  if (isDevice) {
-    supabase = getSupabaseAdmin();
-  } else {
-    supabase = await getSupabaseServerClient(request);
-    const { data: { user }, error: authError } = await getAuthenticatedUser(request, supabase);
-
-    if (authError || !user) {
-      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
-    }
-    userId = user.id;
+  if (!isValidSecret) {
+    return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
   }
+
+  const supabase = getSupabaseAdmin();
 
   // 1. Upsert device using latest status
   const { error: deviceError } = await supabase
@@ -106,8 +96,7 @@ export async function POST(request: NextRequest) {
         tracking_enabled: latest.trackingEnabled,
         app_version: latest.appVersion,
         ...(latest.markerColor ? { marker_color: latest.markerColor.toUpperCase() } : {}),
-        ...(payload.farmId ? { farm_id: payload.farmId } : {}),
-        ...(userId ? { user_id: userId } : {})
+        ...(payload.farmId ? { farm_id: payload.farmId } : {})
       },
       {
         onConflict: 'id',

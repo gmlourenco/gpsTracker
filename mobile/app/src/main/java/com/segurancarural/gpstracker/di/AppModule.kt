@@ -32,7 +32,7 @@ val appModule = module {
     factory {
         SyncEngine(
             dao = get(),
-            httpClient = get(),
+            httpClient = ApiClient.telemetryClient,
             locationUrl = ApiRoutes.LOCATION_V2,
             emergencyUrl = ApiRoutes.EMERGENCY,
             farmIdProvider = { get<FarmRepository>().currentFarmId }

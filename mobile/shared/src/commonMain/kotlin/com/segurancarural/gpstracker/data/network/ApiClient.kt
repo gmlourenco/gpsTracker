@@ -19,6 +19,39 @@ object ApiClient {
     var supabaseJwt: String? = null
     var farmId: String? = null
 
+    /**
+     * Lightweight HTTP client for telemetry/location submissions.
+     * Uses ONLY the device API secret — no JWT, no session, no refresh.
+     * This guarantees location updates never fail due to auth expiration.
+     */
+    val telemetryClient: HttpClient by lazy {
+        HttpClient {
+            install(Auth) {
+                bearer {
+                    loadTokens {
+                        BearerTokens(SharedConfig.DEVICE_API_SECRET, "")
+                    }
+                }
+            }
+            install(ContentNegotiation) {
+                json(Json {
+                    ignoreUnknownKeys = true
+                    isLenient = true
+                })
+            }
+            if (SharedConfig.IS_DEBUG) {
+                install(Logging) {
+                    logger = object : Logger {
+                        override fun log(message: String) {
+                            KmpLogger.d("KtorTelemetry", message)
+                        }
+                    }
+                    level = LogLevel.HEADERS
+                }
+            }
+        }
+    }
+
     val httpClient: HttpClient by lazy {
         HttpClient {
             install(Auth) {

@@ -64,7 +64,7 @@ export function getSupabaseAdmin(): SupabaseClient {
 export async function getSupabaseServerClient(request?: Request) {
   const cookieStore = await cookies();
   const authHeader = request?.headers.get('authorization');
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.replace('Bearer ', '') : undefined;
+  const token = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1];
   
   // Do NOT forward our internal device secret to Supabase as it's not a valid JWT
   const isDeviceSecret = token === process.env.DEVICE_API_SECRET;
