@@ -52,11 +52,27 @@ jobs:
           chmod +x gradlew
           ./gradlew :shared:linkReleaseFrameworkIosArm64 --stacktrace
 
-      - name: Package iOS artifact
+      - name: Build unsigned Xcode Archive
+        working-directory: mobile/iosApp
         run: |
-          cd mobile/shared/build/bin/iosArm64/releaseFramework
-          zip -r "${{ github.workspace }}/mobile/seguranca-rural-ios-shared-${{ steps.version.outputs.version }}.zip" shared.framework
-          cd ${{ github.workspace }}
+          echo "Building Xcode project..."
+          xcodebuild clean archive \
+            -project iosApp.xcodeproj \
+            -scheme iosApp \
+            -configuration Release \
+            -archivePath $PWD/build/iosApp.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Package into unsigned IPA
+        working-directory: mobile/iosApp
+        run: |
+          echo "Packaging into .ipa..."
+          mkdir -p Payload
+          cp -r build/iosApp.xcarchive/Products/Applications/iosApp.app Payload/
+          zip -r "${{ github.workspace }}/mobile/seguranca-rural-ios-${{ steps.version.outputs.version }}.ipa" Payload
+          rm -rf Payload
 
       - name: Upload to GitHub Release
         uses: softprops/action-gh-release@v2
@@ -65,8 +81,9 @@ jobs:
           name: Segurança Rural v${{ steps.version.outputs.version }}
           body: |
             ### 🍏 iOS (v${{ steps.version.outputs.version }})
-            * O ficheiro `seguranca-rural-ios-shared-${{ steps.version.outputs.version }}.zip` contém o framework Kotlin Multiplatform compilado para iOS (ARM64).
+            * O ficheiro `seguranca-rural-ios-${{ steps.version.outputs.version }}.ipa` contém a aplicação iOS compilada (Unsigned).
+            * **Nota:** Como não está assinada digitalmente com um certificado Apple no CI, não pode ser instalada diretamente num iPhone real. Serve apenas para distribuição em emuladores, jailbreak ou plataformas de assinatura ad-hoc externas.
           append_body: true
           files: |
-            mobile/seguranca-rural-ios-shared-${{ steps.version.outputs.version }}.zip
+            mobile/seguranca-rural-ios-${{ steps.version.outputs.version }}.ipa
           draft: false

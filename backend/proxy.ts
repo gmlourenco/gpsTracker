@@ -79,9 +79,18 @@ export function proxy(request: NextRequest) {
   const expected = `Bearer ${deviceSecret}`;
   const isSecretAuth = timingSafeEqual(authHeader, expected);
 
+  // Enforce architectural split: Telemetry routes MUST use the device secret.
+  const isTelemetryRoute = pathname.startsWith('/api/v2/location') || pathname.startsWith('/api/emergency');
+
   if (!isSecretAuth) {
-    if (authHeader.startsWith('Bearer eyJ')) {
-      // Let the route handler verify the Supabase JWT
+    if (isTelemetryRoute) {
+      // Telemetry routes do not accept JWTs anymore
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized (Telemetry requires device secret)' },
+        { status: 401 }
+      );
+    } else if (/^Bearer\s+eyJ/i.test(authHeader)) {
+      // User-facing routes accept JWTs (route handler will verify with Supabase)
     } else {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },

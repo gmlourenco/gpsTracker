@@ -225,6 +225,9 @@ class LocationForegroundService : Service(), KoinComponent {
     private fun startTracking() {
         TrackingStateRepository.setTracking(true)
 
+        // Reset GPS filter state so Kalman/anchor don't blend with stale data from prior sessions
+        submitLocationUseCase.gpsFilter.reset()
+
         // Abusive Wakelock removed: Do not hold massive wakelocks continuously.
         // Relying on Foreground Service TYPE_LOCATION instead.
 
@@ -435,11 +438,19 @@ class LocationForegroundService : Service(), KoinComponent {
         val previous = lastKnownLocation
         if (previous != null &&
             now - lastSubmittedTimeMs < DUPLICATE_FIX_DEBOUNCE_MS &&
-            location.distanceTo(previous) < DUPLICATE_FIX_DISTANCE_M
+            location.distanceTo(lastSubmittedLocation ?: previous) < DUPLICATE_FIX_DISTANCE_M
         ) {
             Log.d(TAG, "Skipping near-duplicate fix (${now - lastSubmittedTimeMs}ms, ${location.distanceTo(previous)}m)")
             lastKnownLocation = location
             return
+        }
+
+        // Before the accuracy check, submit any expired held low-accuracy record
+        if (lastLowAccuracyRecord != null && (now - lastLowAccuracyTime) >= ACCURACY_REPLACE_WINDOW_MS) {
+            Log.d(TAG, "Submitting held low-accuracy record (no better fix arrived within ${ACCURACY_REPLACE_WINDOW_MS/1000}s)")
+            val heldRecord = lastLowAccuracyRecord!!
+            lastLowAccuracyRecord = null
+            storeRecord(heldRecord)
         }
 
         val isLowAccuracy = location.accuracy > ACCURACY_THRESHOLD_METERS
