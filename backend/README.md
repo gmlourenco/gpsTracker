@@ -67,6 +67,13 @@ O tráfego passa por um guarda-costas global robusto no ficheiro `proxy.ts`, que
 
 ---
 
+## 🗺️ Comportamento do Mapa Web (Dashboard)
+
+A renderização cartográfica segue regras rígidas para garantir clareza visual:
+- **Timestamps:** A hora apresentada ("Último sinal") reflete o momento exato em que a coordenada foi captada pelo chip GPS do dispositivo (`created_at`), garantindo precisão temporal mesmo que o trator tenha sincronizado dados antigos muito tempo depois. Não confundir com `last_seen_at`, que regista o momento em que o servidor web recebeu a última comunicação.
+
+---
+
 ## ⚡ Integrações e Serviços Assíncronos Previstos
 
 - **FCM (Firebase Cloud Messaging):** A tabela `devices` e a rota `PATCH /api/devices/fcm-token` já estabelecem a base para *Push Notifications* inversas. No futuro, isto servirá para o Dashboard enviar um "Ping" remoto, forçando o trator adormecido a ligar o hardware de GPS.

@@ -168,6 +168,12 @@ fun updateMapLayers(
             if (marker.emergencyState) {
                 sosFeatures.add(Feature.fromGeometry(Point.fromLngLat(marker.lng, marker.lat)))
             }
+
+            if (marker.accuracy > 0.0f) {
+                val accPolygon = createAccuracyPolygon(Point.fromLngLat(marker.lng, marker.lat), marker.accuracy.toDouble())
+                val accProps = JsonObject().apply { addProperty("color", marker.colorHex) }
+                accuracyFeatures.add(Feature.fromGeometry(accPolygon, accProps))
+            }
         }
 
         if (displayData.routePoints.isEmpty()) {
@@ -187,11 +193,6 @@ fun updateMapLayers(
                         addProperty("color", localStyle.routeColorHex)
                     }
                     arrowFeatures.add(Feature.fromGeometry(Point.fromLngLat(p.lng, p.lat), arrowProps))
-                }
-                if (p.accuracy > 0.0) {
-                    val accPolygon = createAccuracyPolygon(Point.fromLngLat(p.lng, p.lat), p.accuracy.toDouble())
-                    val accProps = JsonObject().apply { addProperty("color", localStyle.routeColorHex) }
-                    accuracyFeatures.add(Feature.fromGeometry(accPolygon, accProps))
                 }
             }
         }

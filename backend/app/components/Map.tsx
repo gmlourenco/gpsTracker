@@ -294,7 +294,7 @@ export default function Map({ devices }: MapProps) {
                       📱 v{device.latestLocation?.app_version || device.app_version || '--'}
                     </p>
                     <p style={{ margin: 0, fontSize: '11px', opacity: 0.5 }}>
-                      Último sinal: {device.last_seen_at ? formatDate(device.last_seen_at) : 'N/A'}
+                      Último sinal: {device.latestLocation?.created_at ? formatDate(device.latestLocation.created_at) : (device.last_seen_at ? formatDate(device.last_seen_at) : 'N/A')}
                     </p>
                   </div>
                   

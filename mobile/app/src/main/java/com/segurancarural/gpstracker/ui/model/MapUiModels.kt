@@ -43,6 +43,7 @@ data class MapMarkerDisplay(
     val letter: String,
     val colorHex: String,
     val emergencyState: Boolean,
+    val accuracy: Float,
 )
 
 enum class MapTheme(val label: String, val icon: String) {
