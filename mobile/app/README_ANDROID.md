@@ -74,3 +74,13 @@ Para além do envio contínuo, a app é capaz de ser acordada passivamente pelo 
 | `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Apresenta um ecrã nativo (se necessário) a pedir ao condutor para não otimizar a App, de modo a evitar pausas indesejadas na telemetria. |
 | `REQUEST_INSTALL_PACKAGES` | Usado pelo `ApkUpdateInstaller` para conseguir aplicar a instalação de um novo `.apk` quando há updates da plataforma. |
 | `HIGH_SAMPLING_RATE_SENSORS` | Usado pelo `AccidentDetector` para ler o acelerómetro a alta frequência de forma a detetar impactos instantâneos. |
+
+---
+
+## 🗺️ 6. Comportamento do Mapa Nativo (Android)
+
+A renderização cartográfica na app Android, construída usando `MapLibreHelper` em Kotlin, segue regras rígidas para clareza visual e gestão de memória:
+
+1. **Marcador Principal:** Apenas a localização mais recente exibe o círculo de precisão ao redor do marcador.
+2. **Histórico e Trajetos:** As localizações antigas (histórico do dia/semana) são ligadas sequencialmente por uma linha, sem desenhar círculos de precisão individuais.
+3. **Limpeza de Memória (Memory Scoop):** Ao construir os dados para renderização da View (`MapViewModel.kt`), o KMP DAO é instruído a eliminar silenciosamente todas as localizações offline guardadas com mais de 10 dias, prevenindo inflação da BD local (Room).

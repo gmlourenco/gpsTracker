@@ -65,3 +65,13 @@ Sincronizar a base de dados SQL local com a *Cloud* num iPhone em repouso exige 
 2. **Exportar Instância (Koin):** No Kotlin, exportas a variável globalmente (`fun getMyUseCase() = ...`).
 3. **Ouvir em SwiftUI:** Nas Views `.swift`, inicializas os fluxos usando `KoinIOSKt.getMyUseCase()` e envolves num `Task` assíncrono para atualizar variáveis `@Published`.
 4. **Respeitar o Nativo:** Se a funcionalidade envolver Câmara, Sensores (G-Force) ou Ficheiros pesados, programa isso **aqui em Swift**, e envia apenas o *output* resultante para os métodos Kotlin do KMP, exatamente como o `LocationService` faz com os registos de GPS.
+
+---
+
+## 🗺️ 6. Comportamento do Mapa Nativo (iOS)
+
+A renderização cartográfica na app iOS (gerida em `MapView.swift` e `NativeMapView.swift` via MapLibre) segue regras rígidas para clareza visual e gestão de memória:
+
+1. **Marcador Principal:** Apenas a localização mais recente exibe o círculo de precisão ao redor do marcador.
+2. **Histórico e Trajetos:** As localizações antigas são ligadas sequencialmente por uma linha contínua, não se desenhando círculos de precisão em pontos passados.
+3. **Limpeza de Memória (Memory Scoop):** O modelo subjacente apaga silenciosamente localizações offline com mais de 10 dias de idade da BD local sempre que a trajetória histórica é solicitada (através do view model / KMP associado).

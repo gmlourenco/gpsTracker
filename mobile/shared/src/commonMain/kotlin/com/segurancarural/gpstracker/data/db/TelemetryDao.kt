@@ -146,4 +146,10 @@ interface TelemetryDao {
      */
     @Query("DELETE FROM telemetry_queue WHERE serialNumber = :serialNumber AND syncState = 0")
     suspend fun deleteUnsyncedBySerialNumber(serialNumber: String): Int
+
+    /**
+     * Deletes all records older than a specific timestamp to free up space, preventing indefinite database growth.
+     */
+    @Query("DELETE FROM telemetry_queue WHERE createdAtEpochMs < :timestampMs")
+    suspend fun deleteOlderThan(timestampMs: Long): Int
 }
