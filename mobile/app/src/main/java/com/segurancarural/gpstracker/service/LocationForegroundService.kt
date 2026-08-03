@@ -510,9 +510,8 @@ class LocationForegroundService : Service(), KoinComponent {
     }
 
     private fun buildTelemetryRecord(location: android.location.Location): TelemetryRecord {
-        // Use current system time as record timestamp so that each telemetry heartbeat
-        // packet (even with stationary coordinates) registers as a fresh live signal on the server.
-        val now = System.currentTimeMillis()
+        // Use actual GPS time to avoid out-of-order history if FusedLocationProvider batches multiple older fixes while device sleeps
+        val now = if (location.time > 0) location.time else System.currentTimeMillis()
         val isoTimestamp = Instant.ofEpochMilli(now).toString()
 
         val batteryManager = getSystemService(BATTERY_SERVICE) as? android.os.BatteryManager
