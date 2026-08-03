@@ -50,6 +50,14 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     private val rawMyRoute: StateFlow<List<TelemetryRecord>> = timeFilter
         .flatMapLatest { filter ->
+            // Memory scoop: clean up local locations older than 10 days to prevent infinite DB growth
+            val tenDaysAgoMs = System.currentTimeMillis() - (10L * 24 * 60 * 60 * 1000)
+            try {
+                dao.deleteOlderThan(tenDaysAgoMs)
+            } catch (e: Exception) {
+                // Ignore on UI thread / flow construction just in case
+            }
+
             val calendar = java.util.Calendar.getInstance()
             val endMs: Long
             val startMs: Long
@@ -112,6 +120,7 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
                         letter = style.markerLetter,
                         colorHex = style.markerColorHex,
                         emergencyState = it.emergencyState,
+                        accuracy = it.accuracy,
                     )
                 },
                 familyMarkers = emptyList(),

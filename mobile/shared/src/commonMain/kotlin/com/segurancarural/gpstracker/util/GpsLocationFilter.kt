@@ -91,18 +91,28 @@ class GpsLocationFilter(
         // 3. Wi-Fi / Cell Bounce Spike Rejection while Stationary
         if (isStationaryLocked) {
             val distFromAnchor = haversineDistanceMeters(stationaryAnchorLat, stationaryAnchorLng, record.lat, record.lng)
-
-            // Check for sudden jump down the street (e.g. 25m - 300m away) with degraded accuracy (> 20m) or isolated jump
-            if (distFromAnchor in 25.0..300.0 && (record.accuracy > lowAccuracyThresholdM || record.speed < 3.0f)) {
-                return FilterResult.SuspiciousJumpRecheck(record)
-            }
+            val timeSinceLastProcessed = if (lastProcessedTimeMs > 0) now - lastProcessedTimeMs else 0L
 
             // If user has moved cleanly away for > 30m with good accuracy AND actual movement speed (> 3 km/h), unlock anchor
-            if (distFromAnchor > 30.0 && record.accuracy <= lowAccuracyThresholdM && record.speed >= 3.0f) {
+            // OR if there's a massive jump (>300m) and we haven't seen a fix in a long time (app was suspended while traveling)
+            val isValidMovement = (distFromAnchor > 30.0 && record.accuracy <= lowAccuracyThresholdM && record.speed >= 3.0f)
+            val isSuspendedTravel = (distFromAnchor > 300.0 && timeSinceLastProcessed > 120_000L)
+
+            if (isValidMovement || isSuspendedTravel) {
                 isStationaryLocked = false
                 stationaryAnchorLat = record.lat
                 stationaryAnchorLng = record.lng
                 lastStationaryCheckMs = now
+                
+                // Snap Kalman filter to the new location to prevent getting stuck
+                kalmanLat = record.lat
+                kalmanLng = record.lng
+                kalmanVariance = (record.accuracy * record.accuracy).toDouble()
+            } else {
+                // If it's still locked, and we have a jump > 25m, it's a bounce/glitch.
+                if (distFromAnchor > 25.0 && (record.accuracy > lowAccuracyThresholdM || record.speed < 3.0f)) {
+                    return FilterResult.SuspiciousJumpRecheck(record)
+                }
             }
         }
 
@@ -121,8 +131,15 @@ class GpsLocationFilter(
         // 5. Extreme Speed Glitch Guard (v > 150 km/h)
         val timeDiffSeconds = maxOf(1.0, (now - lastProcessedTimeMs) / 1000.0)
         val calculatedSpeedKmh = (distFromKalman / timeDiffSeconds) * 3.6
-        if (calculatedSpeedKmh > maxSpeedKmh && record.speed > maxSpeedKmh) {
+        if (calculatedSpeedKmh > maxSpeedKmh && distFromKalman > 50.0) {
             return FilterResult.SuspiciousJumpRecheck(record)
+        }
+
+        // Snap Kalman if it's lagging too far behind (e.g., after a tunnel or long suspension)
+        if (distFromKalman > 100.0 || timeDiffSeconds > 60.0) {
+            kalmanLat = record.lat
+            kalmanLng = record.lng
+            kalmanVariance = (record.accuracy * record.accuracy).toDouble()
         }
 
         // 6. Apply 2D Kalman Filter Smoothing

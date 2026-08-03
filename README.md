@@ -8,15 +8,15 @@ O **Segurança Rural** é um sistema *production-grade* e *offline-first* para m
 
 ---
 
-## 🗂️ Estrutura de Pastas e Componentes
+## 🗂️ Estrutura de Pastas, Componentes e Documentação
 
-O projeto é um monorepo que agrega o backend cloud e as aplicações móveis baseadas em tecnologia partilhada:
+O projeto é um monorepo que agrega o backend cloud e as aplicações móveis baseadas em tecnologia partilhada. Cada módulo tem o seu próprio `README` detalhado que deves consultar ao trabalhar nessa área específica:
 
-- `backend/`: Código Next.js que expõe as APIs REST de telemetria e o dashboard web. Alojado na Vercel.
-- `mobile/`: Ecossistema Mobile.
-  - `mobile/shared/`: Módulo KMP (Kotlin Multiplatform) que contém toda a lógica core (Base de Dados Local, Sync Engine, Modelos de dados). É a fonte da verdade da lógica de negócio.
-  - `mobile/app/`: App Android nativa, responsável pelo interface, serviços em background e acesso ao hardware (GPS, Boot Receivers).
-  - `mobile/iosApp/`: App iOS nativa (arquitetura SwiftUI) que consome o módulo KMP (em desenvolvimento).
+- **`backend/`** (Lê o `backend/README.md`): Código Next.js que expõe as APIs REST de telemetria e o dashboard web. Contém a documentação sobre a base de dados Supabase, autenticação M2M vs JWT e rotas API.
+- **`mobile/`**: Ecossistema Mobile.
+  - **`mobile/shared/`** (Lê o `mobile/shared/README_SHARED.md`): Módulo KMP (Kotlin Multiplatform) que contém toda a lógica core (Base de Dados Local, Sync Engine, Filtro Kalman). É a fonte da verdade da lógica de negócio offline-first.
+  - **`mobile/app/`** (Lê o `mobile/app/README_ANDROID.md`): App Android nativa. Contém a documentação sobre UI em Jetpack Compose, serviços em background contínuos, permissões e renderização nativa do mapa.
+  - **`mobile/iosApp/`** (Lê o `mobile/iosApp/README_IOS.md`): App iOS nativa. Contém a documentação sobre arquitetura SwiftUI, rastreio CoreLocation nativo, tarefas de background (BGTasks) e renderização nativa do mapa no iOS.
 
 ---
 
