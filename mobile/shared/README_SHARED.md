@@ -60,3 +60,13 @@ A arquitetura de segurança exigiu uma separação drástica nos clientes de red
 - **`GetDeviceSerialNumberUseCase`:** Encapsula de forma limpa o acesso ao UUID persistente ou `ANDROID_ID`, lendo da plataforma via interface injectada (`Platform.dependencies`), usado em todos os payloads emitidos por este módulo.
 
 O módulo todo gira em torno de funções puras ou de Kotlin Coroutines assíncronas com tratamento limpo de exceções, blindado para lidar tanto com o telemóvel perder o sinal na curva da montanha (via Room/SQLDelight) como com um firewall mal configurada do lado do ISP rural (via capturas extensivas das falhas lógicas nos HTTP 200 das APIs Next.js).
+
+---
+
+## 6. Regras de Timestamps (Fonte da Verdade)
+
+Para garantir que o histórico (linhas) e o marcador mais recente (bola) são desenhados corretamente mesmo após longos períodos offline, o ecossistema respeita estritamente as seguintes regras:
+
+1. **Momento da Captura (`location.time`):** O timestamp associado a um `TelemetryRecord` tem de ser **obrigatoriamente** a hora reportada pela antena GPS no momento em que a localização física foi obtida, e nunca a hora atual do sistema operativo (`System.currentTimeMillis()`). Isto impede que localizações guardadas em cache enquanto o dispositivo dorme (batching) fiquem todas com o mesmo milissegundo ao acordar.
+2. **Ordenação Local (`createdAtEpochMs`):** As *queries* na BD local (Room) ordenam os pontos fisicamente no tempo (`ORDER BY createdAtEpochMs ASC`), garantindo que o último ponto da lista é inequivocamente o último local por onde o utilizador passou.
+3. **Imutabilidade Offline:** Um ponto gerado às 14:00 mas apenas sincronizado via internet às 18:00 mantém o seu carimbo original. Todo o Filtro Kalman e os cálculos de velocidade baseiam-se na diferença real de tempo destas capturas.
