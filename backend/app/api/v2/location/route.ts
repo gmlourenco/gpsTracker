@@ -131,7 +131,10 @@ export async function POST(request: NextRequest) {
 
   const { error: locationError } = await supabase
     .from('locations')
-    .insert(locationRows);
+    .upsert(locationRows, {
+      onConflict: 'device_id,created_at',
+      ignoreDuplicates: true,
+    });
 
   if (locationError) {
     console.error('[POST /api/v2/location] Locations insert error:', locationError);
