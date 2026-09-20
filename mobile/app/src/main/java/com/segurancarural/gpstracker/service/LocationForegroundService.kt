@@ -99,6 +99,9 @@ class LocationForegroundService : Service(), KoinComponent {
     /** MOVING: configurable, default 1 minute */
     private val movingIntervalMs get() = prefs().getLong("tracking_interval_ms", 1 * 60 * 1000L)
 
+    /** HARDWARE POLLING: configurable, default 1 minute */
+    private val gpsPollingIntervalMs get() = prefs().getLong("gps_polling_interval_ms", 60_000L)
+
     /** HEARTBEAT: 30 minutes static force packet */
     private val HEARTBEAT_INTERVAL_MS = 30 * 60 * 1000L
 
@@ -390,20 +393,12 @@ class LocationForegroundService : Service(), KoinComponent {
         // Always use high accuracy (pure GPS) for rural safety reliability to guarantee 15m or better precision
         val priority = Priority.PRIORITY_HIGH_ACCURACY
 
-        val currentSpeedKmh = lastKnownLocation?.speed?.times(3.6f) ?: 0f
-        val adaptiveIntervalMs = when {
-            currentSpeedKmh < 1f   -> 120_000L  // Stationary: 2 min
-            currentSpeedKmh < 5f   -> 60_000L   // Very slow: 1 min
-            currentSpeedKmh < 20f  -> 30_000L   // Normal tractor: 30s
-            else                   -> 15_000L   // Road transport: 15s
-        }
-
-        // Poll adaptively to check distance changes, or every 15 seconds in SOS mode.
-        // If distance threshold is <= 0m (disabled), poll at the moving time interval.
+        // Hardware polling interval: configurable by user, or 15s in SOS mode.
+        // If distance threshold is <= 0m (disabled), fallback to polling at the moving time interval.
         val intervalMs = when {
             isSos -> SOS_INTERVAL_MS
             distanceThresholdM <= 0f -> movingIntervalMs
-            else -> minOf(movingIntervalMs, adaptiveIntervalMs)
+            else -> minOf(movingIntervalMs, gpsPollingIntervalMs)
         }
 
         val requestBuilder = LocationRequest.Builder(priority, intervalMs)

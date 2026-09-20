@@ -18,7 +18,7 @@ android {
         minSdk = 26           // Android 8.0 — minimum for reliable ForegroundService + FusedLocation
         targetSdk = 36
 
-        val version = project.findProperty("versionName")?.toString() ?: "0.7.0"
+        val version = project.findProperty("versionName")?.toString() ?: "0.7.1"
         versionName = version
         versionCode = (project.findProperty("versionCode") as String?)?.toIntOrNull() ?: run {
             try {
