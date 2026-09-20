@@ -117,6 +117,8 @@ interface DeviceRow {
   tracking_distance_m?: number | string | null;
   default_map_type?: string | null;
   accident_sensor_sensitivity?: string | null;
+  local_history_days?: number | string | null;
+  local_history_max_gb?: number | string | null;
   config_updated_at?: number | string | null;
   [key: string]: unknown;
 }
@@ -126,11 +128,13 @@ function mapDeviceToConfig(data: DeviceRow) {
     serialNumber: data.id,
     deviceLabel: data.label || 'Dispositivo',
     markerColor: data.marker_color,
-    trackingIntervalMs: data.tracking_interval_ms !== null ? Number(data.tracking_interval_ms) : 60000,
-    trackingDistanceM: data.tracking_distance_m !== null ? Number(data.tracking_distance_m) : 200,
+    trackingIntervalMs: data.tracking_interval_ms !== null && data.tracking_interval_ms !== undefined ? Number(data.tracking_interval_ms) : 60000,
+    trackingDistanceM: data.tracking_distance_m !== null && data.tracking_distance_m !== undefined ? Number(data.tracking_distance_m) : 200,
     defaultMapType: data.default_map_type || 'SATELLITE',
     accidentSensorSensitivity: data.accident_sensor_sensitivity || 'medium',
-    configUpdatedAt: data.config_updated_at !== null ? Number(data.config_updated_at) : -1,
+    localHistoryDays: data.local_history_days !== null && data.local_history_days !== undefined ? Number(data.local_history_days) : 14,
+    localHistoryMaxGb: data.local_history_max_gb !== null && data.local_history_max_gb !== undefined ? Number(data.local_history_max_gb) : 1.0,
+    configUpdatedAt: data.config_updated_at !== null && data.config_updated_at !== undefined ? Number(data.config_updated_at) : -1,
   };
 }
 
@@ -147,6 +151,8 @@ const CONFIG_COLUMN_MAP: Record<string, string> = {
   trackingDistanceM: 'tracking_distance_m',
   defaultMapType: 'default_map_type',
   accidentSensorSensitivity: 'accident_sensor_sensitivity',
+  localHistoryDays: 'local_history_days',
+  localHistoryMaxGb: 'local_history_max_gb',
   configUpdatedAt: 'config_updated_at',
 };
 
@@ -169,9 +175,9 @@ export async function POST(request: NextRequest) {
     const columnName = CONFIG_COLUMN_MAP[item.configName];
     if (columnName) {
       let val = item.configValue;
-      if (columnName === 'tracking_interval_ms' || columnName === 'config_updated_at') {
+      if (columnName === 'tracking_interval_ms' || columnName === 'config_updated_at' || columnName === 'local_history_days') {
         val = val !== null && val !== undefined ? Number(val) : null;
-      } else if (columnName === 'tracking_distance_m') {
+      } else if (columnName === 'tracking_distance_m' || columnName === 'local_history_max_gb') {
         val = val !== null && val !== undefined ? Number(val) : null;
       } else if (columnName === 'marker_color' && typeof val === 'string') {
         val = val.toUpperCase();

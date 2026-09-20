@@ -451,6 +451,8 @@ struct SettingsView: View {
                     trackingDistanceM: Float(distanceToSave),
                     defaultMapType: mapTypeToSave,
                     accidentSensorSensitivity: sensitivityToSave,
+                    localHistoryDays: 14,
+                    localHistoryMaxGb: 1.0,
                     configUpdatedAt: Int64(Date().timeIntervalSince1970 * 1000)
                 )
                 

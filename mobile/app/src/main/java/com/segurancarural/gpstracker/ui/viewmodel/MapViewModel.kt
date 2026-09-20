@@ -50,13 +50,24 @@ class MapViewModel(application: Application) : AndroidViewModel(application) {
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
     private val rawMyRoute: StateFlow<List<TelemetryRecord>> = timeFilter
         .flatMapLatest { filter ->
-            // Memory scoop: clean up local locations older than 10 days to prevent infinite DB growth
-            val tenDaysAgoMs = System.currentTimeMillis() - (10L * 24 * 60 * 60 * 1000)
+            // Memory scoop: clean up local locations using configurable retention limits
             try {
-                dao.deleteOlderThan(tenDaysAgoMs)
+                val days = prefs.getInt("local_history_days", 14)
+                val cutoffMs = System.currentTimeMillis() - (days * 24L * 60 * 60 * 1000)
+                dao.deleteOlderThan(cutoffMs)
+
+                val maxGb = prefs.getFloat("local_history_max_gb", 1.0f)
+                val maxBytes = (maxGb * 1024 * 1024 * 1024).toLong()
+                val dbFile = application.getDatabasePath(com.segurancarural.gpstracker.data.db.AppDatabase.DATABASE_NAME)
+                if (dbFile.exists() && dbFile.length() > maxBytes) {
+                    // Failsafe: if DB exceeds size limit, aggressively trim to last 3 days
+                    val aggressiveCutoffMs = System.currentTimeMillis() - (3L * 24 * 60 * 60 * 1000)
+                    dao.deleteOlderThan(aggressiveCutoffMs)
+                }
             } catch (e: Exception) {
                 // Ignore on UI thread / flow construction just in case
             }
+
 
             val calendar = java.util.Calendar.getInstance()
             val endMs: Long

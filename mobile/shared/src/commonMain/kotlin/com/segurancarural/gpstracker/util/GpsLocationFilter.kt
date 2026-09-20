@@ -38,6 +38,7 @@ class GpsLocationFilter(
     private var stationaryAnchorLng: Double = 0.0
     private var isStationaryLocked: Boolean = false
     private var lastStationaryCheckMs: Long = 0L
+    private var lastAcceptedTimeMs: Long = 0L
     private var lastProcessedTimeMs: Long = 0L
 
     private val recentLocations = mutableListOf<Pair<Double, Double>>()
@@ -48,13 +49,15 @@ class GpsLocationFilter(
         kalmanVariance = -1.0
         isStationaryLocked = false
         recentLocations.clear()
+        lastAcceptedTimeMs = 0L
         lastProcessedTimeMs = 0L
     }
 
-    fun process(record: TelemetryRecord): FilterResult {
+    fun process(record: TelemetryRecord, forceAcceptIntervalMs: Long = 120_000L): FilterResult {
         // SOS emergency mode bypasses filtering to ensure every emergency point is preserved
         if (record.emergencyState) {
             updateKalman(record.lat, record.lng, record.accuracy.toDouble())
+            lastProcessedTimeMs = record.createdAtEpochMs
             return FilterResult.Accept(record)
         }
 
@@ -69,6 +72,7 @@ class GpsLocationFilter(
             stationaryAnchorLat = record.lat
             stationaryAnchorLng = record.lng
             lastStationaryCheckMs = now
+            lastAcceptedTimeMs = now
             lastProcessedTimeMs = now
 
             recentLocations.add(Pair(record.lat, record.lng))
@@ -111,6 +115,7 @@ class GpsLocationFilter(
             } else {
                 // If it's still locked, and we have a jump > 25m, it's a bounce/glitch.
                 if (distFromAnchor > 25.0 && (record.accuracy > lowAccuracyThresholdM || record.speed < 3.0f)) {
+                    lastProcessedTimeMs = now
                     return FilterResult.SuspiciousJumpRecheck(record)
                 }
             }
@@ -120,11 +125,12 @@ class GpsLocationFilter(
         val (avgLat, avgLng) = calculateRollingAverage(record.lat, record.lng)
         val distFromCentroid = haversineDistanceMeters(avgLat, avgLng, record.lat, record.lng)
 
-        val timeSinceLastAccepted = if (lastProcessedTimeMs > 0) now - lastProcessedTimeMs else 0L
-        val forceAccept = timeSinceLastAccepted > 120_000L // Force accept after 2 min silence
+        val timeSinceLastAccepted = if (lastAcceptedTimeMs > 0) now - lastAcceptedTimeMs else 0L
+        val forceAccept = timeSinceLastAccepted >= forceAcceptIntervalMs // Force accept based on the dynamic config
         if (!forceAccept && distFromCentroid < minStationaryJitterRadiusM && (record.speed < 1.0f || isStationaryLocked)) {
             // Smooth internal state without outputting duplicate stationary points
             updateKalman(record.lat, record.lng, record.accuracy.toDouble())
+            lastProcessedTimeMs = now
             return FilterResult.DiscardRedundant
         }
 
@@ -132,6 +138,7 @@ class GpsLocationFilter(
         val timeDiffSeconds = maxOf(1.0, (now - lastProcessedTimeMs) / 1000.0)
         val calculatedSpeedKmh = (distFromKalman / timeDiffSeconds) * 3.6
         if (calculatedSpeedKmh > maxSpeedKmh && distFromKalman > 50.0) {
+            lastProcessedTimeMs = now
             return FilterResult.SuspiciousJumpRecheck(record)
         }
 
@@ -144,6 +151,7 @@ class GpsLocationFilter(
 
         // 6. Apply 2D Kalman Filter Smoothing
         updateKalman(record.lat, record.lng, record.accuracy.toDouble())
+        lastAcceptedTimeMs = now
         lastProcessedTimeMs = now
 
         // Add to rolling window

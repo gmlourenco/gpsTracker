@@ -9,8 +9,8 @@ class SubmitLocationUseCase(
     private val repository: TelemetryRepository,
     val gpsFilter: GpsLocationFilter = GpsLocationFilter()
 ) {
-    suspend operator fun invoke(record: TelemetryRecord): FilterResult {
-        val result = gpsFilter.process(record)
+    suspend operator fun invoke(record: TelemetryRecord, forceAcceptIntervalMs: Long = 120_000L): FilterResult {
+        val result = gpsFilter.process(record, forceAcceptIntervalMs)
         when (result) {
             is FilterResult.Accept -> {
                 repository.submitLocation(result.record)

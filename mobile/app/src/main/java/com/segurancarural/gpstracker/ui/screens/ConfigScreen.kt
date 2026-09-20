@@ -142,6 +142,13 @@ fun ConfigScreen(
     var isSaving by remember { mutableStateOf(false) }
     var saveError by remember { mutableStateOf(false) }
 
+    var localHistoryDays by remember { mutableIntStateOf(14) }
+    var savedLocalHistoryDays by remember { mutableIntStateOf(14) }
+
+    var localHistoryMaxGb by remember { mutableFloatStateOf(1.0f) }
+    var savedLocalHistoryMaxGb by remember { mutableFloatStateOf(1.0f) }
+
+
     val farmRepository = remember { FarmRepository() }
     var hasFarm by remember { mutableStateOf(farmRepository.hasFarm()) }
     var inviteCodeInput by remember { mutableStateOf("") }
@@ -176,6 +183,13 @@ fun ConfigScreen(
             sensitivityOptions.indexOf(sensitivity).coerceAtLeast(0)
         }
 
+        val savedDays = prefs.getInt("local_history_days", 14)
+        val savedMaxGb = prefs.getFloat("local_history_max_gb", 1.0f)
+        localHistoryDays = savedDays
+        localHistoryMaxGb = savedMaxGb
+        savedLocalHistoryDays = savedDays
+        savedLocalHistoryMaxGb = savedMaxGb
+
         deviceLabel = label
         selectedSensitivityIdx = sensitivityIdx
         distanceThresholdM = distance
@@ -198,7 +212,10 @@ fun ConfigScreen(
             selectedMarkerColorArgb != savedMarkerColorArgb ||
             selectedIntervalIdx != savedIntervalIdx ||
             selectedMapTheme != savedMapTheme ||
-            currentSensitivity != savedSensitivity
+            currentSensitivity != savedSensitivity ||
+            localHistoryDays != savedLocalHistoryDays ||
+            localHistoryMaxGb != savedLocalHistoryMaxGb
+
 
     Column(
         modifier = Modifier
@@ -758,6 +775,64 @@ fun ConfigScreen(
             )
         }
 
+        // ── Local History Retention ──────────────────────────────────────────
+        ConfigCard(title = "Retenção de Histórico Local (Offline)") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Dias de Histórico", color = TextSecondary, fontSize = 13.sp)
+                Text(
+                    "$localHistoryDays dias",
+                    color = AccentGreen,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+            }
+            Slider(
+                value = localHistoryDays.toFloat(),
+                onValueChange = { localHistoryDays = it.roundToInt() },
+                valueRange = 1f..30f,
+                steps = 28,
+                colors = SliderDefaults.colors(
+                    thumbColor = AccentGreen,
+                    activeTrackColor = AccentGreen,
+                    inactiveTrackColor = TextSecondary.copy(alpha = 0.3f)
+                )
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Limite de Armazenamento", color = TextSecondary, fontSize = 13.sp)
+                Text(
+                    String.format("%.1f GB", localHistoryMaxGb),
+                    color = AccentGreen,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
+            }
+            Slider(
+                value = localHistoryMaxGb,
+                onValueChange = { localHistoryMaxGb = (it * 10f).roundToInt() / 10f },
+                valueRange = 0.1f..5.0f,
+                steps = 48,
+                colors = SliderDefaults.colors(
+                    thumbColor = AccentGreen,
+                    activeTrackColor = AccentGreen,
+                    inactiveTrackColor = TextSecondary.copy(alpha = 0.3f)
+                )
+            )
+            Text(
+                text = "Preserva as rotas no mapa da app mesmo sem internet. Limpa automaticamente o que exceder estes limites.",
+                color = TextSecondary,
+                fontSize = 11.sp
+            )
+        }
+
         // ── Save button ────────────────────────────────────────────────────
         Button(
             onClick = {
@@ -778,6 +853,8 @@ fun ConfigScreen(
                     .putFloat("tracking_distance_m", distanceThresholdM)
                     .putString("default_map_type", selectedMapTheme.name)
                     .putLong("config_last_updated_ms", timestamp)
+                    .putInt("local_history_days", localHistoryDays)
+                    .putFloat("local_history_max_gb", localHistoryMaxGb)
                     .apply()
 
                 // Update baselines immediately so the button disables
@@ -787,6 +864,8 @@ fun ConfigScreen(
                 val previousMarkerColorArgb = savedMarkerColorArgb
                 val previousIntervalIdx = savedIntervalIdx
                 val previousMapTheme = savedMapTheme
+                val previousLocalHistoryDays = savedLocalHistoryDays
+                val previousLocalHistoryMaxGb = savedLocalHistoryMaxGb
 
                 savedDeviceLabel = trimmedLabel
                 savedSensitivity = sensitivity
@@ -794,6 +873,8 @@ fun ConfigScreen(
                 savedMarkerColorArgb = selectedMarkerColorArgb
                 savedIntervalIdx = selectedIntervalIdx
                 savedMapTheme = selectedMapTheme
+                savedLocalHistoryDays = localHistoryDays
+                savedLocalHistoryMaxGb = localHistoryMaxGb
 
                 scope.launch {
                     val result = DeviceConfigRepository().saveConfigToBackend(

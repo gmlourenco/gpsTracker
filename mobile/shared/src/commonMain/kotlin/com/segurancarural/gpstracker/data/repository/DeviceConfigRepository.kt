@@ -56,6 +56,14 @@ class DeviceConfigRepository {
                 put("configValue", config.accidentSensorSensitivity)
             }
             addJsonObject {
+                put("configName", "localHistoryDays")
+                put("configValue", config.localHistoryDays)
+            }
+            addJsonObject {
+                put("configName", "localHistoryMaxGb")
+                put("configValue", config.localHistoryMaxGb.toDouble())
+            }
+            addJsonObject {
                 put("configName", "configUpdatedAt")
                 put("configValue", config.configUpdatedAt)
             }

@@ -12,6 +12,8 @@ data class DeviceConfigDto(
     @SerialName("trackingDistanceM") val trackingDistanceM: Float,
     @SerialName("defaultMapType") val defaultMapType: String = "SATELLITE",
     @SerialName("accidentSensorSensitivity") val accidentSensorSensitivity: String = "medium",
+    @SerialName("localHistoryDays") val localHistoryDays: Int = 14,
+    @SerialName("localHistoryMaxGb") val localHistoryMaxGb: Float = 1.0f,
     @SerialName("configUpdatedAt") val configUpdatedAt: Long = -1
 )
 

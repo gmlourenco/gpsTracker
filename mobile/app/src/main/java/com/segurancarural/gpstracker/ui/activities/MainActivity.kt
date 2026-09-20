@@ -111,8 +111,9 @@ class MainActivity : ComponentActivity() {
         // Set initial intent for notification click check
         activityIntentState.value = intent
 
-        // Schedule background sync (safe to call multiple times)
+        // Ensure workers are scheduled
         SyncWorker.schedule(this)
+        com.segurancarural.gpstracker.worker.CleanupWorker.schedule(this)
 
         // Request location permissions if not already granted
         if (!hasLocationPermission()) {

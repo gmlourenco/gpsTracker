@@ -41,7 +41,7 @@ Corre sobre um `IoDispatcher` e divide a tarefa numa heurística assimétrica de
 - **Fase 1 (Emergência / LIFO):** Procura na BD todos os registos SOS pendentes. Tenta enviar para a rota separada de alta prioridade (`/api/emergency`) de forma individual (um a um), enviando primeiro os mais recentes (LIFO). Se houver uma falha a meio, interrompe o ponto mas tenta os seguintes.
 - **Fase 2 (Latest Position / "O Ponto Desbloqueador"):** Pega unicamente no *registo normal não-SOS* mais recente da BD e dispara num array unitário para a `/api/v2/location`. O intuito desta fase é que o mapa Web do familiar do trator seja atualizado **quase imediatamente**, mesmo que o trator tenha estado 8 horas offline e tenha uma fila gigantesca de dados históricos que demorariam minutos a descarregar.
 - **Fase 3 (History / FIFO):** Reconstrói o rasto histórico. Começa pelos mais antigos primeiro, agrupa lotes/batches estritos de **25 registos** e lança POSTs consecutivos `/api/v2/location`. Ao encontrar a primeira falha de rede suspende de imediato toda a *Fase 3* (para não abrir buracos temporais).
-- **Cleanup:** `cleanupSynced()` remove fisicamente todos os blocos entretanto marcados com o estado `syncState=2` (Enviados com Sucesso).
+- **Cleanup (Histórico Local):** Historicamente, os pontos eram removidos da BD mal fossem sincronizados. Agora, o `SyncEngine` deixa-os estar (marcando com `syncState=2`), e a responsabilidade de limpeza transitou para o **Memory Scoop** (no `MapViewModel`). Isto transforma a `telemetry_queue` numa *Cache de Histórico Local*, permitindo à app desenhar a rota dos últimos 14 dias no mapa mesmo quando está 100% offline, controlando e libertando o armazenamento de forma dinâmica (limite de 14 dias ou 1GB configuráveis).
 
 ---
 
