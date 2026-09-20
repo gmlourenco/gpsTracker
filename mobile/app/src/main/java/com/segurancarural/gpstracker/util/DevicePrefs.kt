@@ -93,6 +93,8 @@ fun Context.saveConfigToPrefs(config: DeviceConfigDto) {
         putFloat("tracking_distance_m", config.trackingDistanceM)
         putString("default_map_type", config.defaultMapType)
         putString("accident_sensor_sensitivity", config.accidentSensorSensitivity)
+        putInt("local_history_days", config.localHistoryDays)
+        putFloat("local_history_max_gb", config.localHistoryMaxGb)
         putLong("config_last_updated_ms", config.configUpdatedAt)
     }
 }

@@ -45,7 +45,13 @@ Estes endpoints servem a interface Web (onde os familiares consultam os tratores
 | :--- | :--- | :--- | :--- |
 | **GET** | `/api/devices` | Lista todos os tratores associados às quintas do utilizador e as respetivas posições mais recentes. | `JWT` |
 | **GET** | `/api/positions/last`| Agregação rápida de últimas posições delegada no RPC `get_latest_positions()`. | `JWT` |
-| **GET/POST**| `/api/devices/config`| Lê ou escreve a configuração remota de um trator (e.g. intervalo de envio, cores do mapa). | `JWT / Secret` |
+| **GET/POST**| `/api/devices/config`| Lê ou escreve a configuração remota de um trator (e.g. intervalo de envio, histórico local, cores do mapa). | `JWT / Secret` |
+
+### Configuração Remota e Identidade do Dispositivo
+A gestão de configurações (`/api/devices/config`) partilha a inteligência entre dispositivos através de uma heurística avançada:
+- **Restauro Invisível (Auto-Restore):** O `ANDROID_ID` é usado como `serialNumber` da app. Se a app for limpa ou desinstalada, mas instalada com a mesma assinatura (e.g., PRO), o `serialNumber` mantém-se. Ao fazer login, a API reconhece o ID, verifica a propriedade e auto-aplica a configuração, sem incomodar o utilizador.
+- **Assinaturas Dev/Pro e Importação:** Se a app for instalada com uma nova assinatura (e.g., versão de desenvolvimento) ou num telemóvel novo, o `serialNumber` muda. Nesse cenário, o backend deteta que o dispositivo "é novo", descobre que outros aparelhos a conta possui, e levanta a flag `promptImport: true` (a não ser que os aparelhos antigos tenham operado sempre anonimamente sem login de utilizador associado).
+- **Retrocompatibilidade Restrita:** O backend garante *Type Guards*. Ao atualizar a app e pedir novos campos (`localHistoryDays`, `localHistoryMaxGb`), se o `POST/GET` for proveniente de uma build antiga, os *Type Guards* previnem quebras preenchendo automaticamente com *defaults* conservadores (14 dias, 1.0GB).
 | **POST** | `/api/auth/create-farm`| Inicializa um ambiente segregado para uma nova família usando `create_farm_with_owner`. | `JWT` |
 | **POST** | `/api/auth/join-farm` | Aceita um código de convite para associar o utilizador a uma quinta existente. | `JWT` |
 | **POST** | `/api/farms/invite` | Gera os referidos códigos temporários para adicionar familiares. | `JWT` |
