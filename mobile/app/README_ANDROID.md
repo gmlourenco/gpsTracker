@@ -27,7 +27,10 @@ A app nativa é responsável por manter o sistema vivo mesmo com o ecrã bloquea
 ### `LocationForegroundService` (GPS Contínuo)
 - **Ciclo de vida:** Iniciado pelo clique no botão da `HomeScreen` ou pelo `BootReceiver` (se o telemóvel reiniciar com o rastreio ativo). 
 - **Como Funciona:** É um `Service` de Android persistente ("Foreground Service") que mostra uma notificação in-removível, impedindo o Android de matar o processo por falta de memória. Usa o `FusedLocationProviderClient` da Google.
-- **Lógica de Polling:** Totalmente adaptativa. Se o trator estiver parado (< 1km/h), pede pings a cada 2 minutos. Se for a direito na estrada (> 20km/h), acelera para 15 segundos. Se o botão SOS for premido, força imediatamente os pings para precisão máxima de 15s contínuos. Possui um "Heartbeat" via `AlarmManager` para garantir um ping a cada 30 minutos em caso de *Doze Mode* profundo.
+- **Lógica de Duplo-Fluxo:** 
+  1. **Polling Adaptativo (Antena GPS):** A velocidade a que a antena de GPS acorda é gerida nativamente (15s a conduzir, até 2 mins se parado). Este fluxo não usa rede nem grava, serve apenas para detetar o movimento eficientemente.
+  2. **Envio Forçado (Regra da UI):** O intervalo estipulado pelo utilizador nas Configurações (ex: 15 min). A cada "ping" do GPS, o serviço cruza a informação com este intervalo. Se o tempo limite esgotar, a localização é gravada/enviada obrigatoriamente, substituindo o algoritmo estacionário do filtro KMP.
+- **Heartbeat & Anti-Doze:** Possui um fallback via `AlarmManager` para garantir que o serviço ressuscita o GPS no limite a cada 30 minutos em caso de *Doze Mode* extremo do Android, evitando que o sistema operativo cancele a telemetria indefinidamente.
 - **Ligação ao Shared:** Para cada coordenada obtida da antena, constrói um `TelemetryRecord` e injeta-o diretamente no `SubmitLocationUseCase` (que vive no `mobile/shared/`).
 
 ### `AccidentDetector` & `AccidentReceiver` (Deteção de Capotamento)
