@@ -1,12 +1,12 @@
 package com.segurancarural.gpstracker.receiver
 
-import com.segurancarural.gpstracker.service.LocationForegroundService
-import com.segurancarural.gpstracker.worker.SyncWorker
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import com.segurancarural.gpstracker.service.LocationForegroundService
+import com.segurancarural.gpstracker.worker.SyncWorker
 
 private const val TAG = "BootReceiver"
 
@@ -58,5 +58,6 @@ class BootReceiver : BroadcastReceiver() {
         }
 
         SyncWorker.schedule(context)
+        com.segurancarural.gpstracker.worker.CleanupWorker.schedule(context)
     }
 }

@@ -38,6 +38,10 @@ A app nativa é responsável por manter o sistema vivo mesmo com o ecrã bloquea
 - **Como Funciona:** Tarefa agendada via `WorkManager`. Configurada para tentar correr a cada 15 minutos, mas restrita estritamente a alturas em que o OS declare `NetworkType.CONNECTED`.
 - **Ligação ao Shared:** Assim que acorda e há rede, inicializa o `SyncEngine(dao, httpClient)` do módulo partilhado e chama o `flush()`, delegando o envio massivo para a rede.
 
+### `CleanupWorker` (Limpeza de Memória Cache Local)
+- **Como Funciona:** Tarefa diária agendada via `WorkManager` (independente de rede).
+- **Objetivo:** Lê as configurações de retenção estipuladas pelo utilizador na UI (dias de histórico e tamanho máximo da base de dados em GB). Apaga fisicamente os pontos da base de dados SQLite (`telemetry_queue`) que excedam as regras, bem como ativa um "limpa-neves" de emergência caso a DB local cresça de forma anómala, garantindo que o armazenamento do telemóvel não inflaciona eternamente, mesmo que o utilizador não abra o mapa durante meses.
+
 ---
 
 ## 🔄 3. Mecanismo de Atualização OTA (Over-The-Air)
@@ -83,4 +87,5 @@ A renderização cartográfica na app Android, construída usando `MapLibreHelpe
 
 1. **Marcador Principal:** Apenas a localização mais recente exibe o círculo de precisão ao redor do marcador.
 2. **Histórico e Trajetos:** As localizações antigas (histórico do dia/semana) são ligadas sequencialmente por uma linha, sem desenhar círculos de precisão individuais.
-3. **Limpeza de Memória (Memory Scoop):** Ao construir os dados para renderização da View (`MapViewModel.kt`), o KMP DAO é instruído a eliminar silenciosamente todas as localizações offline guardadas com mais de 10 dias, prevenindo inflação da BD local (Room).
+3. **Cache de Histórico Local (Offline):** A app guarda os pontos na base de dados (`telemetry_queue`) mesmo após serem sincronizados com a Cloud. A retenção deste histórico local permite desenhar a rota do dia e semana mesmo sem rede. 
+4. **Limpeza de Memória:** Quer via `MapViewModel` ao abrir o mapa, quer diariamente em background via `CleanupWorker`, os dados locais são inspecionados para que não ultrapassem os limites de retenção de tempo (ex: 14 dias padrão) ou tamanho da base de dados (ex: 1 GB padrão) definidos nas Configurações, garantindo que a base local nunca sufoca a memória do equipamento Android.

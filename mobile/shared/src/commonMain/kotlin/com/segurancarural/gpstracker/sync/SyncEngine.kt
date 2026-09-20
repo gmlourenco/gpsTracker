@@ -138,9 +138,7 @@ class SyncEngine(
                     }
                 }
 
-                // ── Cleanup synced records ────────────────────────────────────────
-                val deleted = dao.deleteSynced()
-                Log.d(TAG, "Cleanup: deleted $deleted synced records from queue")
+                // Cleanup is now handled by the Memory Scoop in MapViewModel to preserve offline history
 
                 val result = SyncResult(
                     emergencySynced = emergencySyncedCount,
