@@ -10,6 +10,7 @@ data class DeviceConfigDto(
     @SerialName("markerColor") val markerColor: String,
     @SerialName("trackingIntervalMs") val trackingIntervalMs: Long,
     @SerialName("trackingDistanceM") val trackingDistanceM: Float,
+    @SerialName("gpsPollingIntervalMs") val gpsPollingIntervalMs: Long = 60000L,
     @SerialName("defaultMapType") val defaultMapType: String = "SATELLITE",
     @SerialName("accidentSensorSensitivity") val accidentSensorSensitivity: String = "medium",
     @SerialName("localHistoryDays") val localHistoryDays: Int = 14,

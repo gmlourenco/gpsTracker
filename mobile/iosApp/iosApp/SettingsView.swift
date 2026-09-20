@@ -449,6 +449,7 @@ struct SettingsView: View {
                     markerColor: colorToSave,
                     trackingIntervalMs: Int64(intervalToSave),
                     trackingDistanceM: Float(distanceToSave),
+                    gpsPollingIntervalMs: Int64(60000),
                     defaultMapType: mapTypeToSave,
                     accidentSensorSensitivity: sensitivityToSave,
                     localHistoryDays: 14,

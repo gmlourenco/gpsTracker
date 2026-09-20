@@ -92,6 +92,7 @@ fun Context.saveConfigToPrefs(config: DeviceConfigDto) {
         putInt(PREF_DEVICE_MARKER_COLOR, mapLibreHexToArgb(config.markerColor))
         putLong("tracking_interval_ms", config.trackingIntervalMs)
         putFloat("tracking_distance_m", config.trackingDistanceM)
+        putLong("gps_polling_interval_ms", config.gpsPollingIntervalMs)
         putString("default_map_type", config.defaultMapType)
         putString("accident_sensor_sensitivity", config.accidentSensorSensitivity)
         putInt("local_history_days", config.localHistoryDays)
