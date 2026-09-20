@@ -124,6 +124,11 @@ fun ConfigScreen(
     val intervalLabels = listOf("1 minuto", "5 minutos", "10 minutos", "15 minutos", "30 minutos", "60 minutos")
     var selectedIntervalIdx by remember { mutableStateOf(0) } // default 1min
 
+    // Hardware GPS Polling Interval
+    val pollingIntervalOptions = listOf(15_000L, 30_000L, 60_000L, 120_000L, 300_000L)
+    val pollingIntervalLabels = listOf("15 segundos", "30 segundos", "1 minuto", "2 minutos", "5 minutos")
+    var selectedPollingIntervalIdx by remember { mutableStateOf(2) } // default 1min
+
     // Distance threshold in metres
     var distanceThresholdM by remember { mutableFloatStateOf(200f) }
 
@@ -133,6 +138,7 @@ fun ConfigScreen(
     var savedDeviceLabel by remember { mutableStateOf("") }
     var savedSensitivity by remember { mutableStateOf("medium") }
     var savedIntervalIdx by remember { mutableStateOf(0) }
+    var savedPollingIntervalIdx by remember { mutableStateOf(2) }
     var savedDistanceThresholdM by remember { mutableFloatStateOf(200f) }
     var savedMarkerColorArgb by remember { mutableIntStateOf(DEFAULT_MARKER_COLOR_ARGB) }
 
@@ -171,6 +177,10 @@ fun ConfigScreen(
         val savedIntervalMs = prefs.getLong("tracking_interval_ms", 1 * 60 * 1000L)
         val savedMinutes = savedIntervalMs / 60_000L
         val intervalIdx = intervalOptions.indexOfFirst { it == savedMinutes }.coerceAtLeast(0)
+
+        val savedPollingIntervalMs = prefs.getLong("gps_polling_interval_ms", 60_000L)
+        val pollingIntervalIdx = pollingIntervalOptions.indexOfFirst { it == savedPollingIntervalMs }.coerceAtLeast(0)
+
         val mapTypeStr = prefs.getString("default_map_type", MapTheme.SATELLITE.name) ?: MapTheme.SATELLITE.name
         val mapTheme = try { MapTheme.valueOf(mapTypeStr) } catch (e: Exception) { MapTheme.SATELLITE }
 
@@ -195,6 +205,7 @@ fun ConfigScreen(
         distanceThresholdM = distance
         selectedMarkerColorArgb = color
         selectedIntervalIdx = intervalIdx
+        selectedPollingIntervalIdx = pollingIntervalIdx
         selectedMapTheme = mapTheme
 
         savedDeviceLabel = label
@@ -202,6 +213,7 @@ fun ConfigScreen(
         savedDistanceThresholdM = distance
         savedMarkerColorArgb = color
         savedIntervalIdx = intervalIdx
+        savedPollingIntervalIdx = pollingIntervalIdx
         savedMapTheme = mapTheme
 
         AppLog.d("ConfigScreen", "Settings loaded: label=$deviceLabel, interval=${savedMinutes}min, sensitivity=$sensitivity")
@@ -211,6 +223,7 @@ fun ConfigScreen(
             distanceThresholdM != savedDistanceThresholdM ||
             selectedMarkerColorArgb != savedMarkerColorArgb ||
             selectedIntervalIdx != savedIntervalIdx ||
+            selectedPollingIntervalIdx != savedPollingIntervalIdx ||
             selectedMapTheme != savedMapTheme ||
             currentSensitivity != savedSensitivity ||
             localHistoryDays != savedLocalHistoryDays ||
@@ -604,6 +617,52 @@ fun ConfigScreen(
             )
         }
 
+        // ── Hardware GPS Polling Interval ─────────────────────────────────────────────
+        ConfigCard(title = "Intervalo de Leitura do GPS") {
+            var dropdownExpanded by remember { mutableStateOf(false) }
+            ExposedDropdownMenuBox(
+                expanded = dropdownExpanded,
+                onExpandedChange = { dropdownExpanded = it }
+            ) {
+                OutlinedTextField(
+                    value = pollingIntervalLabels[selectedPollingIntervalIdx],
+                    onValueChange = {},
+                    readOnly = true,
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dropdownExpanded) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(MenuAnchorType.PrimaryNotEditable, enabled = true),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        focusedBorderColor = AccentGreen,
+                        unfocusedBorderColor = TextSecondary,
+                    )
+                )
+                ExposedDropdownMenu(
+                    expanded = dropdownExpanded,
+                    onDismissRequest = { dropdownExpanded = false },
+                    modifier = Modifier.background(CardDark)
+                ) {
+                    pollingIntervalLabels.forEachIndexed { index, label ->
+                        DropdownMenuItem(
+                            text = { Text(label, color = TextPrimary) },
+                            onClick = {
+                                selectedPollingIntervalIdx = index
+                                dropdownExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Frequência com que o dispositivo verifica fisicamente a sua posição no satélite.",
+                color = TextSecondary,
+                fontSize = 11.sp
+            )
+        }
+
         // ── Distance threshold ─────────────────────────────────────────────
         ConfigCard(title = "Distância Mínima de Movimento") {
             Row(
@@ -837,6 +896,7 @@ fun ConfigScreen(
         Button(
             onClick = {
                 val intervalMs = intervalOptions[selectedIntervalIdx] * 60_000L
+                val pollingIntervalMs = pollingIntervalOptions[selectedPollingIntervalIdx]
                 val trimmedLabel = deviceLabel.trim().ifEmpty { "Dispositivo" }
                 val sensitivity = currentSensitivity
                 val timestamp = System.currentTimeMillis()
@@ -850,6 +910,7 @@ fun ConfigScreen(
                     .putInt(PREF_DEVICE_MARKER_COLOR, selectedMarkerColorArgb)
                     .putString("accident_sensor_sensitivity", sensitivity)
                     .putLong("tracking_interval_ms", intervalMs)
+                    .putLong("gps_polling_interval_ms", pollingIntervalMs)
                     .putFloat("tracking_distance_m", distanceThresholdM)
                     .putString("default_map_type", selectedMapTheme.name)
                     .putLong("config_last_updated_ms", timestamp)
@@ -863,6 +924,7 @@ fun ConfigScreen(
                 val previousDistanceThresholdM = savedDistanceThresholdM
                 val previousMarkerColorArgb = savedMarkerColorArgb
                 val previousIntervalIdx = savedIntervalIdx
+                val previousPollingIntervalIdx = savedPollingIntervalIdx
                 val previousMapTheme = savedMapTheme
                 val previousLocalHistoryDays = savedLocalHistoryDays
                 val previousLocalHistoryMaxGb = savedLocalHistoryMaxGb
@@ -872,6 +934,7 @@ fun ConfigScreen(
                 savedDistanceThresholdM = distanceThresholdM
                 savedMarkerColorArgb = selectedMarkerColorArgb
                 savedIntervalIdx = selectedIntervalIdx
+                savedPollingIntervalIdx = selectedPollingIntervalIdx
                 savedMapTheme = selectedMapTheme
                 savedLocalHistoryDays = localHistoryDays
                 savedLocalHistoryMaxGb = localHistoryMaxGb
@@ -884,6 +947,7 @@ fun ConfigScreen(
                             markerColor = argbToMapLibreHex(selectedMarkerColorArgb),
                             trackingIntervalMs = intervalMs,
                             trackingDistanceM = distanceThresholdM,
+                            gpsPollingIntervalMs = pollingIntervalMs,
                             defaultMapType = selectedMapTheme.name,
                             accidentSensorSensitivity = sensitivity,
                             configUpdatedAt = timestamp

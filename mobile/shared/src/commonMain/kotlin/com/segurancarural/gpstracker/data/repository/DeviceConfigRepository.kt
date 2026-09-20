@@ -44,6 +44,10 @@ class DeviceConfigRepository {
                 put("configValue", config.trackingIntervalMs)
             }
             addJsonObject {
+                put("configName", "gpsPollingIntervalMs")
+                put("configValue", config.gpsPollingIntervalMs)
+            }
+            addJsonObject {
                 put("configName", "trackingDistanceM")
                 put("configValue", config.trackingDistanceM.toDouble())
             }
