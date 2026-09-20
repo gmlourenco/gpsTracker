@@ -556,7 +556,7 @@ class LocationForegroundService : Service(), KoinComponent {
 
     private fun storeRecord(record: TelemetryRecord) {
         serviceScope.launch {
-            val filterResult = submitLocationUseCase(record)
+            val filterResult = submitLocationUseCase(record, movingIntervalMs)
             when (filterResult) {
                 is com.segurancarural.gpstracker.util.FilterResult.Accept -> {
                     Log.d(TAG, "Submitted record (emergency=${record.emergencyState}, accuracy=${record.accuracy}m)")

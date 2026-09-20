@@ -2,7 +2,6 @@ package com.segurancarural.gpstracker.util
 
 import android.content.Context
 import android.provider.Settings
-import androidx.core.content.edit
 import com.segurancarural.gpstracker.data.dto.DeviceConfigDto
 import java.util.UUID
 
@@ -22,6 +21,11 @@ fun Context.deviceLabel(): String =
 fun Context.deviceMarkerColorArgb(): Int =
     trackingPrefs().getInt(PREF_DEVICE_MARKER_COLOR, DEFAULT_MARKER_COLOR_ARGB)
 
+fun Context.localHistoryDays(): Int =
+    trackingPrefs().getInt("local_history_days", 14)
+
+fun Context.localHistoryMaxGb(): Float =
+    trackingPrefs().getFloat("local_history_max_gb", 1.0f)
 
 
 /** `#RRGGBB` for MapLibre style properties. */
@@ -89,6 +93,8 @@ fun Context.saveConfigToPrefs(config: DeviceConfigDto) {
         putFloat("tracking_distance_m", config.trackingDistanceM)
         putString("default_map_type", config.defaultMapType)
         putString("accident_sensor_sensitivity", config.accidentSensorSensitivity)
+        putInt("local_history_days", config.localHistoryDays)
+        putFloat("local_history_max_gb", config.localHistoryMaxGb)
         putLong("config_last_updated_ms", config.configUpdatedAt)
     }
 }

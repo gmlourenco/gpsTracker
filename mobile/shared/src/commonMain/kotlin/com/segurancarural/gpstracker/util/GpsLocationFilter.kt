@@ -38,7 +38,7 @@ class GpsLocationFilter(
     private var stationaryAnchorLng: Double = 0.0
     private var isStationaryLocked: Boolean = false
     private var lastStationaryCheckMs: Long = 0L
-    private var lastProcessedTimeMs: Long = 0L
+    private var lastAcceptedTimeMs: Long = 0L
 
     private val recentLocations = mutableListOf<Pair<Double, Double>>()
     private val maxRecentSize = 5
@@ -48,10 +48,10 @@ class GpsLocationFilter(
         kalmanVariance = -1.0
         isStationaryLocked = false
         recentLocations.clear()
-        lastProcessedTimeMs = 0L
+        lastAcceptedTimeMs = 0L
     }
 
-    fun process(record: TelemetryRecord): FilterResult {
+    fun process(record: TelemetryRecord, forceAcceptIntervalMs: Long = 120_000L): FilterResult {
         // SOS emergency mode bypasses filtering to ensure every emergency point is preserved
         if (record.emergencyState) {
             updateKalman(record.lat, record.lng, record.accuracy.toDouble())
@@ -69,7 +69,7 @@ class GpsLocationFilter(
             stationaryAnchorLat = record.lat
             stationaryAnchorLng = record.lng
             lastStationaryCheckMs = now
-            lastProcessedTimeMs = now
+            lastAcceptedTimeMs = now
 
             recentLocations.add(Pair(record.lat, record.lng))
             return FilterResult.Accept(record)
@@ -91,12 +91,12 @@ class GpsLocationFilter(
         // 3. Wi-Fi / Cell Bounce Spike Rejection while Stationary
         if (isStationaryLocked) {
             val distFromAnchor = haversineDistanceMeters(stationaryAnchorLat, stationaryAnchorLng, record.lat, record.lng)
-            val timeSinceLastProcessed = if (lastProcessedTimeMs > 0) now - lastProcessedTimeMs else 0L
+            val timeSinceLastAccepted = if (lastAcceptedTimeMs > 0) now - lastAcceptedTimeMs else 0L
 
             // If user has moved cleanly away for > 30m with good accuracy AND actual movement speed (> 3 km/h), unlock anchor
             // OR if there's a massive jump (>300m) and we haven't seen a fix in a long time (app was suspended while traveling)
             val isValidMovement = (distFromAnchor > 30.0 && record.accuracy <= lowAccuracyThresholdM && record.speed >= 3.0f)
-            val isSuspendedTravel = (distFromAnchor > 300.0 && timeSinceLastProcessed > 120_000L)
+            val isSuspendedTravel = (distFromAnchor > 300.0 && timeSinceLastAccepted > 120_000L)
 
             if (isValidMovement || isSuspendedTravel) {
                 isStationaryLocked = false
@@ -120,8 +120,8 @@ class GpsLocationFilter(
         val (avgLat, avgLng) = calculateRollingAverage(record.lat, record.lng)
         val distFromCentroid = haversineDistanceMeters(avgLat, avgLng, record.lat, record.lng)
 
-        val timeSinceLastAccepted = if (lastProcessedTimeMs > 0) now - lastProcessedTimeMs else 0L
-        val forceAccept = timeSinceLastAccepted > 120_000L // Force accept after 2 min silence
+        val timeSinceLastAccepted = if (lastAcceptedTimeMs > 0) now - lastAcceptedTimeMs else 0L
+        val forceAccept = timeSinceLastAccepted >= forceAcceptIntervalMs // Force accept based on the dynamic config
         if (!forceAccept && distFromCentroid < minStationaryJitterRadiusM && (record.speed < 1.0f || isStationaryLocked)) {
             // Smooth internal state without outputting duplicate stationary points
             updateKalman(record.lat, record.lng, record.accuracy.toDouble())
@@ -129,7 +129,7 @@ class GpsLocationFilter(
         }
 
         // 5. Extreme Speed Glitch Guard (v > 150 km/h)
-        val timeDiffSeconds = maxOf(1.0, (now - lastProcessedTimeMs) / 1000.0)
+        val timeDiffSeconds = maxOf(1.0, (now - lastAcceptedTimeMs) / 1000.0)
         val calculatedSpeedKmh = (distFromKalman / timeDiffSeconds) * 3.6
         if (calculatedSpeedKmh > maxSpeedKmh && distFromKalman > 50.0) {
             return FilterResult.SuspiciousJumpRecheck(record)
@@ -144,7 +144,7 @@ class GpsLocationFilter(
 
         // 6. Apply 2D Kalman Filter Smoothing
         updateKalman(record.lat, record.lng, record.accuracy.toDouble())
-        lastProcessedTimeMs = now
+        lastAcceptedTimeMs = now
 
         // Add to rolling window
         recentLocations.add(Pair(record.lat, record.lng))
