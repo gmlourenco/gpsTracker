@@ -2,6 +2,7 @@ package com.segurancarural.gpstracker.util
 
 import android.content.Context
 import android.provider.Settings
+import androidx.core.content.edit
 import com.segurancarural.gpstracker.data.dto.DeviceConfigDto
 import java.util.UUID
 
